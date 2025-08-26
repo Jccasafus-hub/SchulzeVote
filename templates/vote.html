@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>Votar - SchulzeVote</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/service-worker.js');
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Cédula</h1>
+
+    <form id="ballotForm" method="post">
+      <div class="field">
+        <label for="voter_id">Identificador do eleitor (chave ou ID):</label>
+        <input required id="voter_id" name="voter_id" placeholder="ex.: CHAVE-123" />
+      </div>
+
+      <p>Defina a ordem de preferência. Números menores = mais preferido.  
+      <br><strong>Voto em Branco</strong> = indiferença total (bloqueia outras escolhas).  
+      <br><strong>Voto Nulo</strong> = rejeição a todos (bloqueia outras escolhas).</p>
+
+      <div class="grid">
+        {% for c in candidates %}
+        <div class="card">
+          <label>{{ c }}</label>
+          <input class="rank" type="number" min="1" step="1" inputmode="numeric" name="rank_{{ loop.index }}" data-candidate="{{ c }}" placeholder="rank" />
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="legend card">
+        <h2>Legenda de opções especiais</h2>
+        <ul>
+          <li><strong>Voto em Branco</strong>: indiferença por todos os candidatos (sem preferência).</li>
+          <li><strong>Voto Nulo</strong>: rejeição de todos os candidatos (protesto).</li>
+        </ul>
+      </div>
+
+      <button class="button" type="submit">Enviar voto</button>
+      <a class="button outline" href="/">Início</a>
+    </form>
+  </div>
+
+  <script>
+    // Regras:
+    // - Se "Voto em Branco" tiver rank preenchido -> ignora todos os outros
+    // - Se "Voto Nulo" tiver rank preenchido -> ignora todos os outros
+    // - Caso normal -> ordena candidatos por rank crescente e envia como inputs "ranking"
+    const form = document.getElementById('ballotForm');
+
+    form.addEventListener('submit', (e) => {
+      // Limpa ocultos anteriores
+      [...form.querySelectorAll('input[type=hidden][name=ranking]')].forEach(el => el.remove());
+
+      const rows = [...document.querySelectorAll('input.rank')];
+      const filled = rows
+        .map(r => ({ c: r.dataset.candidate, v: r.value ? parseInt(r.value, 10) : null }))
+        .filter(x => x.v !== null && !Number.isNaN(x.v));
+
+      const hasBlank = filled.some(x => x.c.toLowerCase().includes('voto em branco'));
+      const hasNull  = filled.some(x => x.c.toLowerCase().includes('voto nulo'));
+
+      let finalOrder = [];
+
+      if (hasBlank && hasNull) {
+        alert("Você não pode selecionar 'Voto em Branco' e 'Voto Nulo' juntos.");
+        e.preventDefault();
+        return;
+      }
+
+      if (hasBlank) {
+        finalOrder = ['Voto em Branco'];
+      } else if (hasNull) {
+        finalOrder = ['Voto Nulo'];
+      } else {
+        // Ordenação padrão (rank numérico crescente)
+        finalOrder = filled
+          .sort((a,b) => a.v - b.v)
+          .map(x => x.c);
+      }
+
+      // Gera inputs hidden na ordem final
+      finalOrder.forEach(val => {
+        const h = document.createElement('input');
+        h.type = 'hidden';
+        h.name = 'ranking';
+        h.value = val;
+        form.appendChild(h);
+      });
+    });
+  </script>
+</body>
+</html>
