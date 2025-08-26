@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>Verificar Recibo - SchulzeVote</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/service-worker.js');
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Verificar Recibo</h1>
+    <form method="post">
+      <div class="field">
+        <label for="receipt">Recibo:</label>
+        <input id="receipt" name="receipt" placeholder="Cole o código do recibo" required />
+      </div>
+      <button class="button" type="submit">Verificar</button>
+      <a class="button outline" href="/">Início</a>
+    </form>
+
+    {% if checked %}
+      {% if valid %}
+        <p class="ok">✅ Recibo válido: {{ receipt }}</p>
+      {% else %}
+        <p class="err">❌ Recibo inválido: {{ receipt }}</p>
+      {% endif %}
+    {% endif %}
+  </div>
+</body>
+</html>
