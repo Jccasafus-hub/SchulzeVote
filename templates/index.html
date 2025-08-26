@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>SchulzeVote</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/service-worker.js');
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>SchulzeVote</h1>
+    <p>Bem-vindo! Escolha uma opção:</p>
+    <div class="actions">
+      <a class="button" href="/vote">Votar</a>
+      <a class="button" href="/results">Resultados</a>
+      <a class="button" href="/verify">Verificar recibo</a>
+    </div>
+  </div>
+</body>
+</html>
