@@ -11,7 +11,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "changeme")
 # --- Configurações ---
 BALLOTS = {}         # cédulas
 VOTERS = {}          # quem já votou
-CANDIDATES = ["Alice", "Bob", "Charlie", "Voto em Branco", "Voto Nulo"]
+CANDIDATES = ["André", "Maeda", "Bia", "Gustavo Pedroso", "Voto em Branco", "Voto Nulo"]
 
 # --- Rotas ---
 @app.route("/")
