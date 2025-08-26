@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>Recibo - SchulzeVote</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/service-worker.js');
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Recibo de Voto</h1>
+    <p>Guarde este código para verificar seu voto:</p>
+    <pre class="receipt">{{ receipt }}</pre>
+    <div class="actions">
+      <a class="button" href="/verify">Verificar recibo</a>
+      <a class="button outline" href="/">Início</a>
+    </div>
+  </div>
+</body>
+</html>
