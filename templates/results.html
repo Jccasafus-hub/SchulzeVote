@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>Resultados - SchulzeVote</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/service-worker.js');
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Resultados (Schulze)</h1>
+    {% if ranking %}
+      <ol class="ranking">
+        {% for c in ranking %}
+          <li>{{ c }}</li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <p>Nenhum resultado disponível.</p>
+    {% endif %}
+    <a class="button" href="/">Início</a>
+  </div>
+</body>
+</html>
