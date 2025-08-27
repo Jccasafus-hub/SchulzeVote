@@ -14,23 +14,35 @@
     .sep { margin:14px 0; border-top:1px solid #e5e7eb; }
     input[type="number"] { width:100%; padding:6px 8px; border:1px solid #d1d5db; border-radius:8px; }
     input[disabled] { background:#f3f4f6; }
-    .warn { color:#b45309; margin-top:6px; }
-    .ok { color:#059669; margin-top:6px; }
-    .error { color:#b91c1c; margin-top:6px; }
-    .badge { display:inline-block; background:#eef2ff; color:#3730a3; padding:2px 8px; border-radius:999px; margin-left:6px; font-size:.85rem; }
+    .info { margin-top:6px; }
+    .ok { color:#059669; }
+    .note { color:#374151; }
+    /* Preview */
+    .preview { margin-top:14px; border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fafafa; }
+    .preview h3 { margin:0 0 8px 0; font-size:1.05rem; }
+    .tier { margin-bottom:8px; }
+    .tier b { display:inline-block; min-width:64px; }
+    .chip { display:inline-block; padding:4px 8px; margin:2px; background:#fff; border:1px solid #e5e7eb; border-radius:999px; }
+    .chip.special { background:#111827; color:#fff; border-color:#111827; }
+    .chip.special-null { background:#991b1b; color:#fff; border-color:#991b1b; }
+
+    .actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .button-secondary { background:#fff; color:#111827; border:1px solid #d1d5db; padding:8px 12px; border-radius:8px; cursor:pointer; }
+    .button-secondary:hover { background:#f9fafb; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Votação <span class="badge">preferências por número</span></h1>
+    <h1>Votação</h1>
 
     <form method="POST" id="voteForm">
       <label for="voter_id"><b>Sua chave de eleitor</b></label><br>
       <input type="text" id="voter_id" name="voter_id" required><br><br>
 
       <p class="muted">
-        Digite <b>1</b> para sua primeira preferência, <b>2</b> para a segunda, e assim por diante.
-        Você pode <b>deixar candidatos sem número</b>; eles irão para o <b>final</b> automaticamente (menos preferidos).
+        Digite <b>1</b> para sua primeira preferência, <b>2</b> para a segunda, etc.
+        Você pode usar <b>o mesmo número</b> para indicar <b>empate</b>.
+        Se deixar em branco, o candidato ficará <b>não ranqueado</b> (empatado em último).
       </p>
 
       <div class="grid hdr">
@@ -62,7 +74,13 @@
         {% endfor %}
       </div>
 
-      <div id="statusBox" class="muted" style="margin-top:8px;"></div>
+      <div id="statusBox" class="info note"></div>
+
+      <!-- PREVIEW AO VIVO -->
+      <div class="preview" id="livePreview" aria-live="polite" aria-atomic="true">
+        <h3>Pré-visualização da sua cédula</h3>
+        <div id="previewContent" class="muted">Comece a preencher os números ou selecione Branco/Nulo.</div>
+      </div>
 
       <div class="sep"></div>
 
@@ -77,34 +95,41 @@
         <input type="radio" name="special_vote" value="" checked> Nenhum (usarei os números acima)
       </label>
 
-      <!-- campo oculto onde o JS montará a ordem final -->
+      <!-- campo oculto opcional; o backend já lê cand_i/rank_i diretamente -->
       <div id="ranking-fields"></div>
 
       <br>
-      <button type="submit" class="button">Enviar voto</button>
+      <div class="actions">
+        <button type="submit" class="button">Enviar voto</button>
+        <button type="button" class="button-secondary" id="clearBtn" title="Zera todas as preferências e desmarca Branco/Nulo">
+          Limpar tudo
+        </button>
+      </div>
     </form>
   </div>
 
   <script>
     const form = document.getElementById("voteForm");
-    const fields = document.getElementById("ranking-fields");
     const rankInputs = Array.from(document.querySelectorAll(".rank-input"));
     const specialRadios = Array.from(document.querySelectorAll('input[name="special_vote"]'));
     const statusBox = document.getElementById("statusBox");
+    const previewContent = document.getElementById("previewContent");
+    const clearBtn = document.getElementById("clearBtn");
 
-    function getCandidates() {
-      const names = [];
+    function getRows() {
+      const rows = [];
       for (let i = 0; ; i++) {
-        const el = form.querySelector(`input[name="cand_${i}"]`);
-        if (!el) break;
-        names.push(el.value);
+        const candEl = form.querySelector(`input[name="cand_${i}"]`);
+        const rankEl = form.querySelector(`input[name="rank_${i}"]`);
+        if (!candEl || !rankEl) break;
+        rows.push({ cand: candEl.value, rankEl });
       }
-      return names;
+      return rows;
     }
 
     function setDisabledRanks(disabled) {
       rankInputs.forEach(inp => { inp.disabled = disabled; if (disabled) inp.value = ""; });
-      updateStatus(); // atualiza mensagens
+      updateStatusAndPreview();
     }
 
     function updateSpecialMode() {
@@ -116,144 +141,102 @@
       }
     }
     specialRadios.forEach(r => r.addEventListener("change", updateSpecialMode));
-    updateSpecialMode();
 
-    function buildRankingFromNumbers(allowPartial=true) {
-      const entries = [];
-      const blanks = [];
-      const dupMap = new Map(); // rank -> [cands]
-
-      for (let i = 0; ; i++) {
-        const nameEl = form.querySelector(`input[name="cand_${i}"]`);
-        const rankEl = form.querySelector(`input[name="rank_${i}"]`);
-        if (!nameEl || !rankEl) break;
-
-        const cand = nameEl.value;
-        const val  = rankEl.value.trim();
-
-        if (!val) {
-          if (!allowPartial) {
-            return { ok:false, msg:"Preencha todas as preferências (1, 2, 3, ...)." };
-          } else {
-            blanks.push(cand);
-            continue;
-          }
-        }
-        const n = Number(val);
-        if (!Number.isInteger(n) || n < 1) {
-          return { ok:false, msg:`Valor inválido para "${cand}". Use inteiros ≥ 1.` };
-        }
-        entries.push({ cand, rank: n });
-        const list = dupMap.get(n) || [];
-        list.push(cand);
-        dupMap.set(n, list);
-      }
-
-      // valida duplicatas se o eleitor NUMEROU algum candidato
-      const hasAnyNumber = entries.length > 0;
-      let duplicates = [];
-      for (const [r, lst] of dupMap.entries()) {
-        if (lst.length > 1) duplicates = duplicates.concat(lst.map(c => `${c} (nº ${r})`));
-      }
-      if (hasAnyNumber && duplicates.length > 0) {
-        return { ok:false, msg:"Números repetidos: " + duplicates.join(", ") };
-      }
-
-      // ordena por rank
-      entries.sort((a,b)=>a.rank-b.rank);
-
-      // não numerados vão para o final em ORDEM ALFABÉTICA,
-      // garantindo “Voto em Branco” acima de “Voto Nulo”, se existirem
-      const RESERVED_BLANK = "Voto em Branco";
-      const RESERVED_NULL  = "Voto Nulo";
-
-      const blanksCore = blanks.filter(c => c !== RESERVED_BLANK && c !== RESERVED_NULL)
-                               .sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:"base"}));
-      const addReserved = [];
-      if (blanks.includes(RESERVED_BLANK)) addReserved.push(RESERVED_BLANK);
-      if (blanks.includes(RESERVED_NULL))  addReserved.push(RESERVED_NULL);
-
-      const ranking = entries.map(e=>e.cand).concat(blanksCore, addReserved);
-      return { ok:true, ranking, info: { filled: entries.length, total: entries.length + blanks.length, blanks: blanks.length } };
-    }
-
-    function buildRankingSpecial(which) {
-      const all = getCandidates();
-      let pick = (which === "BLANK") ? "Voto em Branco" : "Voto Nulo";
-      if (!all.includes(pick)) {
-        return { ok:false, msg:`Opção especial "${pick}" não encontrada.` };
-      }
-      return { ok:true, ranking:[pick], info: { filled: 1, total: 1, blanks: 0 } };
-    }
-
-    function writeHiddenRanking(list) {
-      fields.innerHTML = "";
-      list.forEach(name => {
-        const inp = document.createElement("input");
-        inp.type = "hidden";
-        inp.name = "ranking";
-        inp.value = name;
-        fields.appendChild(inp);
-      });
-    }
-
-    function updateStatus() {
+    function updateStatusAndPreview() {
       const val = (specialRadios.find(r => r.checked) || {}).value || "";
       if (val === "BLANK" || val === "NULL") {
         statusBox.innerHTML = '<span class="ok">Modo especial selecionado. Os campos numéricos foram desativados.</span>';
+        const pick = (val === "BLANK") ? "Voto em Branco" : "Voto Nulo";
+        previewContent.innerHTML = `
+          <div class="tier"><b>Selecionado:</b>
+            <span class="chip ${val === 'BLANK' ? 'special' : 'special-null'}">${pick}</span>
+          </div>`;
         return;
       }
 
-      // modo normal (numérico)
-      const entries = [];
-      const filledRanks = new Set();
-      let total = 0, filled = 0, dupCount = 0;
+      // Modo normal
+      const rows = getRows();
+      let total = rows.length, filled = 0;
+      const groups = new Map(); // rank(str) -> [cands]
+      const unranked = [];
 
-      for (let i = 0; ; i++) {
-        const nameEl = form.querySelector(`input[name="cand_${i}"]`);
-        const rankEl = form.querySelector(`input[name="rank_${i}"]`);
-        if (!nameEl || !rankEl) break;
-        total++;
-        const val = rankEl.value.trim();
-        if (val) {
+      for (const {cand, rankEl} of rows) {
+        const v = (rankEl.value || "").trim();
+        if (v) {
           filled++;
-          if (filledRanks.has(val)) dupCount++;
-          filledRanks.add(val);
+          const g = groups.get(v) || [];
+          g.push(cand);
+          groups.set(v, g);
+        } else {
+          unranked.push(cand);
         }
       }
 
-      if (dupCount > 0) {
-        statusBox.innerHTML = '<span class="warn">Atenção: há números repetidos.</span>';
-      } else if (filled === 0) {
-        statusBox.innerHTML = '<span class="muted">Você pode numerar alguns candidatos e deixar outros em branco (eles irão para o final).</span>';
-      } else {
-        const missing = total - filled;
-        if (missing === 0) {
-          statusBox.innerHTML = '<span class="ok">Tudo preenchido. Sem duplicatas.</span>';
-        } else {
-          statusBox.innerHTML = `<span class="muted">Faltam ${missing} candidato(s) sem número. Eles irão para o final automaticamente.</span>`;
-        }
+      const blanks = total - filled;
+      statusBox.textContent = `Preenchidos: ${filled} • Em branco: ${blanks} • Empates permitidos (números iguais).`;
+
+      // Monta preview: ranks em ordem crescente (numérica), cada rank na sua tier.
+      const rankKeys = Array.from(groups.keys())
+        .map(k => Number(k))
+        .filter(n => Number.isFinite(n) && n >= 1)
+        .sort((a,b) => a - b)
+        .map(n => String(n));
+
+      let html = "";
+      for (const rk of rankKeys) {
+        const items = groups.get(rk) || [];
+        items.sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:"base"}));
+        html += `<div class="tier"><b>#${rk}:</b> `;
+        html += items.map(c => chip(c)).join(" ");
+        html += `</div>`;
       }
+
+      // Grupo final: não ranqueados (empatados em último)
+      if (unranked.length > 0) {
+        const hasBlank = unranked.includes("Voto em Branco");
+        const hasNull  = unranked.includes("Voto Nulo");
+        const core = unranked.filter(c => c !== "Voto em Branco" && c !== "Voto Nulo")
+                             .sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:"base"}));
+
+        let tail = [];
+        if (hasBlank) tail.push("Voto em Branco");
+        if (hasNull)  tail.push("Voto Nulo");
+
+        const finalList = core.concat(tail);
+        html += `<div class="tier"><b>Não ranqueados:</b> `;
+        html += finalList.map(c => chip(c)).join(" ");
+        html += `</div>`;
+      }
+
+      previewContent.innerHTML = html || `<span class="muted">Comece a preencher os números ou selecione Branco/Nulo.</span>`;
     }
 
-    rankInputs.forEach(inp => inp.addEventListener("input", updateStatus));
-    updateStatus();
+    function chip(name) {
+      if (name === "Voto em Branco") return `<span class="chip special">${name}</span>`;
+      if (name === "Voto Nulo") return `<span class="chip special-null">${name}</span>`;
+      return `<span class="chip">${name}</span>`;
+    }
 
-    form.addEventListener("submit", (e) => {
-      const choice = (specialRadios.find(r => r.checked) || {}).value || "";
-      let res;
-      if (choice === "BLANK" || choice === "NULL") {
-        res = buildRankingSpecial(choice);
-      } else {
-        res = buildRankingFromNumbers(true); // aceita ranking parcial
-      }
-      if (!res.ok) {
-        e.preventDefault();
-        alert(res.msg);
-        return;
-      }
-      writeHiddenRanking(res.ranking);
-    });
+    // Botão LIMPAR TUDO (com confirmação)
+    function clearAll() {
+      const ok = window.confirm("Tem certeza que deseja limpar todas as preferências e desmarcar Branco/Nulo?");
+      if (!ok) return;
+
+      // limpa números
+      rankInputs.forEach(inp => { inp.value = ""; inp.disabled = false; });
+      // desmarca Branco/Nulo e deixa "Nenhum" ativo
+      const noneRadio = specialRadios.find(r => r.value === "");
+      specialRadios.forEach(r => r.checked = false);
+      if (noneRadio) noneRadio.checked = true;
+      updateStatusAndPreview();
+      // foca no primeiro campo numérico (se existir)
+      if (rankInputs.length > 0) rankInputs[0].focus();
+    }
+    clearBtn.addEventListener("click", clearAll);
+
+    // Inicializa
+    updateSpecialMode();
+    updateStatusAndPreview();
   </script>
 </body>
 </html>
