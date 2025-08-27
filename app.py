@@ -135,6 +135,22 @@ def admin_generate_keys():
     save_keys(d)
     # retorna texto simples para copiar/colar/distribuir
     return Response("\n".join(out), mimetype="text/plain")
+    @app.route("/admin/download_keys")
+def download_keys():
+    if not require_admin(request):
+        abort(403)
+
+    if not os.path.exists(VOTER_KEYS_FILE):
+        return Response("{}", mimetype="application/json")
+
+    with open(VOTER_KEYS_FILE, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    return Response(
+        content,
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment;filename=voter_keys.json"}
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)
