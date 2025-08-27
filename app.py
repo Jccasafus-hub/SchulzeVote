@@ -135,11 +135,15 @@ def admin_generate_keys():
     save_keys(d)
     # retorna texto simples para copiar/colar/distribuir
     return Response("\n".join(out), mimetype="text/plain")
-    @app.route("/admin/download_keys")
+    )
+ # --- Rota ADMIN: baixar o voter_keys.json ---
+@app.route("/admin/download_keys")
 def download_keys():
+    # Usa o mesmo guard das outras rotas admin
     if not require_admin(request):
         abort(403)
 
+    # Lê o arquivo de chaves; se não existir ainda, devolve JSON vazio
     if not os.path.exists(VOTER_KEYS_FILE):
         return Response("{}", mimetype="application/json")
 
@@ -149,8 +153,7 @@ def download_keys():
     return Response(
         content,
         mimetype="application/json",
-        headers={"Content-Disposition": "attachment;filename=voter_keys.json"}
-    )
-
+        headers={"Content-Disposition": "attachment; filename=voter_keys.json"}
+    )  
 if __name__ == "__main__":
     app.run(debug=True)
