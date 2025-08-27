@@ -1,5 +1,7 @@
 import os, json, uuid, secrets, string, hashlib, copy
 from collections import defaultdict
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, abort
 
 from audit import log_vote, verify_receipt
@@ -9,11 +11,12 @@ app = Flask(__name__)
 # Segredo de sessão do Flask (defina SECRET_KEY no Render)
 app.secret_key = os.environ.get("SECRET_KEY", "changeme")
 
-# ---------------- Configurações/Arquivos ----------------
-CAND_FILE       = "candidates.json"   # candidatos configuráveis
-VOTER_KEYS_FILE = "voter_keys.json"   # chaves e atributos
+# ---------------- Arquivos ----------------
+CAND_FILE        = "candidates.json"   # candidatos configuráveis
+VOTER_KEYS_FILE  = "voter_keys.json"   # chaves e atributos
+ELECTION_FILE    = "election.json"     # guarda o prazo de encerramento (UTC)
 
-# Segredos (defina no Render → Environment Variables)
+# ---------------- Segredos (Render → Environment Variables) ----------------
 ID_SALT      = os.environ.get("ID_SALT", "mude-este-salt")     # SALT para anonimato dos eleitores
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "troque-admin")  # protege rotas /admin
 
@@ -33,16 +36,49 @@ def require_admin(req):
     token = req.args.get("secret") or req.headers.get("X-Admin-Secret")
     return (ADMIN_SECRET and token == ADMIN_SECRET)
 
+# ---------------- Prazo de votação (deadline) ----------------
+def load_deadline():
+    """Lê o prazo (UTC) do arquivo election.json. Retorna datetime aware em UTC ou None."""
+    if not os.path.exists(ELECTION_FILE):
+        return None
+    try:
+        with open(ELECTION_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        iso = data.get("deadline_utc")
+        if not iso:
+            return None
+        return datetime.fromisoformat(iso)
+    except Exception:
+        return None
+
+def save_deadline(dt_utc: datetime | None):
+    """Salva o prazo (UTC) em election.json. Se None, limpa."""
+    if dt_utc is None:
+        clear_deadline()
+        return
+    data = {"deadline_utc": dt_utc.astimezone(timezone.utc).isoformat()}
+    with open(ELECTION_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def clear_deadline():
+    with open(ELECTION_FILE, "w", encoding="utf-8") as f:
+        json.dump({"deadline_utc": None}, f, ensure_ascii=False, indent=2)
+
+def is_voting_open() -> bool:
+    """Retorna True se não houver prazo definido ou se agora (UTC) < deadline."""
+    dl = load_deadline()
+    if dl is None:
+        return True
+    now = datetime.now(timezone.utc)
+    return now < dl
+
 # ---------------- Candidatos: carregar/salvar/normalizar ----------------
 def _default_candidates():
     base = ["Alice", "Bob", "Charlie"]
     return base + [RESERVED_BLANK, RESERVED_NULL]
 
 def _squash_spaces(name: str) -> str:
-    """
-    Remove espaços nas bordas e compacta múltiplos espaços internos:
-    "  João   da   Silva  " -> "João da Silva"
-    """
+    """Remove espaços nas bordas e compacta múltiplos espaços internos."""
     return " ".join((name or "").strip().split())
 
 def normalize_candidates(user_list):
@@ -50,7 +86,7 @@ def normalize_candidates(user_list):
     - Remove vazios.
     - Compacta espaços internos e remove bordas.
     - Remove duplicados ignorando maiúsc./minúsc. (preserva a 1ª grafia vista).
-    - Ignora tentativas de incluir Branco/Nulo (mesmo com variações de caixa/acentuação).
+    - Ignora tentativas de incluir Branco/Nulo (mesmo com variações).
     - Garante reservados no final: Branco acima de Nulo.
     """
     def is_reserved(name: str) -> bool:
@@ -123,10 +159,7 @@ def save_keys(d):
     with open(VOTER_KEYS_FILE, "w", encoding="utf-8") as f:
         json.dump(d, f, ensure_ascii=False, indent=2)
 
-# Memória dos votos desta execução (hash_da_chave -> {"ranking":[...], "peso":int})
-BALLOTS = {}
-
-# ---------- Cálculo de auditoria (pairwise e strength) ----------
+# ---------------- Auditoria (pairwise e strength) ----------------
 def compute_pairwise_and_strength(ballots_with_weights, candidates):
     """
     Retorna:
@@ -179,6 +212,14 @@ def index():
 
 @app.route("/vote", methods=["GET", "POST"])
 def vote():
+    # Bloqueia se prazo expirou (GET e POST)
+    if not is_voting_open():
+        return Response(
+            "<h2>Votação encerrada</h2><p>O prazo para votar já expirou.</p><p><a href='/'>Voltar</a></p>",
+            mimetype="text/html",
+            status=403
+        )
+
     if request.method == "POST":
         voter_key = norm(request.form.get("voter_id", ""))
         if not voter_key:
@@ -335,73 +376,255 @@ def download_keys():
         headers={"Content-Disposition": "attachment; filename=voter_keys.json"}
     )
 
-# ---------------- Rotas ADMIN: candidatos ----------------
+# ---------------- Painel ADMIN unificado (Candidatos + Prazo c/ detecção de fuso) ----------------
 @app.route("/admin/candidates", methods=["GET", "POST"])
 def admin_candidates():
     """
-    Interface simples para editar candidatos:
-    - GET: mostra textarea com um candidato por linha (exceto reservados)
-    - POST: salva mudanças; reservados são sempre recolocados ao final
+    Painel unificado:
+    - Editar candidatos (textarea, um por linha; Branco/Nulo são fixos no fim)
+    - Definir ou limpar prazo de votação (data/hora em TZ; salva em UTC)
+    - Detecta automaticamente o fuso do navegador (via JS) e pré-seleciona no formulário
     """
-    if not require_admin(request): abort(403)
+    if not require_admin(request):
+        abort(403)
+
+    msg = None
+    warn = None
 
     if request.method == "POST":
-        raw = request.form.get("lista", "")
-        # Quebra linhas, compacta espaços e salva
-        lines = [_squash_spaces(ln) for ln in raw.splitlines()]
-        new_list = save_candidates(lines)
-        return _render_admin_candidates(new_list, saved=True)
+        action = request.form.get("action", "")
+        tz_s   = (request.form.get("tz") or "America/Sao_Paulo").strip()
+        if action == "save_candidates":
+            raw = request.form.get("lista", "")
+            lines = [_squash_spaces(ln) for ln in raw.splitlines()]
+            new_list = save_candidates(lines)
+            msg = "Candidatos salvos com sucesso."
+            return _render_admin_candidates(new_list, msg=msg, warn=warn, tz_default=tz_s)
 
+        elif action == "set_deadline":
+            date_s = (request.form.get("date") or "").strip()
+            time_s = (request.form.get("time") or "").strip()
+            if not date_s or not time_s:
+                warn = "Preencha data e hora para definir o prazo."
+                current = load_candidates()
+                return _render_admin_candidates(current, msg=msg, warn=warn, tz_default=tz_s)
+
+            try:
+                local_tz = ZoneInfo(tz_s)
+                y, m, d = [int(x) for x in date_s.split("-")]
+                hh, mm  = [int(x) for x in time_s.split(":")]
+                local_dt = datetime(y, m, d, hh, mm, tzinfo=local_tz)
+                save_deadline(local_dt.astimezone(timezone.utc))
+                msg = "Prazo definido com sucesso."
+            except Exception as e:
+                warn = f"Erro ao definir prazo: {e}"
+
+            current = load_candidates()
+            return _render_admin_candidates(current, msg=msg, warn=warn, tz_default=tz_s)
+
+        elif action == "clear_deadline":
+            clear_deadline()
+            msg = "Prazo de votação removido."
+            current = load_candidates()
+            return _render_admin_candidates(current, msg=msg, warn=warn)
+
+        elif action == "set_browser_tz":
+            # Vem de um post transparente do JS com o fuso detectado
+            tz_s = (request.form.get("browser_tz") or "America/Sao_Paulo").strip()
+            current = load_candidates()
+            return _render_admin_candidates(current, msg=None, warn=None, tz_default=tz_s)
+
+        # Ação desconhecida
+        warn = "Ação inválida."
+        current = load_candidates()
+        return _render_admin_candidates(current, msg=msg, warn=warn)
+
+    # GET
     current = load_candidates()
-    return _render_admin_candidates(current, saved=False)
+    return _render_admin_candidates(current)
 
-def _render_admin_candidates(current, saved=False):
+def _render_admin_candidates(current, msg=None, warn=None, tz_default="America/Sao_Paulo"):
+    # Parte de candidatos (não mostra os reservados na textarea)
     core = [c for c in current if c not in (RESERVED_BLANK, RESERVED_NULL)]
     core_text = "\n".join(core)
-    msg = "<p style='color:green;'>Salvo com sucesso.</p>" if saved else ""
+
+    # Parte do prazo (apresenta em UTC e convertido para o TZ atual do formulário)
+    dl_utc = load_deadline()
+    if dl_utc:
+        try:
+            local_tz = ZoneInfo(tz_default)
+        except Exception:
+            local_tz = ZoneInfo("America/Sao_Paulo")
+        dl_local = dl_utc.astimezone(local_tz)
+        deadline_html = (
+            f"<p><b>Prazo atual:</b> "
+            f"{dl_local.strftime('%d/%m/%Y %H:%M')} {tz_default} "
+            f"(<code>{dl_utc.strftime('%Y-%m-%d %H:%M UTC')}</code>)</p>"
+        )
+    else:
+        deadline_html = "<p><i>Nenhum prazo definido (votação aberta).</i></p>"
+
+    status_html = ""
+    if msg:  status_html += f"<p style='color:green'>{msg}</p>"
+    if warn: status_html += f"<p style='color:#b45309'>{warn}</p>"
+
+    # Lista de fusos (comuns no Brasil + UTC)
+    tz_options = [
+        "America/Sao_Paulo",
+        "America/Bahia",
+        "America/Fortaleza",
+        "America/Recife",
+        "America/Maceio",
+        "America/Manaus",
+        "America/Belem",
+        "America/Boa_Vista",
+        "America/Porto_Velho",
+        "America/Cuiaba",
+        "America/Campo_Grande",
+        "America/Noronha",
+        "UTC"
+    ]
+
+    # HTML do painel
     html = f"""
     <!doctype html>
     <html lang="pt-BR">
       <head>
         <meta charset="utf-8">
-        <title>Admin · Candidatos</title>
+        <title>Admin · Candidatos & Prazo</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <style>
-          body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; padding: 24px; }}
-          textarea {{ width: 100%; min-height: 220px; font-family: inherit; font-size: 15px; }}
-          .info {{ color:#444; background:#f6f7f9; padding: 10px 12px; border-radius: 6px; }}
-          .foot {{ margin-top: 14px; color:#666; }}
+          body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; padding: 24px; line-height:1.45; }}
+          .grid {{ display:grid; gap:24px; grid-template-columns: 1fr; }}
+          @media (min-width: 920px) {{ .grid {{ grid-template-columns: 1fr 1fr; }} }}
+          .card {{ border:1px solid #e5e7eb; border-radius:12px; padding:16px; background:#fff; }}
+          .title {{ margin:0 0 8px 0; }}
+          .info {{ color:#444; background:#f6f7f9; padding:10px 12px; border-radius:6px; }}
+          textarea {{ width: 100%; min-height: 240px; font: inherit; }}
+          input[type="text"], input[type="date"], input[type="time"], select {{ width:100%; padding:8px; border:1px solid #d1d5db; border-radius:8px; }}
+          .row {{ display:flex; gap:10px; }}
+          .row > div {{ flex:1; }}
           .btn {{ background:#111827; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; }}
-          .btn:hover {{ opacity:.9; }}
-          code {{ background:#f3f4f6; padding:2px 6px; border-radius:4px; }}
+          .btn:hover {{ opacity:.92; }}
+          .btn-outline {{ background:#fff; color:#111827; border:1px solid #111827; }}
+          .muted {{ color:#6b7280; }}
           .tag {{ display:inline-block; background:#eef2ff; color:#3730a3; padding:2px 8px; border-radius:999px; margin-left:6px; font-size:.85rem; }}
+          .status {{ margin: 6px 0 12px 0; }}
         </style>
       </head>
       <body>
-        <h1>Gerenciar candidatos <span class="tag">admin</span></h1>
-        {msg}
-        <div class="info">
-          <p>Edite os <b>candidatos</b> colocando <b>um por linha</b>. Não inclua os especiais:
-          <b>{RESERVED_BLANK}</b> e <b>{RESERVED_NULL}</b> — eles serão adicionados automaticamente no final
-          (Branco acima do Nulo) e não podem ser removidos.</p>
+        <h1 class="title">Painel administrativo <span class="tag">protegido</span></h1>
+        <div class="status">{status_html}</div>
+
+        <div class="grid">
+
+          <!-- Card CANDIDATOS -->
+          <section class="card">
+            <h2 class="title">Candidatos</h2>
+            <div class="info">
+              <p>Edite os candidatos com <b>um por linha</b>. Não inclua os especiais:
+              <b>{RESERVED_BLANK}</b> e <b>{RESERVED_NULL}</b> — eles são fixos e sempre aparecem no final.</p>
+            </div>
+
+            <form method="POST">
+              <input type="hidden" name="action" value="save_candidates" />
+              <label for="lista"><b>Lista de candidatos</b></label><br/>
+              <textarea id="lista" name="lista" placeholder="Ex.:&#10;Candidato A&#10;Candidato B&#10;Candidato C">{'\n'.join(core)}</textarea>
+              <div style="margin-top:10px;">
+                <button class="btn" type="submit">Salvar candidatos</button>
+              </div>
+            </form>
+
+            <h3 style="margin-top:16px;">Ordem final aplicada:</h3>
+            <ul class="muted">
+              {"".join(f"<li>{c}</li>" for c in core)}
+              <li><i>{RESERVED_BLANK}</i> (fixo)</li>
+              <li><i>{RESERVED_NULL}</i> (fixo)</li>
+            </ul>
+          </section>
+
+          <!-- Card PRAZO -->
+          <section class="card">
+            <h2 class="title">Prazo de votação</h2>
+            {deadline_html}
+
+            <form method="POST" id="deadlineForm" style="margin-top:8px;">
+              <input type="hidden" name="action" value="set_deadline" />
+
+              <div class="row">
+                <div>
+                  <label for="date"><b>Data</b></label>
+                  <input id="date" name="date" type="date" />
+                </div>
+                <div>
+                  <label for="time"><b>Hora</b></label>
+                  <input id="time" name="time" type="time" />
+                </div>
+              </div>
+
+              <div style="margin-top:8px;">
+                <label for="tz"><b>Fuso horário</b></label>
+                <select id="tz" name="tz">
+                  {"".join(f'<option value="{tz}" ' + ('selected' if tz==tz_default else '') + f'>{tz}</option>' for tz in tz_options)}
+                </select>
+              </div>
+
+              <div style="margin-top:10px; display:flex; gap:8px;">
+                <button class="btn" type="submit">Definir prazo</button>
+                <button class="btn btn-outline" type="submit" form="clearForm">Limpar prazo</button>
+              </div>
+
+              <p class="muted" style="margin-top:8px;">
+                O prazo é salvo em UTC; aqui você define em um fuso local e o sistema converte automaticamente.
+              </p>
+            </form>
+
+            <form method="POST" id="clearForm" style="display:none;">
+              <input type="hidden" name="action" value="clear_deadline" />
+            </form>
+
+            <!-- Form invisível para informar o fuso do navegador ao servidor -->
+            <form method="POST" id="tzDetectForm" style="display:none;">
+              <input type="hidden" name="action" value="set_browser_tz" />
+              <input type="hidden" name="browser_tz" id="browser_tz" value="">
+            </form>
+          </section>
+
         </div>
 
-        <form method="POST">
-          <label for="lista"><b>Candidatos (um por linha)</b></label><br/>
-          <textarea id="lista" name="lista" placeholder="Ex.:&#10;Candidato A&#10;Candidato B&#10;Candidato C">{core_text}</textarea>
-          <div class="foot">
-            <button class="btn" type="submit">Salvar</button>
-          </div>
-        </form>
+        <p style="margin-top:18px;"><a href="/">Voltar ao início</a></p>
 
-        <h3>Como ficará a lista final:</h3>
-        <ul>
-          {"".join(f"<li>{c}</li>" for c in core)}
-          <li><i>{RESERVED_BLANK}</i> (fixo)</li>
-          <li><i>{RESERVED_NULL}</i> (fixo)</li>
-        </ul>
-
-        <p class="foot"><a href="/">Voltar ao início</a></p>
+        <script>
+          // Detecta o fuso do navegador (IANA) e envia uma vez ao servidor
+          (function() {{
+            try {{
+              var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+              if (tz) {{
+                var sel = document.getElementById("tz");
+                // Se o fuso detectado existir na lista, seleciona-o
+                if (sel) {{
+                  for (var i=0; i<sel.options.length; i++) {{
+                    if (sel.options[i].value === tz) {{
+                      sel.selectedIndex = i;
+                      break;
+                    }}
+                  }}
+                }}
+                // Envia ao servidor para manter como padrão no render
+                var f = document.getElementById("tzDetectForm");
+                if (f) {{
+                  document.getElementById("browser_tz").value = tz;
+                  // Faz um post leve, sem redirecionar (usa fetch)
+                  fetch(window.location.href, {{
+                    method: "POST",
+                    headers: {{ "Content-Type": "application/x-www-form-urlencoded" }},
+                    body: "action=set_browser_tz&browser_tz=" + encodeURIComponent(tz) + "&secret={request.args.get('secret','')}"
+                  }}).catch(function(e){{ /* ignore */ }});
+                }}
+              }}
+            }} catch(e) {{ /* ignore */ }}
+          }})();
+        </script>
       </body>
     </html>
     """
