@@ -1,30 +1,27 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8" />
   <title>Resultados - SchulzeVote</title>
-  <link rel="stylesheet" href="/static/style.css">
-  <link rel="manifest" href="/static/manifest.json">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/static/service-worker.js');
-    }
-  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <div class="container">
-    <h1>Resultados (Schulze)</h1>
-    {% if ranking %}
+    <h1>Resultados (Método de Schulze)</h1>
+
+    {% if empty %}
+      <p>Nenhum voto computado ainda.</p>
+    {% else %}
+      <p><strong>Total de votos ponderados:</strong> {{ total_votos }}</p>
+
       <ol class="ranking">
-        {% for c in ranking %}
-          <li>{{ c }}</li>
+        {% for candidato in ranking %}
+          <li>{{ candidato }}</li>
         {% endfor %}
       </ol>
-    {% else %}
-      <p>Nenhum resultado disponível.</p>
     {% endif %}
-    <a class="button" href="/">Início</a>
+
+    <a class="button" href="{{ url_for('index') }}">Início</a>
   </div>
 </body>
 </html>
