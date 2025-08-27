@@ -1,26 +1,60 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<<!doctype html>
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <title>SchulzeVote</title>
-  <link rel="stylesheet" href="/static/style.css">
-  <link rel="manifest" href="/static/manifest.json">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/static/service-worker.js');
-    }
-  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .card { border:1px solid #e5e7eb; border-radius:12px; padding:16px; margin:12px 0; background:#fff; }
+    .btn { display:inline-block; padding:10px 14px; border-radius:8px; border:1px solid #111827; text-decoration:none; }
+    .btn-dark { background:#111827; color:#fff; border-color:#111827; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>SchulzeVote</h1>
-    <p>Bem-vindo! Escolha uma opção:</p>
-    <div class="actions">
-      <a class="button" href="/vote">Votar</a>
-      <a class="button" href="/results">Resultados</a>
-      <a class="button" href="/verify">Verificar recibo</a>
+
+    <div class="card">
+      <h2>Votar</h2>
+      <p>Para votar, entre com seu <b>usuário</b> e <b>senha</b> e use sua <b>chave de votação</b>.</p>
+      <div class="row">
+        <a class="btn btn-dark" href="{{ url_for('login') }}">Entrar para votar</a>
+        <a class="btn" href="{{ url_for('register') }}">Cadastrar senha (1ª vez)</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Resultados & Auditoria (público)</h2>
+      <div class="row" style="margin-bottom:10px;">
+        <a class="btn btn-dark" href="{{ url_for('results') }}">Resultados da votação atual</a>
+        <a class="btn" href="/public/{{ get_current_election_id() }}/audit">Auditoria da votação atual</a>
+        <a class="btn" href="/public/elections">Ver todas as votações</a>
+      </div>
+
+      <form onsubmit="return goToElection();">
+        <label for="eid"><b>Acessar votação específica (EID)</b></label><br>
+        <input id="eid" type="text" placeholder="Ex.: 2025-TurmaA" required>
+        <div class="row" style="margin-top:8px;">
+          <button type="button" class="btn btn-dark" onclick="goTo('results')">Ver resultados</button>
+          <button type="button" class="btn" onclick="goTo('audit')">Ver auditoria</button>
+        </div>
+      </form>
     </div>
   </div>
+
+  <script>
+    function eidValue(){
+      var v = document.getElementById('eid').value.trim();
+      if(!v){ alert('Informe o EID.'); return null; }
+      return encodeURIComponent(v);
+    }
+    function goTo(which){
+      const v = eidValue(); if(!v) return;
+      const url = (which === 'results') ? `/public/${v}/results` : `/public/${v}/audit`;
+      window.location.href = url;
+    }
+    function goToElection(){ goTo('results'); return false; }
+  </script>
 </body>
 </html>
