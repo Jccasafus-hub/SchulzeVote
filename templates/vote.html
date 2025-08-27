@@ -14,17 +14,24 @@
     .sep { margin:14px 0; border-top:1px solid #e5e7eb; }
     input[type="number"] { width:100%; padding:6px 8px; border:1px solid #d1d5db; border-radius:8px; }
     input[disabled] { background:#f3f4f6; }
+    .warn { color:#b45309; margin-top:6px; }
+    .ok { color:#059669; margin-top:6px; }
+    .error { color:#b91c1c; margin-top:6px; }
+    .badge { display:inline-block; background:#eef2ff; color:#3730a3; padding:2px 8px; border-radius:999px; margin-left:6px; font-size:.85rem; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Votação</h1>
+    <h1>Votação <span class="badge">preferências por número</span></h1>
 
     <form method="POST" id="voteForm">
       <label for="voter_id"><b>Sua chave de eleitor</b></label><br>
       <input type="text" id="voter_id" name="voter_id" required><br><br>
 
-      <p class="muted">Digite <b>1</b> para sua primeira preferência, <b>2</b> para a segunda, e assim por diante. Não repita números.</p>
+      <p class="muted">
+        Digite <b>1</b> para sua primeira preferência, <b>2</b> para a segunda, e assim por diante.
+        Você pode <b>deixar candidatos sem número</b>; eles irão para o <b>final</b> automaticamente (menos preferidos).
+      </p>
 
       <div class="grid hdr">
         <div>Candidato</div>
@@ -55,6 +62,8 @@
         {% endfor %}
       </div>
 
+      <div id="statusBox" class="muted" style="margin-top:8px;"></div>
+
       <div class="sep"></div>
 
       <p><b>Atalho:</b> você pode marcar um destes e ignorar os números acima:</p>
@@ -81,6 +90,7 @@
     const fields = document.getElementById("ranking-fields");
     const rankInputs = Array.from(document.querySelectorAll(".rank-input"));
     const specialRadios = Array.from(document.querySelectorAll('input[name="special_vote"]'));
+    const statusBox = document.getElementById("statusBox");
 
     function getCandidates() {
       const names = [];
@@ -94,6 +104,7 @@
 
     function setDisabledRanks(disabled) {
       rankInputs.forEach(inp => { inp.disabled = disabled; if (disabled) inp.value = ""; });
+      updateStatus(); // atualiza mensagens
     }
 
     function updateSpecialMode() {
@@ -104,42 +115,66 @@
         setDisabledRanks(false);
       }
     }
-
     specialRadios.forEach(r => r.addEventListener("change", updateSpecialMode));
     updateSpecialMode();
 
-    function buildRankingFromNumbers() {
-      // Lê { índice -> (nome, rank) }, valida unicidade e sequência 1..N
+    function buildRankingFromNumbers(allowPartial=true) {
       const entries = [];
+      const blanks = [];
+      const dupMap = new Map(); // rank -> [cands]
+
       for (let i = 0; ; i++) {
         const nameEl = form.querySelector(`input[name="cand_${i}"]`);
         const rankEl = form.querySelector(`input[name="rank_${i}"]`);
         if (!nameEl || !rankEl) break;
+
         const cand = nameEl.value;
-        const val = rankEl.value.trim();
-        if (!val) return { ok:false, msg:"Preencha todas as preferências (1, 2, 3, ...)." };
+        const val  = rankEl.value.trim();
+
+        if (!val) {
+          if (!allowPartial) {
+            return { ok:false, msg:"Preencha todas as preferências (1, 2, 3, ...)." };
+          } else {
+            blanks.push(cand);
+            continue;
+          }
+        }
         const n = Number(val);
         if (!Number.isInteger(n) || n < 1) {
           return { ok:false, msg:`Valor inválido para "${cand}". Use inteiros ≥ 1.` };
         }
-        entries.push({ cand, rank:n });
+        entries.push({ cand, rank: n });
+        const list = dupMap.get(n) || [];
+        list.push(cand);
+        dupMap.set(n, list);
       }
 
-      // Verifica duplicatas e sequência
-      const ranks = entries.map(e => e.rank);
-      const maxRank = Math.max(...ranks);
-      const expected = new Set(Array.from({length: entries.length}, (_,k)=>k+1));
-      const got = new Set(ranks);
-      if (got.size !== ranks.length) {
-        return { ok:false, msg:"Não repita números: cada preferência deve ser única." };
+      // valida duplicatas se o eleitor NUMEROU algum candidato
+      const hasAnyNumber = entries.length > 0;
+      let duplicates = [];
+      for (const [r, lst] of dupMap.entries()) {
+        if (lst.length > 1) duplicates = duplicates.concat(lst.map(c => `${c} (nº ${r})`));
       }
-      if (maxRank !== entries.length || ranks.some(r => r < 1 || r > entries.length)) {
-        return { ok:false, msg:`Use 1 até ${entries.length}, sem pular números.` };
+      if (hasAnyNumber && duplicates.length > 0) {
+        return { ok:false, msg:"Números repetidos: " + duplicates.join(", ") };
       }
 
-      // Ordena por rank e devolve a lista de nomes
+      // ordena por rank
       entries.sort((a,b)=>a.rank-b.rank);
-      return { ok:true, ranking: entries.map(e=>e.cand) };
+
+      // não numerados vão para o final em ORDEM ALFABÉTICA,
+      // garantindo “Voto em Branco” acima de “Voto Nulo”, se existirem
+      const RESERVED_BLANK = "Voto em Branco";
+      const RESERVED_NULL  = "Voto Nulo";
+
+      const blanksCore = blanks.filter(c => c !== RESERVED_BLANK && c !== RESERVED_NULL)
+                               .sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:"base"}));
+      const addReserved = [];
+      if (blanks.includes(RESERVED_BLANK)) addReserved.push(RESERVED_BLANK);
+      if (blanks.includes(RESERVED_NULL))  addReserved.push(RESERVED_NULL);
+
+      const ranking = entries.map(e=>e.cand).concat(blanksCore, addReserved);
+      return { ok:true, ranking, info: { filled: entries.length, total: entries.length + blanks.length, blanks: blanks.length } };
     }
 
     function buildRankingSpecial(which) {
@@ -148,8 +183,7 @@
       if (!all.includes(pick)) {
         return { ok:false, msg:`Opção especial "${pick}" não encontrada.` };
       }
-      // Ranking com um único item (especial) — o backend aceita
-      return { ok:true, ranking:[pick] };
+      return { ok:true, ranking:[pick], info: { filled: 1, total: 1, blanks: 0 } };
     }
 
     function writeHiddenRanking(list) {
@@ -163,14 +197,55 @@
       });
     }
 
+    function updateStatus() {
+      const val = (specialRadios.find(r => r.checked) || {}).value || "";
+      if (val === "BLANK" || val === "NULL") {
+        statusBox.innerHTML = '<span class="ok">Modo especial selecionado. Os campos numéricos foram desativados.</span>';
+        return;
+      }
+
+      // modo normal (numérico)
+      const entries = [];
+      const filledRanks = new Set();
+      let total = 0, filled = 0, dupCount = 0;
+
+      for (let i = 0; ; i++) {
+        const nameEl = form.querySelector(`input[name="cand_${i}"]`);
+        const rankEl = form.querySelector(`input[name="rank_${i}"]`);
+        if (!nameEl || !rankEl) break;
+        total++;
+        const val = rankEl.value.trim();
+        if (val) {
+          filled++;
+          if (filledRanks.has(val)) dupCount++;
+          filledRanks.add(val);
+        }
+      }
+
+      if (dupCount > 0) {
+        statusBox.innerHTML = '<span class="warn">Atenção: há números repetidos.</span>';
+      } else if (filled === 0) {
+        statusBox.innerHTML = '<span class="muted">Você pode numerar alguns candidatos e deixar outros em branco (eles irão para o final).</span>';
+      } else {
+        const missing = total - filled;
+        if (missing === 0) {
+          statusBox.innerHTML = '<span class="ok">Tudo preenchido. Sem duplicatas.</span>';
+        } else {
+          statusBox.innerHTML = `<span class="muted">Faltam ${missing} candidato(s) sem número. Eles irão para o final automaticamente.</span>`;
+        }
+      }
+    }
+
+    rankInputs.forEach(inp => inp.addEventListener("input", updateStatus));
+    updateStatus();
+
     form.addEventListener("submit", (e) => {
-      // Monta ranking conforme modo escolhido
       const choice = (specialRadios.find(r => r.checked) || {}).value || "";
       let res;
       if (choice === "BLANK" || choice === "NULL") {
         res = buildRankingSpecial(choice);
       } else {
-        res = buildRankingFromNumbers();
+        res = buildRankingFromNumbers(true); // aceita ranking parcial
       }
       if (!res.ok) {
         e.preventDefault();
