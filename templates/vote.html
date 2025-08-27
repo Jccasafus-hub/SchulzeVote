@@ -17,7 +17,6 @@
     .info { margin-top:6px; }
     .ok { color:#059669; }
     .note { color:#374151; }
-    /* Preview */
     .preview { margin-top:14px; border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#fafafa; }
     .preview h3 { margin:0 0 8px 0; font-size:1.05rem; }
     .tier { margin-bottom:8px; }
@@ -25,10 +24,9 @@
     .chip { display:inline-block; padding:4px 8px; margin:2px; background:#fff; border:1px solid #e5e7eb; border-radius:999px; }
     .chip.special { background:#111827; color:#fff; border-color:#111827; }
     .chip.special-null { background:#991b1b; color:#fff; border-color:#991b1b; }
-
     .actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .button { background:#111827; color:#fff; border:1px solid #111827; padding:8px 12px; border-radius:8px; cursor:pointer; }
     .button-secondary { background:#fff; color:#111827; border:1px solid #d1d5db; padding:8px 12px; border-radius:8px; cursor:pointer; }
-    .button-secondary:hover { background:#f9fafb; }
   </style>
 </head>
 <body>
@@ -36,7 +34,7 @@
     <h1>Votação</h1>
 
     <form method="POST" id="voteForm">
-      <label for="voter_id"><b>Sua chave de eleitor</b></label><br>
+      <label for="voter_id"><b>Sua chave de votação</b></label><br>
       <input type="text" id="voter_id" name="voter_id" required><br><br>
 
       <p class="muted">
@@ -76,7 +74,6 @@
 
       <div id="statusBox" class="info note"></div>
 
-      <!-- PREVIEW AO VIVO -->
       <div class="preview" id="livePreview" aria-live="polite" aria-atomic="true">
         <h3>Pré-visualização da sua cédula</h3>
         <div id="previewContent" class="muted">Comece a preencher os números ou selecione Branco/Nulo.</div>
@@ -85,25 +82,26 @@
       <div class="sep"></div>
 
       <p><b>Atalho:</b> você pode marcar um destes e ignorar os números acima:</p>
-      <label>
-        <input type="radio" name="special_vote" value="BLANK"> Votar em <b>Voto em Branco</b>
-      </label><br>
-      <label>
-        <input type="radio" name="special_vote" value="NULL"> Votar em <b>Voto Nulo</b>
-      </label><br>
-      <label>
-        <input type="radio" name="special_vote" value="" checked> Nenhum (usarei os números acima)
-      </label>
+      <label><input type="radio" name="special_vote" value="BLANK"> Votar em <b>Voto em Branco</b></label><br>
+      <label><input type="radio" name="special_vote" value="NULL"> Votar em <b>Voto Nulo</b></label><br>
+      <label><input type="radio" name="special_vote" value="" checked> Nenhum (usarei os números acima)</label>
 
-      <!-- campo oculto opcional; o backend já lê cand_i/rank_i diretamente -->
-      <div id="ranking-fields"></div>
-
-      <br>
+      <br><br>
       <div class="actions">
         <button type="submit" class="button">Enviar voto</button>
+        <button type="button" class="button-secondary" id="fillAllBtn">Preencher 1..N (tudo)</button>
+        <button type="button" class="button-secondary" id="fillEmptyBtn">Preencher 1..N (somente vazios)</button>
         <button type="button" class="button-secondary" id="clearBtn" title="Zera todas as preferências e desmarca Branco/Nulo">
           Limpar tudo
         </button>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h3>Acompanhar (público)</h3>
+        <div class="actions">
+          <a class="button-secondary" href="{{ url_for('results') }}">Resultados da votação atual</a>
+          <a class="button-secondary" href="/public/elections">Todas as votações</a>
+        </div>
       </div>
     </form>
   </div>
@@ -115,6 +113,8 @@
     const statusBox = document.getElementById("statusBox");
     const previewContent = document.getElementById("previewContent");
     const clearBtn = document.getElementById("clearBtn");
+    const fillAllBtn = document.getElementById("fillAllBtn");
+    const fillEmptyBtn = document.getElementById("fillEmptyBtn");
 
     function getRows() {
       const rows = [];
@@ -134,11 +134,8 @@
 
     function updateSpecialMode() {
       const val = (specialRadios.find(r => r.checked) || {}).value || "";
-      if (val === "BLANK" || val === "NULL") {
-        setDisabledRanks(true);
-      } else {
-        setDisabledRanks(false);
-      }
+      if (val === "BLANK" || val === "NULL") setDisabledRanks(true);
+      else setDisabledRanks(false);
     }
     specialRadios.forEach(r => r.addEventListener("change", updateSpecialMode));
 
@@ -147,67 +144,39 @@
       if (val === "BLANK" || val === "NULL") {
         statusBox.innerHTML = '<span class="ok">Modo especial selecionado. Os campos numéricos foram desativados.</span>';
         const pick = (val === "BLANK") ? "Voto em Branco" : "Voto Nulo";
-        previewContent.innerHTML = `
-          <div class="tier"><b>Selecionado:</b>
-            <span class="chip ${val === 'BLANK' ? 'special' : 'special-null'}">${pick}</span>
-          </div>`;
+        previewContent.innerHTML = `<div class="tier"><b>Selecionado:</b>
+          <span class="chip ${val === 'BLANK' ? 'special' : 'special-null'}">${pick}</span></div>`;
         return;
       }
 
-      // Modo normal
       const rows = getRows();
       let total = rows.length, filled = 0;
-      const groups = new Map(); // rank(str) -> [cands]
-      const unranked = [];
-
+      const groups = new Map(); const unranked = [];
       for (const {cand, rankEl} of rows) {
         const v = (rankEl.value || "").trim();
-        if (v) {
-          filled++;
-          const g = groups.get(v) || [];
-          g.push(cand);
-          groups.set(v, g);
-        } else {
-          unranked.push(cand);
-        }
+        if (v) { filled++; const g = groups.get(v) || []; g.push(cand); groups.set(v, g); }
+        else { unranked.push(cand); }
       }
-
       const blanks = total - filled;
       statusBox.textContent = `Preenchidos: ${filled} • Em branco: ${blanks} • Empates permitidos (números iguais).`;
 
-      // Monta preview: ranks em ordem crescente (numérica), cada rank na sua tier.
-      const rankKeys = Array.from(groups.keys())
-        .map(k => Number(k))
-        .filter(n => Number.isFinite(n) && n >= 1)
-        .sort((a,b) => a - b)
-        .map(n => String(n));
-
+      const rankKeys = Array.from(groups.keys()).map(k=>Number(k)).filter(n=>Number.isFinite(n)&&n>=1).sort((a,b)=>a-b).map(n=>String(n));
       let html = "";
       for (const rk of rankKeys) {
         const items = groups.get(rk) || [];
         items.sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:"base"}));
-        html += `<div class="tier"><b>#${rk}:</b> `;
-        html += items.map(c => chip(c)).join(" ");
-        html += `</div>`;
+        html += `<div class="tier"><b>#${rk}:</b> ` + items.map(c => chip(c)).join(" ") + `</div>`;
       }
 
-      // Grupo final: não ranqueados (empatados em último)
       if (unranked.length > 0) {
         const hasBlank = unranked.includes("Voto em Branco");
         const hasNull  = unranked.includes("Voto Nulo");
-        const core = unranked.filter(c => c !== "Voto em Branco" && c !== "Voto Nulo")
+        const core = unranked.filter(c => c!=="Voto em Branco" && c!=="Voto Nulo")
                              .sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:"base"}));
-
-        let tail = [];
-        if (hasBlank) tail.push("Voto em Branco");
-        if (hasNull)  tail.push("Voto Nulo");
-
+        let tail = []; if (hasBlank) tail.push("Voto em Branco"); if (hasNull) tail.push("Voto Nulo");
         const finalList = core.concat(tail);
-        html += `<div class="tier"><b>Não ranqueados:</b> `;
-        html += finalList.map(c => chip(c)).join(" ");
-        html += `</div>`;
+        html += `<div class="tier"><b>Não ranqueados:</b> ` + finalList.map(c => chip(c)).join(" ") + `</div>`;
       }
-
       previewContent.innerHTML = html || `<span class="muted">Comece a preencher os números ou selecione Branco/Nulo.</span>`;
     }
 
@@ -217,26 +186,34 @@
       return `<span class="chip">${name}</span>`;
     }
 
-    // Botão LIMPAR TUDO (com confirmação)
     function clearAll() {
       const ok = window.confirm("Tem certeza que deseja limpar todas as preferências e desmarcar Branco/Nulo?");
       if (!ok) return;
-
-      // limpa números
       rankInputs.forEach(inp => { inp.value = ""; inp.disabled = false; });
-      // desmarca Branco/Nulo e deixa "Nenhum" ativo
       const noneRadio = specialRadios.find(r => r.value === "");
       specialRadios.forEach(r => r.checked = false);
       if (noneRadio) noneRadio.checked = true;
       updateStatusAndPreview();
-      // foca no primeiro campo numérico (se existir)
-      if (rankInputs.length > 0) rankInputs[0].focus();
+      if (rankInputs.length>0) rankInputs[0].focus();
     }
-    clearBtn.addEventListener("click", clearAll);
 
-    // Inicializa
-    updateSpecialMode();
-    updateStatusAndPreview();
+    function autoFillSequential(overwrite=true) {
+      const rows = getRows();
+      let n = 1;
+      for (const {cand, rankEl} of rows) {
+        if (cand === "Voto em Branco" || cand === "Voto Nulo") continue;
+        if (rankEl.disabled) continue;
+        if (overwrite || !rankEl.value.trim()) { rankEl.value = String(n++); }
+      }
+      updateStatusAndPreview();
+    }
+
+    clearBtn.addEventListener("click", clearAll);
+    fillAllBtn.addEventListener("click", () => autoFillSequential(true));
+    fillEmptyBtn.addEventListener("click", () => autoFillSequential(false));
+
+    rankInputs.forEach(inp => inp.addEventListener("input", updateStatusAndPreview));
+    updateSpecialMode(); updateStatusAndPreview();
   </script>
 </body>
 </html>
