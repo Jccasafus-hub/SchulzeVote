@@ -1,100 +1,109 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <title>Votar - SchulzeVote</title>
-  <link rel="stylesheet" href="/static/style.css">
-  <link rel="manifest" href="/static/manifest.json">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/static/service-worker.js');
-    }
-  </script>
+  <meta charset="UTF-8">
+  <title>Votação - SchulzeVote</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .candidate-list { list-style:none; padding:0; }
+    .candidate-item { padding:10px; margin:6px 0; background:#f9fafb; border:1px solid #d1d5db; border-radius:6px; cursor:grab; }
+    .special { background:#111827; color:white; text-align:center; }
+    .special-null { background:#991b1b; color:white; text-align:center; }
+    .disabled { opacity:0.5; pointer-events:none; }
+  </style>
 </head>
 <body>
   <div class="container">
-    <h1>Cédula</h1>
+    <h1>Votação</h1>
 
-    <form id="ballotForm" method="post">
-      <div class="field">
-        <label for="voter_id">Chave do eleitor:</label>
-<input required id="voter_id" name="voter_id" placeholder="Cole sua chave" />
-      </div>
+    <form method="POST">
+      <label for="voter_id"><b>Sua chave de eleitor</b></label><br>
+      <input type="text" id="voter_id" name="voter_id" required><br><br>
 
-      <p>Defina a ordem de preferência. Números menores = mais preferido.  
-      <br><strong>Voto em Branco</strong> = indiferença total (bloqueia outras escolhas).  
-      <br><strong>Voto Nulo</strong> = rejeição a todos (bloqueia outras escolhas).</p>
-
-      <div class="grid">
+      <p>Arraste para ordenar os candidatos conforme sua preferência:</p>
+      <ul id="sortable" class="candidate-list">
         {% for c in candidates %}
-        <div class="card">
-          <label>{{ c }}</label>
-          <input class="rank" type="number" min="1" step="1" inputmode="numeric" name="rank_{{ loop.index }}" data-candidate="{{ c }}" placeholder="rank" />
-        </div>
+          {% if c == "Voto em Branco" %}
+            <li class="candidate-item special" data-value="{{ c }}">{{ c }}</li>
+          {% elif c == "Voto Nulo" %}
+            <li class="candidate-item special-null" data-value="{{ c }}">{{ c }}</li>
+          {% else %}
+            <li class="candidate-item" data-value="{{ c }}">{{ c }}</li>
+          {% endif %}
         {% endfor %}
-      </div>
+      </ul>
 
-      <div class="legend card">
-        <h2>Legenda de opções especiais</h2>
-        <ul>
-          <li><strong>Voto em Branco</strong>: indiferença por todos os candidatos (sem preferência).</li>
-          <li><strong>Voto Nulo</strong>: rejeição de todos os candidatos (protesto).</li>
-        </ul>
-      </div>
+      <!-- campo oculto que receberá a ordem final -->
+      <div id="ranking-fields"></div>
 
-      <button class="button" type="submit">Enviar voto</button>
-      <a class="button outline" href="/">Início</a>
+      <button type="submit" class="button">Enviar voto</button>
     </form>
   </div>
 
   <script>
-    // Regras:
-    // - Se "Voto em Branco" tiver rank preenchido -> ignora todos os outros
-    // - Se "Voto Nulo" tiver rank preenchido -> ignora todos os outros
-    // - Caso normal -> ordena candidatos por rank crescente e envia como inputs "ranking"
-    const form = document.getElementById('ballotForm');
+    const list = document.getElementById("sortable");
+    const fields = document.getElementById("ranking-fields");
 
-    form.addEventListener('submit', (e) => {
-      // Limpa ocultos anteriores
-      [...form.querySelectorAll('input[type=hidden][name=ranking]')].forEach(el => el.remove());
-
-      const rows = [...document.querySelectorAll('input.rank')];
-      const filled = rows
-        .map(r => ({ c: r.dataset.candidate, v: r.value ? parseInt(r.value, 10) : null }))
-        .filter(x => x.v !== null && !Number.isNaN(x.v));
-
-      const hasBlank = filled.some(x => x.c.toLowerCase().includes('voto em branco'));
-      const hasNull  = filled.some(x => x.c.toLowerCase().includes('voto nulo'));
-
-      let finalOrder = [];
-
-      if (hasBlank && hasNull) {
-        alert("Você não pode selecionar 'Voto em Branco' e 'Voto Nulo' juntos.");
-        e.preventDefault();
-        return;
-      }
-
-      if (hasBlank) {
-        finalOrder = ['Voto em Branco'];
-      } else if (hasNull) {
-        finalOrder = ['Voto Nulo'];
-      } else {
-        // Ordenação padrão (rank numérico crescente)
-        finalOrder = filled
-          .sort((a,b) => a.v - b.v)
-          .map(x => x.c);
-      }
-
-      // Gera inputs hidden na ordem final
-      finalOrder.forEach(val => {
-        const h = document.createElement('input');
-        h.type = 'hidden';
-        h.name = 'ranking';
-        h.value = val;
-        form.appendChild(h);
+    // Função para atualizar os inputs hidden
+    function updateHiddenFields() {
+      fields.innerHTML = "";
+      const items = list.querySelectorAll(".candidate-item");
+      items.forEach(item => {
+        const inp = document.createElement("input");
+        inp.type = "hidden";
+        inp.name = "ranking";
+        inp.value = item.getAttribute("data-value");
+        fields.appendChild(inp);
       });
+    }
+
+    // Drag and drop
+    let dragSrc;
+    list.addEventListener("dragstart", e => {
+      dragSrc = e.target;
+      e.dataTransfer.effectAllowed = "move";
     });
+    list.addEventListener("dragover", e => {
+      e.preventDefault();
+      const target = e.target.closest(".candidate-item");
+      if (target && target !== dragSrc) {
+        list.insertBefore(dragSrc, target.nextSibling);
+      }
+    });
+    list.addEventListener("drop", e => {
+      e.preventDefault();
+      updateHiddenFields();
+    });
+
+    // Marca os itens como draggable
+    list.querySelectorAll(".candidate-item").forEach(li => {
+      li.draggable = true;
+    });
+
+    // Regras: se Branco ou Nulo for selecionado, eles desativam os demais
+    function enforceSpecialRules() {
+      const items = Array.from(list.querySelectorAll(".candidate-item"));
+      const hasBlank = items.find(it => it.getAttribute("data-value") === "Voto em Branco");
+      const hasNull = items.find(it => it.getAttribute("data-value") === "Voto Nulo");
+
+      let blankSelected = hasBlank && list.firstElementChild === hasBlank;
+      let nullSelected = hasNull && list.firstElementChild === hasNull;
+
+      if (blankSelected || nullSelected) {
+        items.forEach(it => {
+          if (it !== list.firstElementChild) it.classList.add("disabled");
+        });
+      } else {
+        items.forEach(it => it.classList.remove("disabled"));
+      }
+    }
+
+    list.addEventListener("drop", enforceSpecialRules);
+    list.addEventListener("dragend", enforceSpecialRules);
+
+    // Inicializa campos hidden e regras
+    updateHiddenFields();
+    enforceSpecialRules();
   </script>
 </body>
 </html>
