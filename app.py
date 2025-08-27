@@ -800,7 +800,6 @@ def admin_assign_ui():
     </body></html>
     """
     return Response(html, mimetype="text/html")
-
     # === APIs auxiliares usadas pela UI ===
 
 @app.route("/admin/assign_batch_generate", methods=["GET","POST"])
@@ -1036,7 +1035,6 @@ u20230003</pre>
 </html>
 """
     return Response(html, mimetype="text/html")
-
 # ------------- Debug local -------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
