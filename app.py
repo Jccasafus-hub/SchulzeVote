@@ -689,6 +689,74 @@ def admin_set_user_weight():
     save_registry(reg)
     return Response(json.dumps({"ok": True, "user": uid, "peso": peso}, ensure_ascii=False), mimetype="application/json")
 
+# ---- Admin API: exclusão de usuários ----
+@app.route("/admin/delete_user")
+def admin_delete_user():
+    """
+    Exclui um usuário do user_registry.json.
+    Uso:
+      /admin/delete_user?secret=SEU_ADMIN_SECRET&user=usuarioTeste
+
+    Observações:
+    - Não altera voter_keys.json. Se o usuário tinha uma chave atribuída e ela não foi usada,
+      essa chave automaticamente volta ao "pool" (não estará mais atribuída).
+    - Se a chave já foi usada (used:true), permanece marcada como usada.
+    """
+    if not require_admin(request):
+        abort(403)
+
+    uid = (request.args.get("user") or "").strip()
+    if not uid:
+        return Response('{"error":"informe ?user=usuario"}', status=400, mimetype="application/json")
+
+    reg = load_registry()
+    users = reg.get("users", {})
+
+    if uid not in users:
+        return Response(json.dumps({"error": f"{uid} não encontrado"}, ensure_ascii=False),
+                        status=404, mimetype="application/json")
+
+    del users[uid]
+    reg["users"] = users
+    save_registry(reg)
+
+    return Response(json.dumps({"ok": True, "deleted": uid}, ensure_ascii=False), mimetype="application/json")
+
+@app.route("/admin/delete_users_batch", methods=["GET","POST"])
+def admin_delete_users_batch():
+    """
+    Exclui vários usuários de uma vez.
+    Usos:
+      GET/POST /admin/delete_users_batch?secret=SEU_ADMIN_SECRET&users=u1,u2,u3
+      (ou enviar em body form-data/x-www-form-urlencoded o campo 'users')
+    Retorno: {"ok":true,"deleted":["u1","u2"],"not_found":["u3"]}
+    """
+    if not require_admin(request): abort(403)
+    users_param = (request.values.get("users") or "").strip()
+    if not users_param:
+        return Response('{"error":"informe users=u1,u2,u3"}', status=400, mimetype="application/json")
+
+    to_del = [u.strip() for u in users_param.split(",") if u.strip()]
+    to_del = list(dict.fromkeys(to_del))
+
+    reg = load_registry()
+    users = reg.get("users", {})
+    deleted, not_found = [], []
+
+    for uid in to_del:
+        if uid in users:
+            del users[uid]
+            deleted.append(uid)
+        else:
+            not_found.append(uid)
+
+    reg["users"] = users
+    save_registry(reg)
+
+    return Response(json.dumps({"ok": True, "deleted": deleted, "not_found": not_found},
+                               ensure_ascii=False, indent=2),
+                    mimetype="application/json")
+
 # ---- Admin API: listas para UI (tabelas ao vivo) ----
 @app.route("/admin/keys_list")
 def admin_keys_list():
@@ -747,7 +815,7 @@ def admin_assign_ui():
 
     <!-- Bloco de colagem + gerar/atribuir -->
     <div class="card">
-      <p>Cole aqui os <b>usuários</b> (um por linha). Ex.:</p>
+      <p>Cole aqui os <b>usuários</b> (um por linha). Ex..:</p>
       <pre>usuario01
 usuario02
 usuario03</pre>
@@ -850,7 +918,6 @@ usuario03</pre>
     // ===== Exportar CSV =====
 
     function buildCSV(rows) {{
-      // rows: array de objetos com {{usuario,key,used,peso,attempts}}
       const header = ['usuario','key','used','peso','attempts_{current_eid}'];
       const esc = v => {{
         if (v===undefined || v===null) return '';
