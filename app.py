@@ -1,6 +1,5 @@
-import os, json, uuid, secrets, string, hashlib, copy
+import os, json, uuid, secrets, string, hashlib
 from pathlib import Path
-from collections import defaultdict
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from flask import (
@@ -13,10 +12,10 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mude-isto")
 
 # --------- Arquivos / diretórios ----------
-CAND_FILE        = "candidates.json"   # candidatos
-VOTER_KEYS_FILE  = "voter_keys.json"   # chaves
-ELECTION_FILE    = "election.json"     # election_id, deadline_utc, meta por votação
-REGISTRY_FILE    = "user_registry.json" # usuarios (ex-RA): key atribuída, senha (hash), peso, used, attempts
+CAND_FILE         = "candidates.json"     # candidatos
+VOTER_KEYS_FILE   = "voter_keys.json"     # chaves
+ELECTION_FILE     = "election.json"       # election_id, deadline_utc, meta por votação
+REGISTRY_FILE     = "user_registry.json"  # usuarios: key, used, pwd_hash, peso, attempts
 
 DATA_DIR   = Path("data")
 BAL_DIR    = DATA_DIR / "ballots"
@@ -142,7 +141,6 @@ def save_candidates(lst):
 
 def load_keys():
     d = _read_json(VOTER_KEYS_FILE, {"keys": {}})
-    # normaliza campos
     for k, v in list(d.get("keys", {}).items()):
         v.setdefault("used", False)
         v.setdefault("used_at", None)
@@ -154,17 +152,17 @@ def save_keys(d):
 
 def load_registry():
     d = _read_json(REGISTRY_FILE, {"users": {}})
-    # estrutura: users: { user_id: {key, used, pwd_hash, peso, attempts} }
+    # estrutura: users: { user_id: {key, used, pwd_hash, peso, attempts{eid:int}} }
     for u, v in list(d.get("users", {}).items()):
         v.setdefault("used", False)
         v.setdefault("peso", 1)
-        v.setdefault("attempts", {}) # por election_id: contador
+        v.setdefault("attempts", {})
     return d
 
 def save_registry(d):
     _write_json(REGISTRY_FILE, d)
 
-# --------- Auditoria ----------
+# --------- Auditoria / votos por eleição ----------
 def ballots_path(eid: str) -> Path:
     return BAL_DIR / f"{eid}.json"
 
@@ -274,12 +272,10 @@ def _free_keys_from_pool():
 
 @app.route("/")
 def index():
-    # Botões para votar, ver resultados e auditoria
     return render_template("index.html", get_current_election_id=get_current_election_id)
 
 @app.route("/register", methods=["GET","POST"])
 def register():
-    # Cadastro: usuario + senha (admin nunca vê)
     if request.method == "POST":
         user_id = (request.form.get("user_id") or "").strip()
         pw = (request.form.get("password") or "").strip()
@@ -359,18 +355,15 @@ def _inc_attempt(user_id, eid):
 
 @app.route("/vote", methods=["GET","POST"])
 def vote():
-    # bloqueio por prazo
     if not is_voting_open():
         return Response("<h2>Votação encerrada</h2><p>O prazo expirou.</p><p><a href='/'>Início</a></p>", mimetype="text/html", status=403)
 
     candidates = load_candidates()
     if request.method == "POST":
-        # exige login
         user_id = session.get("user_id")
         if not user_id:
             flash("Faça login para votar.", "error"); return redirect(url_for("login"))
 
-        # valida chave (senha de votação) e correspondência com user_id
         voter_key = norm(request.form.get("voter_id", ""))
         if not voter_key:
             flash("Informe sua CHAVE de votação.", "error"); return redirect(url_for("vote"))
@@ -406,7 +399,7 @@ def vote():
         if kinfo.get("used"):
             flash("Esta chave já foi usada.", "error"); return redirect(url_for("index"))
 
-        # montar ranks (empates permitidos)
+        # montar ranks
         posted_ranking = request.form.getlist("ranking")
         if posted_ranking:
             ranks = {c: None for c in candidates}
@@ -429,16 +422,15 @@ def vote():
         keys_doc["keys"][voter_key] = kinfo
         save_keys(keys_doc)
 
-        # marca usuário como usado (para esta votação)
+        # marca usuário como usado e zera tentativas para a eleição
         entry["used"] = True
-        # zera attempts desta votação
         atts = entry.get("attempts", {})
         atts[eid] = 0
         entry["attempts"] = atts
         reg["users"][user_id] = entry
         save_registry(reg)
 
-        # salva voto (apenas hash da chave) + peso
+        # salva voto (hash da chave) + peso
         voter_key_h = key_hash(voter_key)
         append_ballot(eid, {"ranks": ranks, "peso": peso, "voter": voter_key_h})
 
@@ -454,7 +446,6 @@ def vote():
 # --------- Resultados / públicos ----------
 @app.route("/results")
 def results_current():
-    # redireciona para a votação atual
     return redirect(url_for("public_results", eid=get_current_election_id()))
 
 @app.route("/public/elections")
@@ -465,13 +456,12 @@ def public_elections():
 @app.route("/public/<eid>/results")
 def public_results(eid):
     ballots = load_ballots(eid)
+    meta = get_election_meta(eid)
     if not ballots:
-        meta = get_election_meta(eid)
         return render_template("results.html", ranking=[], empty=True, total_votos=0, election_id=eid, election_meta=meta)
     try:
         candidates = load_candidates()
         ranking, pairwise, strength = schulze_ranking_from_ballots(ballots, candidates)
-        meta = get_election_meta(eid)
         return render_template(
             "results.html",
             ranking=ranking, empty=False,
@@ -543,7 +533,6 @@ def admin_candidates():
     else:
         deadline_html = "<p><i>Nenhum prazo definido.</i></p>"
 
-    # Pequena UI (HTML inline) — simples:
     html = f"""
     <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Admin · Candidatos & Prazo</title>
     <style>body{{font-family:system-ui;padding:24px}} textarea{{width:100%;min-height:200px}}</style></head><body>
@@ -579,7 +568,6 @@ def admin_candidates():
     """
     return Response(html, mimetype="text/html")
 
-# Metadados (título, data, hora, tz) — exigidos para exibir claros nos relatórios
 @app.route("/admin/election_meta", methods=["GET","POST"])
 def admin_election_meta():
     if not require_admin(request): abort(403)
@@ -640,11 +628,11 @@ def admin_assign_batch_generate():
     assigned = {}
     for uid in users:
         ent = reg["users"].get(uid, {"used": False, "peso": 1, "attempts": {}})
-        if ent.get("key"):
+        if ent.get("key"):  # NÃO sobrescreve quem já tem chave
             assigned[uid] = ent["key"]
             reg["users"][uid] = ent
             continue
-        # gera nova chave
+        # gera nova chave única
         k = _mk_key()
         while k in keys_doc["keys"]:
             k = _mk_key()
@@ -717,196 +705,7 @@ def admin_users_list():
     if not require_admin(request): abort(403)
     return Response(json.dumps(load_registry(), ensure_ascii=False, indent=2), mimetype="application/json")
 
-# ---- Página admin: Assign UI ----
-@app.route("/admin/assign_ui")
-def admin_assign_ui():
-    if not require_admin(request): abort(403)
-    secret = request.args.get("secret","")
-    html = f"""
-    <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Admin · Atribuir chaves</title>
-    <style>
-      body{{font-family:system-ui;padding:24px}} textarea{{width:100%;min-height:120px}}
-      .grid{{display:grid;gap:16px}} .col{{border:1px solid #e5e7eb;padding:12px;border-radius:10px}}
-      table{{border-collapse:collapse;width:100%}} th,td{{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.95rem}}
-      .row{{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}} input[type=number]{{width:120px}}
-      .btn{{padding:8px 12px;border-radius:8px;border:1px solid #111827;background:#111827;color:#fff;cursor:pointer}}
-      .btn2{{padding:8px 12px;border-radius:8px;border:1px solid #111827;background:#fff;cursor:pointer}}
-      pre{{background:#f9fafb;padding:10px;border-radius:8px;max-height:240px;overflow:auto}}
-    </style></head><body>
-      <h1>Atribuir chaves (lote)</h1>
-      <div class="col">
-        <p>Cole <b>usuários</b> (um por linha). Ex.:<br><code>u20230001</code><br><code>u20230002</code></p>
-        <textarea id="usersBox" placeholder="u1&#10;u2&#10;u3"></textarea>
-        <div class="row">
-          <label>Peso padrão: <input type="number" id="peso" value="1" min="1"></label>
-          <button class="btn" onclick="genAssign()">Gerar e atribuir</button>
-          <button class="btn2" onclick="poolAssign()">Atribuir do pool</button>
-        </div>
-        <div><b>Resultado:</b><pre id="resultBox">(aguardando)</pre></div>
-      </div>
-
-      <h2 style="margin-top:16px">Visão geral</h2>
-      <div class="grid" style="grid-template-columns:1fr 1fr">
-        <div class="col">
-          <h3>Chaves (voter_keys.json)</h3>
-          <div id="keysTable">carregando...</div>
-        </div>
-        <div class="col">
-          <h3>Pool (livres e não atribuídas)</h3>
-          <div id="poolTable">carregando...</div>
-        </div>
-      </div>
-      <div class="col" style="margin-top:16px">
-        <h3>Usuários (user_registry.json)</h3>
-        <div id="usersTable">carregando...</div>
-      </div>
-
-      <script>
-        const secret = {json.dumps(secret)};
-        function linesToCSV(list){{ return list.map(x=>x.join(',')).join('\\n'); }}
-        function parseUsers(){{
-          const t = document.getElementById('usersBox').value.trim();
-          return t ? t.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean) : [];
-        }}
-        async function genAssign(){{
-          const users = parseUsers(); if(users.length==0){{alert('Cole usuários.');return;}}
-          const peso = document.getElementById('peso').value || '1';
-          const url = `/admin/assign_batch_generate?secret=${{secret}}&peso=${{encodeURIComponent(peso)}}&ras=${{encodeURIComponent(users.join(','))}}`;
-          const r = await fetch(url); const j=await r.text(); document.getElementById('resultBox').textContent=j; refreshAll();
-        }}
-        async function poolAssign(){{
-          const users = parseUsers(); if(users.length==0){{alert('Cole usuários.');return;}}
-          const url = `/admin/assign_batch_use_pool?secret=${{secret}}&ras=${{encodeURIComponent(users.join(','))}}`;
-          const r = await fetch(url); const j=await r.text(); document.getElementById('resultBox').textContent=j; refreshAll();
-        }}
-        async function refreshKeys(){{
-          const r = await fetch(`/admin/keys_list?secret=${{secret}}`); const j = await r.json();
-          const rows = Object.entries(j.keys||{{}}).map(([k,v])=>`<tr><td>${{k}}</td><td>${{v.used?'✔️':'—'}}</td><td>${{v.used_at||'—'}}</td><td>${{v.peso||1}}</td></tr>`).join('');
-          document.getElementById('keysTable').innerHTML = `<table><thead><tr><th>Chave</th><th>Usada</th><th>Quando</th><th>Peso</th></tr></thead><tbody>${{rows}}</tbody></table>`;
-        }}
-        async function refreshPool(){{
-          const r = await fetch(`/admin/pool_list?secret=${{secret}}`); const j = await r.json();
-          const rows = (j.pool||[]).map(k=>`<tr><td>${{k}}</td></tr>`).join('');
-          document.getElementById('poolTable').innerHTML = `<table><thead><tr><th>Chave livre</th></tr></thead><tbody>${{rows}}</tbody></table>`;
-        }}
-        async function refreshUsers(){{
-          const r = await fetch(`/admin/users_list?secret=${{secret}}`); const j = await r.json();
-          const rows = Object.entries(j.users||{{}}).map(([u,v])=>`<tr><td>${{u}}</td><td>${{v.key||'—'}}</td><td>${{v.used?'✔️':'—'}}</td><td>${{v.peso||1}}</td><td>${{(v.attempts&&v.attempts['{get_current_election_id()}'])||0}}</td></tr>`).join('');
-          document.getElementById('usersTable').innerHTML = `<table><thead><tr><th>Usuário</th><th>Chave</th><th>Usou</th><th>Peso</th><th>Tentativas (EID atual)</th></tr></thead><tbody>${{rows}}</tbody></table>`;
-        }}
-        function refreshAll(){{ refreshKeys(); refreshPool(); refreshUsers(); }}
-        refreshAll();
-      </script>
-    </body></html>
-    """
-    return Response(html, mimetype="text/html")
-    # === APIs auxiliares usadas pela UI ===
-
-@app.route("/admin/assign_batch_generate", methods=["GET","POST"])
-def admin_assign_batch_generate():
-    if not require_admin(request): abort(403)
-    ras_param = (request.values.get("ras") or "").strip()
-    if not ras_param:
-        return Response('{"error":"informe ras=U1,U2,..."}', status=400, mimetype="application/json")
-    try:
-        peso = int(request.values.get("peso","1"))
-    except:
-        return Response('{"error":"peso inválido"}', status=400, mimetype="application/json")
-
-    users = [r.strip() for r in ras_param.split(",") if r.strip()]
-    users = list(dict.fromkeys(users))  # dedup
-
-    keys_doc = load_keys()
-    reg = load_registry()
-
-    assigned = {}
-    for uid in users:
-        ent = reg["users"].get(uid, {"used": False, "peso": 1, "attempts": {}})
-        if ent.get("key"):  # NÃO sobrescrever chave existente
-            assigned[uid] = ent["key"]
-            reg["users"][uid] = ent
-            continue
-
-        # gerar chave nova e única
-        k = _mk_key()
-        while k in keys_doc["keys"]:
-            k = _mk_key()
-
-        keys_doc["keys"][k] = {"used": False, "used_at": None, "peso": peso}
-        ent["key"] = k
-        reg["users"][uid] = ent
-        assigned[uid] = k
-
-    save_keys(keys_doc)
-    save_registry(reg)
-    return Response(json.dumps({"ok": True, "assigned": assigned}, ensure_ascii=False, indent=2),
-                    mimetype="application/json")
-
-
-@app.route("/admin/assign_batch_use_pool", methods=["GET","POST"])
-def admin_assign_batch_use_pool():
-    if not require_admin(request): abort(403)
-    ras_param = (request.values.get("ras") or "").strip()
-    if not ras_param:
-        return Response('{"error":"informe ras=U1,U2,..."}', status=400, mimetype="application/json")
-
-    users = [r.strip() for r in ras_param.split(",") if r.strip()]
-    users = list(dict.fromkeys(users))
-
-    keys_doc = load_keys()
-    reg = load_registry()
-    pool = _free_keys_from_pool()
-
-    need = len([u for u in users if not reg["users"].get(u, {}).get("key")])
-    if need > len(pool):
-        return Response(json.dumps({"error":"chaves livres insuficientes","livres":len(pool)}, ensure_ascii=False),
-                        status=409, mimetype="application/json")
-
-    assigned = {}
-    i = 0
-    for uid in users:
-        ent = reg["users"].get(uid, {"used": False, "peso": 1, "attempts": {}})
-        if ent.get("key"):  # já tinha; mantém
-            assigned[uid] = ent["key"]
-            reg["users"][uid] = ent
-            continue
-
-        k = pool[i]; i += 1
-        if k not in keys_doc["keys"] or keys_doc["keys"][k].get("used"):
-            return Response('{"error":"inconsistência no pool"}', status=500, mimetype="application/json")
-
-        ent["key"] = k
-        reg["users"][uid] = ent
-        assigned[uid] = k
-
-    save_registry(reg)
-    return Response(json.dumps({"ok": True, "assigned": assigned}, ensure_ascii=False, indent=2),
-                    mimetype="application/json")
-
-
-@app.route("/admin/keys_list")
-def admin_keys_list():
-    if not require_admin(request): abort(403)
-    return Response(json.dumps(load_keys(), ensure_ascii=False, indent=2),
-                    mimetype="application/json")
-
-
-@app.route("/admin/pool_list")
-def admin_pool_list():
-    if not require_admin(request): abort(403)
-    return Response(json.dumps({"pool": _free_keys_from_pool()}, ensure_ascii=False, indent=2),
-                    mimetype="application/json")
-
-
-@app.route("/admin/users_list")
-def admin_users_list():
-    if not require_admin(request): abort(403)
-    return Response(json.dumps(load_registry(), ensure_ascii=False, indent=2),
-                    mimetype="application/json")
-
-
-# === Página admin com textarea + botões + tabelas ao vivo ===
-
+# ---- Página admin: Assign UI (HTML inline completo) ----
 @app.route("/admin/assign_ui")
 def admin_assign_ui():
     if not require_admin(request): abort(403)
@@ -1035,6 +834,7 @@ u20230003</pre>
 </html>
 """
     return Response(html, mimetype="text/html")
+
 # ------------- Debug local -------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
