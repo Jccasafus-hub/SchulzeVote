@@ -705,7 +705,7 @@ def admin_users_list():
     if not require_admin(request): abort(403)
     return Response(json.dumps(load_registry(), ensure_ascii=False, indent=2), mimetype="application/json")
 
-# ---- Página admin: Assign UI (HTML inline completo) ----
+# ---- Página admin: Assign UI (HTML inline, com edição de peso + CSV) ----
 @app.route("/admin/assign_ui")
 def admin_assign_ui():
     if not require_admin(request): abort(403)
@@ -720,39 +720,59 @@ def admin_assign_ui():
   <title>Admin · Atribuir chaves</title>
   <style>
     body{{font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; padding:24px; background:#f8fafc}}
-    .wrap{{max-width:1100px;margin:0 auto}}
+    .wrap{{max-width:1200px;margin:0 auto}}
     h1{{margin:0 0 12px 0}}
     .card{{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:12px 0}}
     textarea{{width:100%;min-height:120px;padding:8px;border:1px solid #d1d5db;border-radius:10px}}
     .row{{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0}}
-    input[type=number]{{width:120px;padding:8px;border:1px solid #d1d5db;border-radius:10px}}
+    input[type=number], input[type=text]{{padding:8px;border:1px solid #d1d5db;border-radius:10px}}
+    input.wsmall{{width:90px}}
     .btn{{padding:9px 12px;border-radius:10px;border:1px solid #111827;background:#111827;color:#fff;cursor:pointer}}
     .btn.alt{{background:#fff;color:#111827}}
+    .btn.ghost{{background:#fff;color:#111827;border:1px dashed #9ca3af}}
     table{{border-collapse:collapse;width:100%}}
-    th,td{{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.95rem}}
+    th,td{{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.95rem;vertical-align:middle}}
     th{{background:#f3f4f6}}
     pre{{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px;max-height:260px;overflow:auto}}
     .grid{{display:grid; gap:16px; grid-template-columns:1fr 1fr}}
-    @media (max-width: 900px){{ .grid{{grid-template-columns:1fr}} }}
+    @media (max-width: 1000px){{ .grid{{grid-template-columns:1fr}} }}
+    .muted{{color:#6b7280}}
+    .ok{{color:#059669}}
+    .warn{{color:#b45309}}
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Atribuir chaves (lote)</h1>
+
+    <!-- Bloco de colagem + gerar/atribuir -->
     <div class="card">
       <p>Cole aqui os <b>usuários</b> (um por linha). Ex.:</p>
-      <pre>u20230001
-u20230002
-u20230003</pre>
-      <textarea id="usersBox" placeholder="u1&#10;u2&#10;u3"></textarea>
+      <pre>usuario01
+usuario02
+usuario03</pre>
+      <textarea id="usersBox" placeholder="usuario01&#10;usuario02&#10;usuario03"></textarea>
+
       <div class="row">
-        <label>Peso padrão: <input type="number" id="peso" value="1" min="1"></label>
+        <label>Peso padrão: <input type="number" id="peso" value="1" min="1" class="wsmall"></label>
         <button class="btn" onclick="genAssign()">Gerar e atribuir</button>
         <button class="btn alt" onclick="poolAssign()">Atribuir do pool</button>
+        <button class="btn ghost" onclick="exportCSVAll()">Exportar CSV (todos)</button>
+        <button class="btn ghost" onclick="exportCSVFromTextarea()">Exportar CSV (somente colados)</button>
       </div>
-      <div>
+
+      <div class="row">
         <b>Resultado:</b>
-        <pre id="resultBox">(aguardando)</pre>
+        <pre id="resultBox" style="flex:1">(aguardando)</pre>
+      </div>
+
+      <!-- Aplicar peso em lote aos usuários colados -->
+      <div class="row" style="margin-top:6px">
+        <label>Aplicar peso em lote aos usuários colados:
+          <input type="number" id="pesoLote" value="1" min="1" class="wsmall">
+        </label>
+        <button class="btn alt" onclick="applyBatchWeight()">Aplicar peso (lote)</button>
+        <span id="batchStatus" class="muted"></span>
       </div>
     </div>
 
@@ -769,6 +789,13 @@ u20230003</pre>
 
     <div class="card">
       <h3>Usuários (user_registry.json)</h3>
+
+      <!-- Filtro simples -->
+      <div class="row">
+        <input type="text" id="filtroUser" placeholder="Filtrar por usuário..." oninput="renderUsers()">
+        <span class="muted">EID atual: <b>{current_eid}</b></span>
+      </div>
+
       <div id="usersTable">carregando...</div>
     </div>
   </div>
@@ -776,34 +803,123 @@ u20230003</pre>
   <script>
     const secret = {json.dumps(secret)};
     const currentEid = {json.dumps(current_eid)};
+    let USERS_CACHE = {{}};
 
-    function parseUsers() {{
+    function parseUsersFromTextarea() {{
       const t = document.getElementById('usersBox').value.trim();
       return t ? t.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean) : [];
     }}
 
+    // ===== Operações principais =====
+
     async function genAssign() {{
-      const users = parseUsers(); if (!users.length) {{ alert('Cole usuários.'); return; }}
+      const users = parseUsersFromTextarea(); if (!users.length) {{ alert('Cole usuários.'); return; }}
       const peso = document.getElementById('peso').value || '1';
       const url = `/admin/assign_batch_generate?secret=${{encodeURIComponent(secret)}}&peso=${{encodeURIComponent(peso)}}&ras=${{encodeURIComponent(users.join(','))}}`;
       const r = await fetch(url);
       document.getElementById('resultBox').textContent = await r.text();
-      refreshAll();
+      await refreshAll();
     }}
 
     async function poolAssign() {{
-      const users = parseUsers(); if (!users.length) {{ alert('Cole usuários.'); return; }}
+      const users = parseUsersFromTextarea(); if (!users.length) {{ alert('Cole usuários.'); return; }}
       const url = `/admin/assign_batch_use_pool?secret=${{encodeURIComponent(secret)}}&ras=${{encodeURIComponent(users.join(','))}}`;
       const r = await fetch(url);
       document.getElementById('resultBox').textContent = await r.text();
-      refreshAll();
+      await refreshAll();
     }}
+
+    async function applyBatchWeight() {{
+      const users = parseUsersFromTextarea(); if (!users.length) {{ alert('Cole usuários.'); return; }}
+      const peso = parseInt(document.getElementById('pesoLote').value || '1', 10);
+      const status = document.getElementById('batchStatus');
+      status.textContent = 'Aplicando...';
+      let ok = 0, fail = 0;
+
+      for (const u of users) {{
+        const url = `/admin/set_user_weight?secret=${{encodeURIComponent(secret)}}&user=${{encodeURIComponent(u)}}&peso=${{encodeURIComponent(peso)}}`;
+        try {{
+          const r = await fetch(url);
+          if (r.ok) ok++; else fail++;
+        }} catch(e) {{ fail++; }}
+      }}
+      status.textContent = `Concluído: ok=${{ok}}, falhas=${{fail}}`;
+      await refreshUsers();
+    }}
+
+    // ===== Exportar CSV =====
+
+    function buildCSV(rows) {{
+      // rows: array de objetos com {{usuario,key,used,peso,attempts}}
+      const header = ['usuario','key','used','peso','attempts_{current_eid}'];
+      const esc = v => {{
+        if (v===undefined || v===null) return '';
+        const s = String(v);
+        return /[",\\n]/.test(s) ? '"'+ s.replace(/"/g,'""') +'"' : s;
+      }};
+      const out = [header.join(',')].concat(
+        rows.map(r => [r.usuario, r.key, r.used, r.peso, r.attempts].map(esc).join(','))
+      );
+      return out.join('\\n');
+    }}
+
+    function downloadCSV(filename, csvText) {{
+      const blob = new Blob([csvText], {{type: 'text/csv;charset=utf-8;'}});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }}
+
+    function exportCSVAll() {{
+      const entries = Object.entries(USERS_CACHE);
+      const rows = entries.map(([u,v]) => {{
+        return {{
+          usuario: u,
+          key: v.key || '',
+          used: !!v.used,
+          peso: v.peso || 1,
+          attempts: (v.attempts && v.attempts[currentEid]) || 0
+        }};
+      }});
+      const csv = buildCSV(rows);
+      const ts = new Date().toISOString().replace(/[:.]/g,'-');
+      downloadCSV(`usuarios_chaves_pesos_{currentEid}_{ts}.csv`, csv);
+    }}
+
+    function exportCSVFromTextarea() {{
+      const filterSet = new Set(parseUsersFromTextarea());
+      if (!filterSet.size) {{ alert('Cole usuários para exportar apenas esse conjunto.'); return; }}
+      const rows = Object.entries(USERS_CACHE)
+        .filter(([u]) => filterSet.has(u))
+        .map(([u,v]) => ({{
+          usuario: u,
+          key: v.key || '',
+          used: !!v.used,
+          peso: v.peso || 1,
+          attempts: (v.attempts && v.attempts[currentEid]) || 0
+        }}));
+      const csv = buildCSV(rows);
+      const ts = new Date().toISOString().replace(/[:.]/g,'-');
+      downloadCSV(`usuarios_chaves_pesos_FILTRADO_{currentEid}_{ts}.csv`, csv);
+    }}
+
+    // ===== Tabelas =====
 
     async function refreshKeys() {{
       const r = await fetch(`/admin/keys_list?secret=${{encodeURIComponent(secret)}}`);
       const j = await r.json();
       const rows = Object.entries(j.keys||{{}}).map(([k,v]) =>
-        `<tr><td>${{k}}</td><td>${{v.used?'✔️':'—'}}</td><td>${{v.used_at||'—'}}</td><td>${{v.peso||1}}</td></tr>`
+        `<tr>
+           <td>${{k}}</td>
+           <td>${{v.used?'✔️':'—'}}</td>
+           <td>${{v.used_at||'—'}}</td>
+           <td>${{v.peso||1}}</td>
+         </tr>`
       ).join('');
       document.getElementById('keysTable').innerHTML =
         `<table><thead><tr><th>Chave</th><th>Usada</th><th>Quando</th><th>Peso</th></tr></thead><tbody>${{rows}}</tbody></table>`;
@@ -820,14 +936,73 @@ u20230003</pre>
     async function refreshUsers() {{
       const r = await fetch(`/admin/users_list?secret=${{encodeURIComponent(secret)}}`);
       const j = await r.json();
-      const rows = Object.entries(j.users||{{}}).map(([u,v]) =>
-        `<tr><td>${{u}}</td><td>${{v.key||'—'}}</td><td>${{v.used?'✔️':'—'}}</td><td>${{v.peso||1}}</td><td>${{(v.attempts&&v.attempts[currentEid])||0}}</td></tr>`
-      ).join('');
-      document.getElementById('usersTable').innerHTML =
-        `<table><thead><tr><th>Usuário</th><th>Chave</th><th>Usou</th><th>Peso</th><th>Tentativas (EID atual)</th></tr></thead><tbody>${{rows}}</tbody></table>`;
+      USERS_CACHE = j.users || {{}};
+      renderUsers();
     }}
 
-    function refreshAll() {{ refreshKeys(); refreshPool(); refreshUsers(); }}
+    function renderUsers() {{
+      const filtro = (document.getElementById('filtroUser').value || '').toLowerCase();
+      const entries = Object.entries(USERS_CACHE);
+      const rows = entries
+        .filter(([u]) => !filtro || u.toLowerCase().includes(filtro))
+        .map(([u,v]) => {{
+          const tent = (v.attempts && v.attempts[currentEid]) || 0;
+          const peso = v.peso || 1;
+          const key  = v.key || '—';
+          const used = v.used ? '✔️' : '—';
+          return `<tr>
+            <td><code>${{u}}</code></td>
+            <td>${{key}}</td>
+            <td style="text-align:center">${{used}}</td>
+            <td style="text-align:center">
+              <input id="w-${{encodeURIComponent(u)}}" type="number" min="1" value="${{peso}}" class="wsmall" />
+              <button class="btn alt" onclick="saveWeight('${{encodeURIComponent(u)}}')">Salvar</button>
+            </td>
+            <td style="text-align:center">${{tent}}</td>
+          </tr>`;
+        }}).join('');
+
+      document.getElementById('usersTable').innerHTML =
+        `<table>
+          <thead>
+            <tr>
+              <th>Usuário</th>
+              <th>Chave</th>
+              <th>Usou</th>
+              <th>Peso (editar)</th>
+              <th>Tentativas (EID atual)</th>
+            </tr>
+          </thead>
+          <tbody>${{rows}}</tbody>
+        </table>`;
+    }}
+
+    async function saveWeight(encUser) {{
+      const u = decodeURIComponent(encUser);
+      const inp = document.getElementById('w-' + encUser);
+      const val = parseInt((inp.value||'1'),10);
+      if (!Number.isFinite(val) || val < 1) {{
+        alert('Peso inválido. Use um número inteiro ≥ 1.');
+        return;
+      }}
+      const url = `/admin/set_user_weight?secret=${{encodeURIComponent(secret)}}&user=${{encodeURIComponent(u)}}&peso=${{encodeURIComponent(val)}}`;
+      const r = await fetch(url);
+      if (r.ok) {{
+        inp.style.borderColor = '#059669';
+        setTimeout(()=>inp.style.borderColor = '#d1d5db', 700);
+        await refreshUsers();
+      }} else {{
+        inp.style.borderColor = '#b45309';
+        alert('Falha ao salvar peso para ' + u);
+        setTimeout(()=>inp.style.borderColor = '#d1d5db', 1000);
+      }}
+    }}
+
+    async function refreshAll() {{
+      await Promise.all([refreshKeys(), refreshPool(), refreshUsers()]);
+    }}
+
+    // boot
     refreshAll();
   </script>
 </body>
