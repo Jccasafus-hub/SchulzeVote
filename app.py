@@ -9,13 +9,13 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "changeme")
 
 # ---------------- Configurações ----------------
-# Inclua aqui seus candidatos (mantenha Voto em Branco e Voto Nulo)
+# Ajuste seus candidatos; mantenha "Voto em Branco" e "Voto Nulo"
 CANDIDATES = ["Alice", "Bob", "Charlie", "Voto em Branco", "Voto Nulo"]
 
 # Segredos e arquivos (defina no Render → Environment Variables)
 ID_SALT         = os.environ.get("ID_SALT", "mude-este-salt")     # SALT para anonimato dos eleitores
 ADMIN_SECRET    = os.environ.get("ADMIN_SECRET", "troque-admin")  # protege rotas /admin
-VOTER_KEYS_FILE = "voter_keys.json"                               # armazena chaves e seus atributos
+VOTER_KEYS_FILE = "voter_keys.json"                               # armazena chaves e atributos
 
 # ---------------- Utilidades ----------------
 def norm(s: str) -> str:
@@ -87,7 +87,7 @@ def vote():
             flash("Esta chave já foi utilizada.", "error")
             return redirect(url_for("index"))
 
-        # Ranking final vem como lista de 'ranking' (inputs hidden no template)
+        # Ranking final (inputs hidden 'ranking' montados no template)
         ranking = request.form.getlist("ranking")
         if not ranking:
             flash("Nenhuma opção selecionada.", "error")
@@ -95,7 +95,7 @@ def vote():
 
         # Marca chave como usada e salva
         info["used"] = True
-        info["used_at"] = uuid.uuid4().hex  # pode trocar por timestamp real, se desejar
+        info["used_at"] = uuid.uuid4().hex  # pode trocar por timestamp real
         peso = int(info.get("peso", 1))
         keys["keys"][voter_key] = info
         save_keys(keys)
@@ -114,11 +114,19 @@ def vote():
 
 @app.route("/results")
 def results():
+    # Sem votos ainda
     if not BALLOTS:
-        return "Nenhum voto computado ainda."
-    # Passa votos com peso para o Schulze ponderado
-    ranking = schulze_method(list(BALLOTS.values()), CANDIDATES)
-    return render_template("results.html", ranking=ranking)
+        return render_template("results.html", ranking=[], empty=True, total_votos=0)
+
+    try:
+        # BALLOTS: dict[hash_da_chave] -> {"ranking":[...], "peso":int}
+        ballots = list(BALLOTS.values())
+        ranking = schulze_method(ballots, CANDIDATES)   # versão ponderada no schulze.py
+        total_votos = sum(int(item.get("peso", 1)) for item in ballots)
+    except Exception as e:
+        return Response(f"Erro ao calcular resultados: {e}", status=500)
+
+    return render_template("results.html", ranking=ranking, empty=False, total_votos=total_votos)
 
 @app.route("/verify", methods=["GET","POST"])
 def verify():
@@ -221,5 +229,5 @@ def download_keys():
 
 # ---------------- Debug local ----------------
 if __name__ == "__main__":
-    # Para testes locais (em produção use o Start Command do Render com gunicorn)
+    # Para testes locais (em produção, configure o Start Command no Render com gunicorn)
     app.run(host="0.0.0.0", port=5000, debug=True)
