@@ -3,21 +3,21 @@ from collections import defaultdict
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, abort
 
 from audit import log_vote, verify_receipt
-from schulze import schulze_method  # versão ponderada instalada
+from schulze import schulze_method  # versão ponderada
 
 app = Flask(__name__)
 # Segredo de sessão do Flask (defina SECRET_KEY no Render)
 app.secret_key = os.environ.get("SECRET_KEY", "changeme")
 
 # ---------------- Configurações/Arquivos ----------------
-CAND_FILE       = "candidates.json"   # <- novo: candidatos configuráveis
+CAND_FILE       = "candidates.json"   # candidatos configuráveis
 VOTER_KEYS_FILE = "voter_keys.json"   # chaves e atributos
 
 # Segredos (defina no Render → Environment Variables)
 ID_SALT      = os.environ.get("ID_SALT", "mude-este-salt")     # SALT para anonimato dos eleitores
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "troque-admin")  # protege rotas /admin
 
-# Candidatos reservados (não removíveis e ordem fixa no final)
+# Candidatos reservados (fixos no final)
 RESERVED_BLANK = "Voto em Branco"
 RESERVED_NULL  = "Voto Nulo"
 
@@ -35,31 +35,43 @@ def require_admin(req):
 
 # ---------------- Candidatos: carregar/salvar/normalizar ----------------
 def _default_candidates():
-    # Valor inicial (você pode ajustar os nomes padrão se quiser)
     base = ["Alice", "Bob", "Charlie"]
-    # Reservados sempre entram ao final na ordem: Branco, depois Nulo
     return base + [RESERVED_BLANK, RESERVED_NULL]
+
+def _squash_spaces(name: str) -> str:
+    """
+    Remove espaços nas bordas e compacta múltiplos espaços internos:
+    "  João   da   Silva  " -> "João da Silva"
+    """
+    return " ".join((name or "").strip().split())
 
 def normalize_candidates(user_list):
     """
-    - Remove vazios/duplicados
-    - Garante presença dos reservados
-    - Coloca os reservados no final, com Branco acima de Nulo
+    - Remove vazios.
+    - Compacta espaços internos e remove bordas.
+    - Remove duplicados ignorando maiúsc./minúsc. (preserva a 1ª grafia vista).
+    - Ignora tentativas de incluir Branco/Nulo (mesmo com variações de caixa/acentuação).
+    - Garante reservados no final: Branco acima de Nulo.
     """
-    seen = set()
+    def is_reserved(name: str) -> bool:
+        n = _squash_spaces(name).casefold()
+        return n == RESERVED_BLANK.casefold() or n == RESERVED_NULL.casefold()
+
+    seen_casefold = set()
     cleaned = []
-    for c in user_list:
-        c = (c or "").strip()
+
+    for c in (user_list or []):
+        c = _squash_spaces(c)
         if not c:
             continue
-        if c in (RESERVED_BLANK, RESERVED_NULL):
-            # ignoramos por enquanto; serão adicionados ao final
+        if is_reserved(c):
             continue
-        if c not in seen:
-            seen.add(c)
-            cleaned.append(c)
+        key = c.casefold()
+        if key in seen_casefold:
+            continue
+        seen_casefold.add(key)
+        cleaned.append(c)  # preserva a grafia da 1ª ocorrência
 
-    # adiciona reservados no final, nessa ordem
     cleaned.append(RESERVED_BLANK)
     cleaned.append(RESERVED_NULL)
     return cleaned
@@ -72,7 +84,6 @@ def load_candidates():
         return data["candidates"]
     with open(CAND_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
-    # Saneia caso alguém tenha removido reservados
     return normalize_candidates(data.get("candidates", _default_candidates()))
 
 def save_candidates(cands_list):
@@ -135,7 +146,7 @@ def compute_pairwise_and_strength(ballots_with_weights, candidates):
     strength = defaultdict(lambda: defaultdict(int))
     for a in candidates:
         for b in candidates:
-            if a == b: 
+            if a == b:
                 continue
             ab = pairwise[a][b]
             ba = pairwise[b][a]
@@ -143,7 +154,7 @@ def compute_pairwise_and_strength(ballots_with_weights, candidates):
 
     for i in candidates:
         for j in candidates:
-            if i == j: 
+            if i == j:
                 continue
             for k in candidates:
                 if k == i or k == j:
@@ -206,7 +217,6 @@ def vote():
 
         return render_template("receipt.html", receipt=receipt)
 
-    # Carrega candidatos dinâmicos
     candidates = load_candidates()
     return render_template("vote.html", candidates=candidates)
 
@@ -337,17 +347,15 @@ def admin_candidates():
 
     if request.method == "POST":
         raw = request.form.get("lista", "")
-        lines = [ln.strip() for ln in raw.splitlines()]
-        # Salva; normalize_candidates cuidará dos reservados e ordem
+        # Quebra linhas, compacta espaços e salva
+        lines = [_squash_spaces(ln) for ln in raw.splitlines()]
         new_list = save_candidates(lines)
         return _render_admin_candidates(new_list, saved=True)
 
-    # GET
     current = load_candidates()
     return _render_admin_candidates(current, saved=False)
 
 def _render_admin_candidates(current, saved=False):
-    # quebra a lista sem mostrar os reservados na textarea (pois são fixos)
     core = [c for c in current if c not in (RESERVED_BLANK, RESERVED_NULL)]
     core_text = "\n".join(core)
     msg = "<p style='color:green;'>Salvo com sucesso.</p>" if saved else ""
