@@ -1,111 +1,38 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <title>Resultados - SchulzeVote</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <style>
-    .subtle { color:#555; margin: 0.25rem 0 1rem; }
-    .table-wrap { overflow-x:auto; margin-top: 16px; }
-    table { border-collapse: collapse; width: 100%; background:#fff; }
-    th, td { border:1px solid #e5e7eb; padding:8px 10px; text-align:center; }
-    th { background:#f3f4f6; position: sticky; top:0; }
-    .note { font-size: 0.95rem; color:#555; }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; font-size:.9rem; }
-  </style>
-</head>
+<head><meta charset="utf-8"><title>Resultados</title>
+<style>
+  body{font-family:system-ui;padding:24px}
+  .box{border:1px solid #e5e7eb;border-radius:12px;padding:16px;background:#fff;margin-bottom:12px}
+  .muted{color:#6b7280}
+</style></head>
 <body>
-  <div class="container">
-    <h1>Resultados (Método de Schulze)</h1>
-
-    {% if empty %}
-      <p>Nenhum voto computado ainda.</p>
-      <a class="button" href="{{ url_for('index') }}">Início</a>
-    {% else %}
-      <p class="subtle">
-        <strong>Total de votos ponderados:</strong> {{ total_votos }}
-      </p>
-
-      <h2>Ranking final</h2>
-      <ol class="ranking">
-        {% for candidato in ranking %}
-          <li>{{ candidato }}</li>
-        {% endfor %}
-      </ol>
-
-      {# ---------- Secções de auditoria opcionais ---------- #}
-      {% if pairwise %}
-        <h2>Preferências par-a-par <span class="pill">auditoria</span></h2>
-        <p class="note">
-          Em cada célula (A × B), o número indica quantos votos ponderados preferiram <b>A</b> a <b>B</b>.
-        </p>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>↘︎ A vs B</th>
-                {% for b in candidates %}
-                  <th>{{ b }}</th>
-                {% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for a in candidates %}
-                <tr>
-                  <th>{{ a }}</th>
-                  {% for b in candidates %}
-                    {% if a == b %}
-                      <td style="background:#fafafa;">—</td>
-                    {% else %}
-                      <td>{{ pairwise[a][b] }}</td>
-                    {% endif %}
-                  {% endfor %}
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% endif %}
-
-      {% if strength %}
-        <h2>Forças de caminho (Schulze) <span class="pill">auditoria</span></h2>
-        <p class="note">
-          Em cada célula (A → B), o valor é a força do caminho mais forte de <b>A</b> até <b>B</b>.
-          O ranking final considera vitórias de <i>A</i> sobre <i>B</i> quando <code>strength[A][B] &gt; strength[B][A]</code>.
-        </p>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>↘︎ A → B</th>
-                {% for b in candidates %}
-                  <th>{{ b }}</th>
-                {% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for a in candidates %}
-                <tr>
-                  <th>{{ a }}</th>
-                  {% for b in candidates %}
-                    {% if a == b %}
-                      <td style="background:#fafafa;">—</td>
-                    {% else %}
-                      <td>{{ strength[a][b] }}</td>
-                    {% endif %}
-                  {% endfor %}
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% endif %}
-
-      <div style="margin-top:16px;">
-        <a class="button" href="{{ url_for('index') }}">Início</a>
+  {% if election_meta %}
+    <div class="box">
+      <h2 style="margin:0 0 6px 0;">{{ election_meta.title or 'Votação' }}</h2>
+      <div class="muted">
+        <b>ID:</b> {{ election_id }}
+        {% if election_meta.date and election_meta.time %}
+          • <b>Data/Hora:</b> {{ election_meta.date }} {{ election_meta.time }} {{ election_meta.tz or 'America/Sao_Paulo' }}
+        {% endif %}
       </div>
-    {% endif %}
-  </div>
+    </div>
+  {% elif election_id %}
+    <div class="box"><div class="muted"><b>ID:</b> {{ election_id }}</div></div>
+  {% endif %}
+
+  {% if empty %}
+    <h3>Sem votos para esta votação.</h3>
+  {% else %}
+    <h3>Ranking (Schulze)</h3>
+    <ol>
+      {% for c in ranking %}
+        <li>{{ c }}</li>
+      {% endfor %}
+    </ol>
+    <p class="muted">Total ponderado de votos: {{ total_votos }}</p>
+  {% endif %}
+
+  <p><a href="/">Início</a></p>
 </body>
 </html>
