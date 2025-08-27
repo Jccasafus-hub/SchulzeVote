@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, abort
 
+# ---- Auditoria (mantém como no seu projeto) ----
 from audit import log_vote, verify_receipt
-from schulze import schulze_method  # versão ponderada
 
 app = Flask(__name__)
 # Segredo de sessão do Flask (defina SECRET_KEY no Render)
@@ -159,147 +159,156 @@ def save_keys(d):
     with open(VOTER_KEYS_FILE, "w", encoding="utf-8") as f:
         json.dump(d, f, ensure_ascii=False, indent=2)
 
-# ---------------- Auditoria (pairwise e strength) ----------------
-def compute_pairwise_and_strength(ballots_with_weights, candidates):
+# ---------------- Schulze com empates (weak orders) ----------------
+def ballot_to_ranks(ballot):
     """
-    Retorna:
-      pairwise: dict[a][b] = preferência ponderada por A sobre B
-      strength: dict[a][b] = força do caminho mais forte de A até B (Schulze)
-      ranking:  lista de candidatos ordenados (mesmo critério do schulze_method)
+    Aceita formatos:
+      - {"ranks": {cand: int|None}, "peso": int}  (preferido)
+      - {"ranking": [cand1, cand2, ...], "peso": int}  (converte para ranks 1..N)
+    Retorna (ranks_dict, peso:int).
     """
-    pairwise = {a: {b: (0 if a != b else None) for b in candidates} for a in candidates}
-    for item in ballots_with_weights:
-        ranking = item.get("ranking", [])
-        w = int(item.get("peso", 1))
-        for i, a in enumerate(ranking):
-            for b in ranking[i+1:]:
-                if a != b and a in candidates and b in candidates:
-                    pairwise[a][b] += w
+    peso = int(ballot.get("peso", 1))
+    if "ranks" in ballot and isinstance(ballot["ranks"], dict):
+        ranks = {}
+        for k, v in ballot["ranks"].items():
+            if v is None:
+                ranks[k] = None
+            else:
+                try:
+                    n = int(v)
+                    ranks[k] = n if n >= 1 else None
+                except:
+                    ranks[k] = None
+        return ranks, peso
 
-    strength = defaultdict(lambda: defaultdict(int))
+    ranking = ballot.get("ranking", [])
+    ranks = {}
+    r = 1
+    for cand in ranking:
+        if cand not in ranks:
+            ranks[cand] = r
+            r += 1
+    return ranks, peso
+
+def compute_pairwise_weak(ballots, candidates):
+    """
+    Constrói a matriz pairwise ponderada considerando empates e não ranqueados:
+      - se rank(A) < rank(B) → A > B (soma peso)
+      - se rank(A) = rank(B) ou ambos None → não contribui
+      - se rank(A) é int e rank(B) é None → A > B
+      - se rank(A) é None e rank(B) é int → B > A
+    Retorna: dict[a][b] = votos ponderados preferindo A sobre B
+    """
+    P = {a: {b: 0 for b in candidates if b != a} for a in candidates}
+    for ballot in ballots:
+        ranks, w = ballot_to_ranks(ballot)
+        for i, a in enumerate(candidates):
+            ra = ranks.get(a, None)
+            for j, b in enumerate(candidates):
+                if a == b:
+                    continue
+                rb = ranks.get(b, None)
+                if ra is None and rb is None:
+                    continue
+                if rb is None and (ra is not None):
+                    P[a][b] += w
+                elif ra is None and (rb is not None):
+                    P[b][a] += w
+                else:
+                    if isinstance(ra, int) and isinstance(rb, int):
+                        if ra < rb:
+                            P[a][b] += w
+                        elif rb < ra:
+                            P[b][a] += w
+                        # ra == rb → empate, não contribui
+    return P
+
+def schulze_strengths(P, candidates):
+    """
+    Calcula as forças de caminho (Schulze) a partir de P[a][b].
+    """
+    S = {a: {b: 0 for b in candidates} for a in candidates}
     for a in candidates:
         for b in candidates:
             if a == b:
                 continue
-            ab = pairwise[a][b]
-            ba = pairwise[b][a]
-            strength[a][b] = ab if ab > ba else 0
+            if P[a][b] > P[b][a]:
+                S[a][b] = P[a][b]
+            else:
+                S[a][b] = 0
 
+    # Floyd–Warshall para caminho mais forte
     for i in candidates:
         for j in candidates:
             if i == j:
                 continue
             for k in candidates:
-                if k == i or k == j:
+                if i == k or j == k:
                     continue
-                strength[j][k] = max(
-                    strength[j][k],
-                    min(strength[j][i], strength[i][k])
-                )
+                S[j][k] = max(S[j][k], min(S[j][i], S[i][k]))
+    return S
+
+def schulze_ranking_from_ballots(ballots, candidates):
+    """
+    Produz ranking (lista) a partir de cédulas com empates.
+    Critério simples: ordenar por (vitórias, -derrotas), onde
+      vitórias = |{y ≠ x : S[x][y] > S[y][x]}|
+      derrotas = |{y ≠ x : S[y][x] > S[x][y]}|
+    """
+    P = compute_pairwise_weak(ballots, candidates)
+    S = schulze_strengths(P, candidates)
 
     def score(x):
-        wins = sum(strength[x][y] > strength[y][x] for y in candidates if y != x)
-        losses = sum(strength[y][x] > strength[x][y] for y in candidates if y != x)
+        wins = sum(S[x][y] > S[y][x] for y in candidates if y != x)
+        losses = sum(S[y][x] > S[x][y] for y in candidates if y != x)
         return (wins, -losses)
 
     ranking = sorted(candidates, key=score, reverse=True)
-    return pairwise, strength, ranking
+    return ranking, P, S
+
+# Memória dos votos desta execução (hash_da_chave -> {"ranks":{cand:rank|None}, "peso":int})
+BALLOTS = {}
 
 # ---------------- Rotas públicas ----------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
-def build_ranking_from_numeric_form(form, candidates):
+def parse_numeric_form_to_ranks(form, candidates):
     """
-    Reconstrói um ranking a partir de campos `cand_i` e `rank_i`, aceitando
-    RANKING PARCIAL:
-      - Itens com número válido (>=1) são ordenados por número (1,2,3,...).
-      - Itens SEM número vão para o FINAL em ORDEM ALFABÉTICA.
-    Regras:
-      - Se vier `special_vote=BLANK` ou `NULL`, retorna ranking só com o especial.
-      - Garante que reservados (Branco/Nulo) fiquem sempre no FINAL se não forem “special”.
-      - Remove duplicidade de nomes e poda espaços internos.
-    Retorna lista de nomes já na ordem final.
+    Constrói um dict {cand: rank|None} aceitando empates (números repetidos)
+    e não ranqueados (None). Respeita voto especial (Branco/Nulo).
     """
-    # 1) voto especial
     special = (form.get("special_vote") or "").strip().upper()
     if special in ("BLANK", "NULL"):
         pick = RESERVED_BLANK if special == "BLANK" else RESERVED_NULL
+        ranks = {c: None for c in candidates}
         if pick in candidates:
-            return [pick]
-        # Se por algum motivo não houver, segue para a lógica normal
+            ranks[pick] = 1
+        return ranks
 
-    # 2) coleta (cand_i, rank_i)
-    numbered = []
-    unranked = []
+    ranks = {c: None for c in candidates}
     idx = 0
-    seen = set()
-
-    def clean_name(n):
-        return _squash_spaces(n)
-
-    # Percorre todos os pares até não existir o próximo índice
     while True:
-        cand = form.get(f"cand_{idx}")
-        rank = form.get(f"rank_{idx}")
-        if cand is None and rank is None:
+        c = form.get(f"cand_{idx}")
+        r = form.get(f"rank_{idx}")
+        if c is None and r is None:
             break
         idx += 1
-        if cand is None:
+        if c is None:
             continue
-        cand = clean_name(cand)
-        if not cand or cand not in candidates:
+        c = _squash_spaces(c)
+        if c not in candidates:
             continue
-        key = cand.casefold()
-        if key in seen:
-            continue
-        seen.add(key)
-
-        # rank pode estar vazio (ranking parcial)
-        if rank is None or str(rank).strip() == "":
-            unranked.append(cand)
+        if r is None or str(r).strip() == "":
+            ranks[c] = None
         else:
             try:
-                n = int(str(rank).strip())
-                if n >= 1:
-                    numbered.append((n, cand))
-                else:
-                    unranked.append(cand)
+                n = int(str(r).strip())
+                ranks[c] = n if n >= 1 else None
             except:
-                unranked.append(cand)
-
-    # 3) ordena numerados por n crescente
-    numbered.sort(key=lambda t: t[0])
-    # 4) ordena não numerados por ordem alfabética (case-insensitive), mas sem tocar nos reservados agora
-    def alpha_key(name: str):
-        return name.casefold()
-    # separa reservados dos não-reservados
-    unranked_core = [c for c in unranked if c not in (RESERVED_BLANK, RESERVED_NULL)]
-    unranked_resv = [c for c in unranked if c in (RESERVED_BLANK, RESERVED_NULL)]
-    unranked_core.sort(key=alpha_key)
-
-    # 5) monta lista base: numerados (na ordem) + não numerados (alfabético)
-    ranking = [c for _, c in numbered] + unranked_core
-
-    # 6) coloca reservados AO FINAL, mantendo Branco acima de Nulo se presentes
-    if RESERVED_BLANK in (name for _, name in numbered) or RESERVED_BLANK in unranked_resv:
-        if RESERVED_BLANK not in ranking:
-            ranking.append(RESERVED_BLANK)
-    if RESERVED_NULL in (name for _, name in numbered) or RESERVED_NULL in unranked_resv:
-        if RESERVED_NULL not in ranking:
-            ranking.append(RESERVED_NULL)
-
-    # 7) se, por acaso, não entrou nenhum candidato (form malformado), devolve somente reservados padrão
-    if not ranking:
-        core = [c for c in candidates if c not in (RESERVED_BLANK, RESERVED_NULL)]
-        if core:
-            # Sem inputs válidos: por segurança, retorna core ordenado + reservados
-            core.sort(key=alpha_key)
-            ranking = core + ([RESERVED_BLANK] if RESERVED_BLANK in candidates else []) + \
-                              ([RESERVED_NULL]  if RESERVED_NULL in candidates  else [])
-
-    return ranking
+                ranks[c] = None
+    return ranks
 
 @app.route("/vote", methods=["GET", "POST"])
 def vote():
@@ -329,32 +338,43 @@ def vote():
             flash("Esta chave já foi utilizada.", "error")
             return redirect(url_for("index"))
 
-        # 1) Tenta pegar ranking já pronto (quando o front manda 'ranking' oculto)
-        ranking = request.form.getlist("ranking")
+        # Preferimos ranks (para aceitar empates). Se vier apenas 'ranking',
+        # converteremos para ranks 1..N.
+        posted_ranking = request.form.getlist("ranking")
+        if posted_ranking:
+            # Converte para ranks estritos (1..N), os demais ficam None
+            ranks = {c: None for c in candidates}
+            r = 1
+            for c in posted_ranking:
+                if c in candidates and ranks[c] is None:
+                    ranks[c] = r
+                    r += 1
+        else:
+            # Reconstrói a partir de cand_i / rank_i permitindo duplicatas e vazios
+            ranks = parse_numeric_form_to_ranks(request.form, candidates)
 
-        # 2) Se não veio (ou veio vazio), reconstrói a partir de 'cand_i'/'rank_i' (aceita ranking parcial)
-        if not ranking:
-            ranking = build_ranking_from_numeric_form(request.form, candidates)
-
-        # 3) Confere se pelo menos um candidato foi selecionado
-        if not ranking:
+        # Pelo menos uma preferência (rank numérico) OU voto especial escolhido
+        if not any((isinstance(v, int) and v >= 1) for v in ranks.values()):
             flash("Nenhuma preferência informada.", "error")
             return redirect(url_for("vote"))
 
-        # 4) Marca chave como usada e salva
+        # Marca chave como usada e salva
         info["used"] = True
         info["used_at"] = uuid.uuid4().hex  # pode trocar por timestamp real
         peso = int(info.get("peso", 1))
         keys["keys"][voter_key] = info
         save_keys(keys)
 
-        # 5) Guarda voto por hash da chave (anonimato) + peso
+        # Guarda voto por hash da chave (anonimato) + peso
         voter_key_h = key_hash(voter_key)
-        BALLOTS[voter_key_h] = {"ranking": ranking, "peso": peso}
+        BALLOTS[voter_key_h] = {"ranks": ranks, "peso": peso}
 
-        # 6) Auditoria com hash + recibo
+        # Auditoria com hash + recibo
         receipt = str(uuid.uuid4())
-        log_vote(voter_id=voter_key_h, ranking=ranking, receipt=receipt)
+        # Para auditoria humana, podemos também registrar uma versão linear auxiliar:
+        # ordena por rank crescente; empates ficam perto, não ranqueados vão ao fim
+        linear = [c for c, v in sorted(ranks.items(), key=lambda x: (x[1] is None, x[1] or 10**9, x[0].casefold()))]
+        log_vote(voter_id=voter_key_h, ranking=linear, receipt=receipt)
 
         return render_template("receipt.html", receipt=receipt)
 
@@ -371,13 +391,11 @@ def results():
         candidates = load_candidates()
         total_votos = sum(int(item.get("peso", 1)) for item in ballots)
 
-        # Ranking oficial (schulze ponderado)
-        ranking_official = schulze_method(ballots, candidates)
+        # Ranking oficial (Schulze com empates)
+        ranking_official, pairwise, strength = schulze_ranking_from_ballots(ballots, candidates)
 
-        # Auditoria opcional
         debug = request.args.get("debug") == "1"
         if debug:
-            pairwise, strength, _ = compute_pairwise_and_strength(ballots, candidates)
             return render_template(
                 "results.html",
                 ranking=ranking_official,
