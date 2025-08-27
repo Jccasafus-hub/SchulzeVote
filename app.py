@@ -36,6 +36,10 @@ def require_admin(req):
     token = req.args.get("secret") or req.headers.get("X-Admin-Secret")
     return (ADMIN_SECRET and token == ADMIN_SECRET)
 
+def _squash_spaces(name: str) -> str:
+    """Remove espaços nas bordas e compacta múltiplos espaços internos."""
+    return " ".join((name or "").strip().split())
+
 # ---------------- Prazo de votação (deadline) ----------------
 def load_deadline():
     """Lê o prazo (UTC) do arquivo election.json. Retorna datetime aware em UTC ou None."""
@@ -76,10 +80,6 @@ def is_voting_open() -> bool:
 def _default_candidates():
     base = ["Alice", "Bob", "Charlie"]
     return base + [RESERVED_BLANK, RESERVED_NULL]
-
-def _squash_spaces(name: str) -> str:
-    """Remove espaços nas bordas e compacta múltiplos espaços internos."""
-    return " ".join((name or "").strip().split())
 
 def normalize_candidates(user_list):
     """
@@ -210,6 +210,97 @@ def compute_pairwise_and_strength(ballots_with_weights, candidates):
 def index():
     return render_template("index.html")
 
+def build_ranking_from_numeric_form(form, candidates):
+    """
+    Reconstrói um ranking a partir de campos `cand_i` e `rank_i`, aceitando
+    RANKING PARCIAL:
+      - Itens com número válido (>=1) são ordenados por número (1,2,3,...).
+      - Itens SEM número vão para o FINAL em ORDEM ALFABÉTICA.
+    Regras:
+      - Se vier `special_vote=BLANK` ou `NULL`, retorna ranking só com o especial.
+      - Garante que reservados (Branco/Nulo) fiquem sempre no FINAL se não forem “special”.
+      - Remove duplicidade de nomes e poda espaços internos.
+    Retorna lista de nomes já na ordem final.
+    """
+    # 1) voto especial
+    special = (form.get("special_vote") or "").strip().upper()
+    if special in ("BLANK", "NULL"):
+        pick = RESERVED_BLANK if special == "BLANK" else RESERVED_NULL
+        if pick in candidates:
+            return [pick]
+        # Se por algum motivo não houver, segue para a lógica normal
+
+    # 2) coleta (cand_i, rank_i)
+    numbered = []
+    unranked = []
+    idx = 0
+    seen = set()
+
+    def clean_name(n):
+        return _squash_spaces(n)
+
+    # Percorre todos os pares até não existir o próximo índice
+    while True:
+        cand = form.get(f"cand_{idx}")
+        rank = form.get(f"rank_{idx}")
+        if cand is None and rank is None:
+            break
+        idx += 1
+        if cand is None:
+            continue
+        cand = clean_name(cand)
+        if not cand or cand not in candidates:
+            continue
+        key = cand.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+
+        # rank pode estar vazio (ranking parcial)
+        if rank is None or str(rank).strip() == "":
+            unranked.append(cand)
+        else:
+            try:
+                n = int(str(rank).strip())
+                if n >= 1:
+                    numbered.append((n, cand))
+                else:
+                    unranked.append(cand)
+            except:
+                unranked.append(cand)
+
+    # 3) ordena numerados por n crescente
+    numbered.sort(key=lambda t: t[0])
+    # 4) ordena não numerados por ordem alfabética (case-insensitive), mas sem tocar nos reservados agora
+    def alpha_key(name: str):
+        return name.casefold()
+    # separa reservados dos não-reservados
+    unranked_core = [c for c in unranked if c not in (RESERVED_BLANK, RESERVED_NULL)]
+    unranked_resv = [c for c in unranked if c in (RESERVED_BLANK, RESERVED_NULL)]
+    unranked_core.sort(key=alpha_key)
+
+    # 5) monta lista base: numerados (na ordem) + não numerados (alfabético)
+    ranking = [c for _, c in numbered] + unranked_core
+
+    # 6) coloca reservados AO FINAL, mantendo Branco acima de Nulo se presentes
+    if RESERVED_BLANK in (name for _, name in numbered) or RESERVED_BLANK in unranked_resv:
+        if RESERVED_BLANK not in ranking:
+            ranking.append(RESERVED_BLANK)
+    if RESERVED_NULL in (name for _, name in numbered) or RESERVED_NULL in unranked_resv:
+        if RESERVED_NULL not in ranking:
+            ranking.append(RESERVED_NULL)
+
+    # 7) se, por acaso, não entrou nenhum candidato (form malformado), devolve somente reservados padrão
+    if not ranking:
+        core = [c for c in candidates if c not in (RESERVED_BLANK, RESERVED_NULL)]
+        if core:
+            # Sem inputs válidos: por segurança, retorna core ordenado + reservados
+            core.sort(key=alpha_key)
+            ranking = core + ([RESERVED_BLANK] if RESERVED_BLANK in candidates else []) + \
+                              ([RESERVED_NULL]  if RESERVED_NULL in candidates  else [])
+
+    return ranking
+
 @app.route("/vote", methods=["GET", "POST"])
 def vote():
     # Bloqueia se prazo expirou (GET e POST)
@@ -219,6 +310,8 @@ def vote():
             mimetype="text/html",
             status=403
         )
+
+    candidates = load_candidates()
 
     if request.method == "POST":
         voter_key = norm(request.form.get("voter_id", ""))
@@ -236,29 +329,36 @@ def vote():
             flash("Esta chave já foi utilizada.", "error")
             return redirect(url_for("index"))
 
+        # 1) Tenta pegar ranking já pronto (quando o front manda 'ranking' oculto)
         ranking = request.form.getlist("ranking")
+
+        # 2) Se não veio (ou veio vazio), reconstrói a partir de 'cand_i'/'rank_i' (aceita ranking parcial)
         if not ranking:
-            flash("Nenhuma opção selecionada.", "error")
+            ranking = build_ranking_from_numeric_form(request.form, candidates)
+
+        # 3) Confere se pelo menos um candidato foi selecionado
+        if not ranking:
+            flash("Nenhuma preferência informada.", "error")
             return redirect(url_for("vote"))
 
-        # Marca chave como usada e salva
+        # 4) Marca chave como usada e salva
         info["used"] = True
         info["used_at"] = uuid.uuid4().hex  # pode trocar por timestamp real
         peso = int(info.get("peso", 1))
         keys["keys"][voter_key] = info
         save_keys(keys)
 
-        # Guarda voto por hash da chave (anonimato) + peso
+        # 5) Guarda voto por hash da chave (anonimato) + peso
         voter_key_h = key_hash(voter_key)
         BALLOTS[voter_key_h] = {"ranking": ranking, "peso": peso}
 
-        # Auditoria com hash + recibo
+        # 6) Auditoria com hash + recibo
         receipt = str(uuid.uuid4())
         log_vote(voter_id=voter_key_h, ranking=ranking, receipt=receipt)
 
         return render_template("receipt.html", receipt=receipt)
 
-    candidates = load_candidates()
+    # GET
     return render_template("vote.html", candidates=candidates)
 
 @app.route("/results")
@@ -444,11 +544,9 @@ def admin_candidates():
     return _render_admin_candidates(current)
 
 def _render_admin_candidates(current, msg=None, warn=None, tz_default="America/Sao_Paulo"):
-    # Parte de candidatos (não mostra os reservados na textarea)
     core = [c for c in current if c not in (RESERVED_BLANK, RESERVED_NULL)]
     core_text = "\n".join(core)
 
-    # Parte do prazo (apresenta em UTC e convertido para o TZ atual do formulário)
     dl_utc = load_deadline()
     if dl_utc:
         try:
@@ -468,7 +566,6 @@ def _render_admin_candidates(current, msg=None, warn=None, tz_default="America/S
     if msg:  status_html += f"<p style='color:green'>{msg}</p>"
     if warn: status_html += f"<p style='color:#b45309'>{warn}</p>"
 
-    # Lista de fusos (comuns no Brasil + UTC)
     tz_options = [
         "America/Sao_Paulo",
         "America/Bahia",
@@ -485,7 +582,6 @@ def _render_admin_candidates(current, msg=None, warn=None, tz_default="America/S
         "UTC"
     ]
 
-    # HTML do painel
     html = f"""
     <!doctype html>
     <html lang="pt-BR">
@@ -529,7 +625,7 @@ def _render_admin_candidates(current, msg=None, warn=None, tz_default="America/S
             <form method="POST">
               <input type="hidden" name="action" value="save_candidates" />
               <label for="lista"><b>Lista de candidatos</b></label><br/>
-              <textarea id="lista" name="lista" placeholder="Ex.:&#10;Candidato A&#10;Candidato B&#10;Candidato C">{'\n'.join(core)}</textarea>
+              <textarea id="lista" name="lista" placeholder="Ex.:&#10;Candidato A&#10;Candidato B&#10;Candidato C">{core_text}</textarea>
               <div style="margin-top:10px;">
                 <button class="btn" type="submit">Salvar candidatos</button>
               </div>
@@ -565,7 +661,11 @@ def _render_admin_candidates(current, msg=None, warn=None, tz_default="America/S
               <div style="margin-top:8px;">
                 <label for="tz"><b>Fuso horário</b></label>
                 <select id="tz" name="tz">
-                  {"".join(f'<option value="{tz}" ' + ('selected' if tz==tz_default else '') + f'>{tz}</option>' for tz in tz_options)}
+                  {"".join(f'<option value="{tz}" ' + ('selected' if tz==tz_default else '') + f'>{tz}</option>' for tz in [
+                      "America/Sao_Paulo","America/Bahia","America/Fortaleza","America/Recife","America/Maceio",
+                      "America/Manaus","America/Belem","America/Boa_Vista","America/Porto_Velho",
+                      "America/Cuiaba","America/Campo_Grande","America/Noronha","UTC"
+                  ])}
                 </select>
               </div>
 
@@ -601,7 +701,6 @@ def _render_admin_candidates(current, msg=None, warn=None, tz_default="America/S
               var tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
               if (tz) {{
                 var sel = document.getElementById("tz");
-                // Se o fuso detectado existir na lista, seleciona-o
                 if (sel) {{
                   for (var i=0; i<sel.options.length; i++) {{
                     if (sel.options[i].value === tz) {{
@@ -610,11 +709,9 @@ def _render_admin_candidates(current, msg=None, warn=None, tz_default="America/S
                     }}
                   }}
                 }}
-                // Envia ao servidor para manter como padrão no render
                 var f = document.getElementById("tzDetectForm");
                 if (f) {{
                   document.getElementById("browser_tz").value = tz;
-                  // Faz um post leve, sem redirecionar (usa fetch)
                   fetch(window.location.href, {{
                     method: "POST",
                     headers: {{ "Content-Type": "application/x-www-form-urlencoded" }},
