@@ -5,105 +5,180 @@
   <title>Votação - SchulzeVote</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <style>
-    .candidate-list { list-style:none; padding:0; }
-    .candidate-item { padding:10px; margin:6px 0; background:#f9fafb; border:1px solid #d1d5db; border-radius:6px; cursor:grab; }
-    .special { background:#111827; color:white; text-align:center; }
-    .special-null { background:#991b1b; color:white; text-align:center; }
-    .disabled { opacity:0.5; pointer-events:none; }
+    .grid { display:grid; gap:10px; grid-template-columns: 1fr 120px; align-items:center; }
+    .row { display:contents; }
+    .hdr { font-weight:bold; }
+    .special { background:#111827; color:#fff; padding:6px 10px; border-radius:6px; }
+    .special-null { background:#991b1b; color:#fff; padding:6px 10px; border-radius:6px; }
+    .muted { color:#6b7280; }
+    .sep { margin:14px 0; border-top:1px solid #e5e7eb; }
+    input[type="number"] { width:100%; padding:6px 8px; border:1px solid #d1d5db; border-radius:8px; }
+    input[disabled] { background:#f3f4f6; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Votação</h1>
 
-    <form method="POST">
+    <form method="POST" id="voteForm">
       <label for="voter_id"><b>Sua chave de eleitor</b></label><br>
       <input type="text" id="voter_id" name="voter_id" required><br><br>
 
-      <p>Arraste para ordenar os candidatos conforme sua preferência:</p>
-      <ul id="sortable" class="candidate-list">
-        {% for c in candidates %}
-          {% if c == "Voto em Branco" %}
-            <li class="candidate-item special" data-value="{{ c }}">{{ c }}</li>
-          {% elif c == "Voto Nulo" %}
-            <li class="candidate-item special-null" data-value="{{ c }}">{{ c }}</li>
-          {% else %}
-            <li class="candidate-item" data-value="{{ c }}">{{ c }}</li>
-          {% endif %}
-        {% endfor %}
-      </ul>
+      <p class="muted">Digite <b>1</b> para sua primeira preferência, <b>2</b> para a segunda, e assim por diante. Não repita números.</p>
 
-      <!-- campo oculto que receberá a ordem final -->
+      <div class="grid hdr">
+        <div>Candidato</div>
+        <div>Preferência</div>
+      </div>
+
+      <div id="candGrid" class="grid">
+        {% for c in candidates %}
+          {% set is_blank = (c == "Voto em Branco") %}
+          {% set is_null = (c == "Voto Nulo") %}
+          <div class="row">
+            <div>
+              {% if is_blank %}
+                <span class="special">{{ c }}</span>
+              {% elif is_null %}
+                <span class="special-null">{{ c }}</span>
+              {% else %}
+                {{ c }}
+              {% endif %}
+              <input type="hidden" name="cand_{{ loop.index0 }}" value="{{ c }}">
+            </div>
+            <div>
+              <input type="number" min="1" step="1" inputmode="numeric"
+                     name="rank_{{ loop.index0 }}" class="rank-input"
+                     data-candidate="{{ c }}">
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="sep"></div>
+
+      <p><b>Atalho:</b> você pode marcar um destes e ignorar os números acima:</p>
+      <label>
+        <input type="radio" name="special_vote" value="BLANK"> Votar em <b>Voto em Branco</b>
+      </label><br>
+      <label>
+        <input type="radio" name="special_vote" value="NULL"> Votar em <b>Voto Nulo</b>
+      </label><br>
+      <label>
+        <input type="radio" name="special_vote" value="" checked> Nenhum (usarei os números acima)
+      </label>
+
+      <!-- campo oculto onde o JS montará a ordem final -->
       <div id="ranking-fields"></div>
 
+      <br>
       <button type="submit" class="button">Enviar voto</button>
     </form>
   </div>
 
   <script>
-    const list = document.getElementById("sortable");
+    const form = document.getElementById("voteForm");
     const fields = document.getElementById("ranking-fields");
+    const rankInputs = Array.from(document.querySelectorAll(".rank-input"));
+    const specialRadios = Array.from(document.querySelectorAll('input[name="special_vote"]'));
 
-    // Função para atualizar os inputs hidden
-    function updateHiddenFields() {
+    function getCandidates() {
+      const names = [];
+      for (let i = 0; ; i++) {
+        const el = form.querySelector(`input[name="cand_${i}"]`);
+        if (!el) break;
+        names.push(el.value);
+      }
+      return names;
+    }
+
+    function setDisabledRanks(disabled) {
+      rankInputs.forEach(inp => { inp.disabled = disabled; if (disabled) inp.value = ""; });
+    }
+
+    function updateSpecialMode() {
+      const val = (specialRadios.find(r => r.checked) || {}).value || "";
+      if (val === "BLANK" || val === "NULL") {
+        setDisabledRanks(true);
+      } else {
+        setDisabledRanks(false);
+      }
+    }
+
+    specialRadios.forEach(r => r.addEventListener("change", updateSpecialMode));
+    updateSpecialMode();
+
+    function buildRankingFromNumbers() {
+      // Lê { índice -> (nome, rank) }, valida unicidade e sequência 1..N
+      const entries = [];
+      for (let i = 0; ; i++) {
+        const nameEl = form.querySelector(`input[name="cand_${i}"]`);
+        const rankEl = form.querySelector(`input[name="rank_${i}"]`);
+        if (!nameEl || !rankEl) break;
+        const cand = nameEl.value;
+        const val = rankEl.value.trim();
+        if (!val) return { ok:false, msg:"Preencha todas as preferências (1, 2, 3, ...)." };
+        const n = Number(val);
+        if (!Number.isInteger(n) || n < 1) {
+          return { ok:false, msg:`Valor inválido para "${cand}". Use inteiros ≥ 1.` };
+        }
+        entries.push({ cand, rank:n });
+      }
+
+      // Verifica duplicatas e sequência
+      const ranks = entries.map(e => e.rank);
+      const maxRank = Math.max(...ranks);
+      const expected = new Set(Array.from({length: entries.length}, (_,k)=>k+1));
+      const got = new Set(ranks);
+      if (got.size !== ranks.length) {
+        return { ok:false, msg:"Não repita números: cada preferência deve ser única." };
+      }
+      if (maxRank !== entries.length || ranks.some(r => r < 1 || r > entries.length)) {
+        return { ok:false, msg:`Use 1 até ${entries.length}, sem pular números.` };
+      }
+
+      // Ordena por rank e devolve a lista de nomes
+      entries.sort((a,b)=>a.rank-b.rank);
+      return { ok:true, ranking: entries.map(e=>e.cand) };
+    }
+
+    function buildRankingSpecial(which) {
+      const all = getCandidates();
+      let pick = (which === "BLANK") ? "Voto em Branco" : "Voto Nulo";
+      if (!all.includes(pick)) {
+        return { ok:false, msg:`Opção especial "${pick}" não encontrada.` };
+      }
+      // Ranking com um único item (especial) — o backend aceita
+      return { ok:true, ranking:[pick] };
+    }
+
+    function writeHiddenRanking(list) {
       fields.innerHTML = "";
-      const items = list.querySelectorAll(".candidate-item");
-      items.forEach(item => {
+      list.forEach(name => {
         const inp = document.createElement("input");
         inp.type = "hidden";
         inp.name = "ranking";
-        inp.value = item.getAttribute("data-value");
+        inp.value = name;
         fields.appendChild(inp);
       });
     }
 
-    // Drag and drop
-    let dragSrc;
-    list.addEventListener("dragstart", e => {
-      dragSrc = e.target;
-      e.dataTransfer.effectAllowed = "move";
-    });
-    list.addEventListener("dragover", e => {
-      e.preventDefault();
-      const target = e.target.closest(".candidate-item");
-      if (target && target !== dragSrc) {
-        list.insertBefore(dragSrc, target.nextSibling);
-      }
-    });
-    list.addEventListener("drop", e => {
-      e.preventDefault();
-      updateHiddenFields();
-    });
-
-    // Marca os itens como draggable
-    list.querySelectorAll(".candidate-item").forEach(li => {
-      li.draggable = true;
-    });
-
-    // Regras: se Branco ou Nulo for selecionado, eles desativam os demais
-    function enforceSpecialRules() {
-      const items = Array.from(list.querySelectorAll(".candidate-item"));
-      const hasBlank = items.find(it => it.getAttribute("data-value") === "Voto em Branco");
-      const hasNull = items.find(it => it.getAttribute("data-value") === "Voto Nulo");
-
-      let blankSelected = hasBlank && list.firstElementChild === hasBlank;
-      let nullSelected = hasNull && list.firstElementChild === hasNull;
-
-      if (blankSelected || nullSelected) {
-        items.forEach(it => {
-          if (it !== list.firstElementChild) it.classList.add("disabled");
-        });
+    form.addEventListener("submit", (e) => {
+      // Monta ranking conforme modo escolhido
+      const choice = (specialRadios.find(r => r.checked) || {}).value || "";
+      let res;
+      if (choice === "BLANK" || choice === "NULL") {
+        res = buildRankingSpecial(choice);
       } else {
-        items.forEach(it => it.classList.remove("disabled"));
+        res = buildRankingFromNumbers();
       }
-    }
-
-    list.addEventListener("drop", enforceSpecialRules);
-    list.addEventListener("dragend", enforceSpecialRules);
-
-    // Inicializa campos hidden e regras
-    updateHiddenFields();
-    enforceSpecialRules();
+      if (!res.ok) {
+        e.preventDefault();
+        alert(res.msg);
+        return;
+      }
+      writeHiddenRanking(res.ranking);
+    });
   </script>
 </body>
 </html>
