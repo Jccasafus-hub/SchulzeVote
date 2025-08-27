@@ -1,8 +1,12 @@
 import os, json, uuid, secrets, string, hashlib, copy
+from collections import defaultdict
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, abort
 
-from schulze import schulze_method
 from audit import log_vote, verify_receipt
+# Observação: o cálculo “oficial” do ranking continua no schulze.py, mas
+# nesta versão do app expomos um modo de auditoria calculando pairwise/strength
+# aqui dentro para passar ao template quando debug=1.
+from schulze import schulze_method  # versão ponderada que você já instalou
 
 app = Flask(__name__)
 # Segredo de sessão do Flask (defina SECRET_KEY no Render)
@@ -63,6 +67,56 @@ def require_admin(req):
 # Memória dos votos desta execução (hash_da_chave -> {"ranking":[...], "peso":int})
 BALLOTS = {}
 
+# ---------- Cálculo de auditoria (pairwise e strength) ----------
+def compute_pairwise_and_strength(ballots_with_weights, candidates):
+    """
+    Retorna:
+      pairwise: dict[a][b] = preferência ponderada por A sobre B
+      strength: dict[a][b] = força do caminho mais forte de A até B (Schulze)
+      ranking: lista de candidatos ordenados (mesma regra do schulze_method ponderado)
+    """
+    # pairwise
+    pairwise = {a: {b: (0 if a != b else None) for b in candidates} for a in candidates}
+    for item in ballots_with_weights:
+        ranking = item.get("ranking", [])
+        w = int(item.get("peso", 1))
+        for i, a in enumerate(ranking):
+            for b in ranking[i+1:]:
+                if a != b and a in candidates and b in candidates:
+                    pairwise[a][b] += w
+
+    # força direta
+    strength = defaultdict(lambda: defaultdict(int))
+    for a in candidates:
+        for b in candidates:
+            if a == b:
+                continue
+            ab = pairwise[a][b]
+            ba = pairwise[b][a]
+            strength[a][b] = ab if ab > ba else 0
+
+    # caminhos mais fortes (Schulze)
+    for i in candidates:
+        for j in candidates:
+            if i == j:
+                continue
+            for k in candidates:
+                if k == i or k == j:
+                    continue
+                strength[j][k] = max(
+                    strength[j][k],
+                    min(strength[j][i], strength[i][k])
+                )
+
+    # ranking final (mesmo critério do schulze.py)
+    def score(x):
+        wins = sum(strength[x][y] > strength[y][x] for y in candidates if y != x)
+        losses = sum(strength[y][x] > strength[x][y] for y in candidates if y != x)
+        return (wins, -losses)
+
+    ranking = sorted(candidates, key=score, reverse=True)
+    return pairwise, strength, ranking
+
 # ---------------- Rotas públicas ----------------
 @app.route("/")
 def index():
@@ -116,17 +170,42 @@ def vote():
 def results():
     # Sem votos ainda
     if not BALLOTS:
+        # Sem auditoria porque não há dados
         return render_template("results.html", ranking=[], empty=True, total_votos=0)
 
     try:
-        # BALLOTS: dict[hash_da_chave] -> {"ranking":[...], "peso":int}
         ballots = list(BALLOTS.values())
-        ranking = schulze_method(ballots, CANDIDATES)   # versão ponderada no schulze.py
         total_votos = sum(int(item.get("peso", 1)) for item in ballots)
+
+        # Ranking oficial pelo módulo schulze.py (ponderado)
+        ranking_official = schulze_method(ballots, CANDIDATES)
+
+        # Modo auditoria: se debug=1, passamos pairwise e strength calculados aqui
+        debug = request.args.get("debug") == "1"
+        if debug:
+            pairwise, strength, ranking_debug = compute_pairwise_and_strength(ballots, CANDIDATES)
+            # Por segurança, mostramos o ranking do cálculo oficial; mas você pode comparar:
+            ranking = ranking_official
+            return render_template(
+                "results.html",
+                ranking=ranking,
+                empty=False,
+                total_votos=total_votos,
+                candidates=CANDIDATES,
+                pairwise=pairwise,
+                strength=strength
+            )
+        else:
+            # Sem tabelas de auditoria
+            return render_template(
+                "results.html",
+                ranking=ranking_official,
+                empty=False,
+                total_votos=total_votos
+            )
+
     except Exception as e:
         return Response(f"Erro ao calcular resultados: {e}", status=500)
-
-    return render_template("results.html", ranking=ranking, empty=False, total_votos=total_votos)
 
 @app.route("/verify", methods=["GET","POST"])
 def verify():
