@@ -486,7 +486,7 @@ def vote():
     return render_template("vote.html", candidates=candidates)
 
 # --------- Resultados / públicos ----------
-@app.route("/results")
+@app.route("/results", endpoint="results")
 def results_current():
     return redirect(url_for("public_results", eid=get_current_election_id()))
 
