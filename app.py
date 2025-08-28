@@ -584,7 +584,7 @@ def admin_candidates():
 
     html = """
     <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Admin · Candidatos & Prazo</title>
-    <style>body{{font-family:system-ui;padding:24px}} textarea{{width:100%%;min-height:200px}}</style></head><body>
+    <style>body{{font-family:system-ui;padding:24px}} textarea{{width:100%;min-height:200px}}</style></head><body>
       <h1>Admin · Candidatos & Prazo</h1>
       %s
       %s
@@ -869,7 +869,7 @@ def admin_users_list():
     if not require_admin(request): abort(403)
     return Response(json.dumps(load_registry(), ensure_ascii=False, indent=2), mimetype="application/json")
 
-# ---- Página admin: Assign UI (com lixeira, peso, CSV) ----
+# ---- Página admin: Assign UI (com lixeira, peso, CSV) + Mostrar/Ocultar segredo ----
 @app.route("/admin/assign_ui")
 def admin_assign_ui():
     if not require_admin(request): abort(403)
@@ -889,7 +889,7 @@ def admin_assign_ui():
     .wrap{max-width:1200px;margin:0 auto}
     h1{margin:0 0 12px 0}
     .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:12px 0}
-    textarea{width:100%%;min-height:120px;padding:8px;border:1px solid #d1d5db;border-radius:10px}
+    textarea{width:100%;min-height:120px;padding:8px;border:1px solid #d1d5db;border-radius:10px}
     .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0}
     input[type=number], input[type=text]{padding:8px;border:1px solid #d1d5db;border-radius:10px}
     input.wsmall{width:90px}
@@ -898,7 +898,7 @@ def admin_assign_ui():
     .btn.ghost{background:#fff;color:#111827;border:1px dashed #9ca3af}
     .btn.danger{background:#b91c1c;border-color:#7f1d1d}
     .btn.warn{background:#f59e0b;border-color:#78350f;color:#111}
-    table{border-collapse:collapse;width:100%%}
+    table{border-collapse:collapse;width:100%}
     th,td{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.95rem;vertical-align:middle}
     th{background:#f3f4f6}
     pre{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px;max-height:260px;overflow:auto}
@@ -910,6 +910,19 @@ def admin_assign_ui():
 <body>
   <div class="wrap">
     <h1>Atribuir chaves (lote)</h1>
+
+    <div class="card" style="margin-top:8px">
+      <div class="row" style="gap:12px; align-items:center">
+        <label>Segredo admin
+          <input type="password" id="admsec_assign" placeholder="digite o segredo" style="min-width:260px;padding:8px;border:1px solid #d1d5db;border-radius:10px">
+        </label>
+        <label style="display:flex;gap:6px;align-items:center">
+          <input type="checkbox" onclick="toggleAdminSecretAssign()"> Mostrar segredo
+        </label>
+        <button class="btn" onclick="applyAdminSecretAssign()">Aplicar</button>
+      </div>
+      <p class="muted" style="margin-top:6px">Use para trocar rapidamente o parâmetro <code>?secret=...</code> desta página.</p>
+    </div>
 
     <div class="card">
       <p>Cole aqui os <b>usuários</b> (um por linha). Ex.:</p>
@@ -980,9 +993,27 @@ usuario03</pre>
   <script>
     const secret = %s;
     const currentEid = %s;
-    document.addEventListener('DOMContentLoaded', ()=>{{
+    document.addEventListener('DOMContentLoaded', ()=>{
       document.getElementById('eidNow').textContent = currentEid;
-    }});
+      const f = document.getElementById('admsec_assign');
+      if (f && typeof secret !== 'undefined') f.value = secret || '';
+    });
+
+    // ----- Mostrar/ocultar & aplicar segredo admin (assign_ui) -----
+    function toggleAdminSecretAssign(){
+      const f = document.getElementById('admsec_assign');
+      if (!f) return;
+      f.type = (f.type === 'password') ? 'text' : 'password';
+    }
+    function applyAdminSecretAssign(){
+      const f = document.getElementById('admsec_assign');
+      if (!f) return;
+      const v = f.value || '';
+      const url = new URL(window.location.href);
+      if (v) url.searchParams.set('secret', v);
+      else   url.searchParams.delete('secret');
+      window.location.href = url.toString();
+    }
 
     let USERS_CACHE = {};
     let TRASH_CACHE = {};
@@ -1241,7 +1272,7 @@ def admin_ballots_raw():
     ballots = load_ballots(eid)
     return Response(json.dumps({"eid": eid, "ballots": ballots}, ensure_ascii=False, indent=2), mimetype="application/json")
 
-# ---- Página admin: audit_preview (UI com filtros + CONSISTÊNCIA) ----
+# ---- Página admin: audit_preview (UI com filtros + CONSISTÊNCIA) + Mostrar/Ocultar segredo ----
 @app.route("/admin/audit_preview")
 def admin_audit_preview():
     if not require_admin(request): abort(403)
@@ -1265,7 +1296,7 @@ def admin_audit_preview():
     select,input,button{padding:8px 10px;border:1px solid #d1d5db;border-radius:10px}
     button{cursor:pointer;background:#111827;color:#fff}
     button.ghost{background:#fff;color:#111827;border:1px dashed #9ca3af}
-    table{border-collapse:collapse;width:100%%}
+    table{border-collapse:collapse;width:100%}
     th,td{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.93rem;vertical-align:top;white-space:nowrap}
     th{background:#f3f4f6}
     code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
@@ -1285,6 +1316,19 @@ def admin_audit_preview():
 <body>
   <div class="wrap">
     <h1>Auditoria · Preview (Admin)</h1>
+
+    <div class="card" style="margin-top:8px">
+      <div class="row" style="gap:12px; align-items:center">
+        <label>Segredo admin
+          <input type="password" id="admsec_audit" placeholder="digite o segredo" style="min-width:260px;padding:8px;border:1px solid #d1d5db;border-radius:10px">
+        </label>
+        <label style="display:flex;gap:6px;align-items:center">
+          <input type="checkbox" onclick="toggleAdminSecretAudit()"> Mostrar segredo
+        </label>
+        <button onclick="applyAdminSecretAudit()">Aplicar</button>
+      </div>
+      <p class="muted" style="margin-top:6px">Troque aqui o parâmetro <code>?secret=...</code> desta tela.</p>
+    </div>
 
     <div class="card">
       <div class="row">
@@ -1350,6 +1394,26 @@ let FILTERED = [];
 let BALLOTS = [];
 let timer = null;
 
+// ----- Mostrar/ocultar & aplicar segredo admin (audit_preview) -----
+document.addEventListener('DOMContentLoaded', ()=>{
+  const f = document.getElementById('admsec_audit');
+  if (f && typeof secret !== 'undefined') f.value = secret || '';
+});
+function toggleAdminSecretAudit(){
+  const f = document.getElementById('admsec_audit');
+  if (!f) return;
+  f.type = (f.type === 'password') ? 'text' : 'password';
+}
+function applyAdminSecretAudit(){
+  const f = document.getElementById('admsec_audit');
+  if (!f) return;
+  const v = f.value || '';
+  const url = new URL(window.location.href);
+  if (v) url.searchParams.set('secret', v);
+  else   url.searchParams.delete('secret');
+  window.location.href = url.toString();
+}
+
 function tag(type){
   if(type==='VOTE') return '<span class="tag t-vote">VOTE</span>';
   if(type==='ATTEMPT') return '<span class="tag t-attempt">ATTEMPT</span>';
@@ -1367,7 +1431,7 @@ function parseLine(line){
       obj.type = 'ADMIN';
       obj.action = parts[1];
       obj.ts = parts[2];
-      const rest = line.slice(('ADMIN '+obj.action+' '+obj.ts+' ').length);
+      const rest = line slice(('ADMIN '+obj.action+' '+obj.ts+' ').length);
       obj.fields = kvparse(rest);
     }
     return obj;
@@ -1506,7 +1570,7 @@ function applyFilters(){
     if (o.type==='ATTEMPT-LIMIT' && !fALimit) return false;
     if (o.type==='ADMIN' && !fAdmin) return false;
     if (q){
-      const hay = o.raw.toLowerCase();
+      const hay = o.raw.toLowerCase()
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -1580,8 +1644,8 @@ async function loadBallots(eid){
 async function loadAll(){
   const eid = document.getElementById('eidSel').value;
   await Promise.all([loadLog(eid), loadBallots(eid)]);
-  applyFilters();        # também renderiza tabela/summary
-  renderConsistency();   # usa PARSED + BALLOTS
+  applyFilters();        // também renderiza tabela/summary
+  renderConsistency();   // usa PARSED + BALLOTS
 }
 
 function openPublic(kind){
@@ -1601,7 +1665,7 @@ loadEIDs().then(loadAll);
 </script>
 </body>
 </html>
-""" % (js_secret, js_current, js_secret, js_current)
+""" % (js_secret, js_current)
     return Response(html, mimetype="text/html")
 
 # ------------- Debug local -------------
