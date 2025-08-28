@@ -1,16 +1,68 @@
 <!doctype html>
 <html lang="pt-BR">
-<head><meta charset="utf-8"><title>Entrar</title></head>
+<head>
+  <meta charset="utf-8">
+  <title>Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:#f8fafc}
+    .wrap{max-width:560px;margin:0 auto;padding:24px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px}
+    label{display:block;margin:10px 0 6px}
+    input{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:10px}
+    button{padding:10px 14px;border-radius:10px;border:1px solid #111827;background:#111827;color:#fff;cursor:pointer}
+    button.ghost{background:#fff;color:#111827;border:1px dashed #9ca3af}
+    .row{display:flex;gap:8px;align-items:center;margin-top:12px}
+    .msgs{margin:12px 0}
+    .msg{padding:10px;border-radius:10px;margin:6px 0}
+    .msg.error{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+    .msg.success{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46}
+    a{color:#111827}
+  </style>
+</head>
 <body>
-  <div class="container">
-    <h1>Entrar</h1>
-    <form method="POST">
-      <label>Usuário<br><input name="user_id" required></label><br><br>
-      <label>Senha<br><input name="password" type="password" required></label><br><br>
-      <button type="submit">Entrar</button>
-    </form>
-    <p>Não tem conta? <a href="{{ url_for('register') }}">Cadastre-se</a></p>
-    <p><a href="{{ url_for('index') }}">Início</a></p>
+  <div class="wrap">
+    <h1>Login</h1>
+
+    <!-- mensagens flash -->
+    <div class="msgs">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="msg {{category}}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    <div class="card">
+      <form method="post" action="{{ url_for('login') }}">
+        <label for="user_id">Usuário</label>
+        <input id="user_id" name="user_id" autocomplete="username" required>
+
+        <label for="loginpw">Senha</label>
+        <input id="loginpw" name="password" type="password" autocomplete="current-password" required>
+
+        <p style="margin-top:8px">
+          <label><input type="checkbox" onclick="togglePassword()"> Mostrar senha</label>
+        </p>
+
+        <div class="row">
+          <button type="submit">Entrar</button>
+          <a class="ghost" href="{{ url_for('register') }}" style="padding:10px 14px;border-radius:10px;border:1px dashed #9ca3af;text-decoration:none">Criar cadastro</a>
+        </div>
+      </form>
+    </div>
+
+    <p style="margin-top:12px"><a href="{{ url_for('index') }}">← Início</a></p>
   </div>
+
+<script>
+function togglePassword(){
+  const inp = document.getElementById("loginpw");
+  if(!inp) return;
+  inp.type = (inp.type === "password") ? "text" : "password";
+}
+</script>
 </body>
 </html>
