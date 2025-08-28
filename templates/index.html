@@ -80,6 +80,7 @@
         <a id="lnkCandidates" class="btn" href="#">Candidatos & prazo</a>
         <a id="lnkMeta" class="btn" href="#">Metadados da votação</a>
         <a id="lnkAssign" class="btn" href="#">Atribuir chaves (UI)</a>
+        <a id="lnkAuditPrev" class="btn" href="#">Auditoria (preview)</a>
       </div>
       <p class="admin-note">Observação: o parâmetro <code>?secret=...</code> é propagado nos links acima. Evite compartilhá-lo.</p>
     </div>
@@ -136,6 +137,7 @@
       document.getElementById("lnkCandidates").href = "/admin/candidates?secret=" + enc;
       document.getElementById("lnkMeta").href       = "/admin/election_meta?secret=" + enc;
       document.getElementById("lnkAssign").href     = "/admin/assign_ui?secret=" + enc;
+      document.getElementById("lnkAuditPrev").href  = "/admin/audit_preview?secret=" + enc;
     })();
   </script>
 </body>
