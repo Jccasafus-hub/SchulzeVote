@@ -1,60 +1,142 @@
-<<!doctype html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>SchulzeVote</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <title>SchulzeVote · Início</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    .card { border:1px solid #e5e7eb; border-radius:12px; padding:16px; margin:12px 0; background:#fff; }
-    .btn { display:inline-block; padding:10px 14px; border-radius:8px; border:1px solid #111827; text-decoration:none; }
-    .btn-dark { background:#111827; color:#fff; border-color:#111827; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    :root{
+      --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
+      --accent:#f97316; --accent-2:#f59e0b; --ok:#10b981; --danger:#ef4444;
+      --border:#1f242c; --input:#0f1216;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text)}
+    .wrap{max-width:900px;margin:0 auto;padding:28px}
+    h1{margin:0 0 12px 0}
+    p.muted{color:var(--muted)}
+    .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px; margin:14px 0}
+    .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+    .btn{display:inline-block; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#1b1f27; color:var(--text); text-decoration:none; cursor:pointer}
+    .btn:hover{filter:brightness(1.1)}
+    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#111}
+    .btn.ghost{background:transparent; border:1px dashed #2a323d; color:var(--text)}
+    .btn.ok{background:#113226; border-color:#164e3a}
+    input[type=text]{background:var(--input); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:10px; outline:none}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+    @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
+    small.code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color:var(--muted)}
+    .sep{height:1px;background:var(--border);margin:16px 0}
+    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
+    .admin-note{font-size:.9rem;color:#eab308;margin-top:8px}
+    .admin-links a{display:inline-block;margin:6px 8px 0 0}
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="wrap">
     <h1>SchulzeVote</h1>
+    <p class="muted">Sistema de votação com método de Schulze, auditoria pública e anonimato de cédulas.</p>
 
+    <!-- Acesso rápido (EID atual) -->
     <div class="card">
-      <h2>Votar</h2>
-      <p>Para votar, entre com seu <b>usuário</b> e <b>senha</b> e use sua <b>chave de votação</b>.</p>
-      <div class="row">
-        <a class="btn btn-dark" href="{{ url_for('login') }}">Entrar para votar</a>
-        <a class="btn" href="{{ url_for('register') }}">Cadastrar senha (1ª vez)</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Resultados & Auditoria (público)</h2>
-      <div class="row" style="margin-bottom:10px;">
-        <a class="btn btn-dark" href="{{ url_for('results') }}">Resultados da votação atual</a>
-        <a class="btn" href="/public/{{ get_current_election_id() }}/audit">Auditoria da votação atual</a>
-        <a class="btn" href="/public/elections">Ver todas as votações</a>
-      </div>
-
-      <form onsubmit="return goToElection();">
-        <label for="eid"><b>Acessar votação específica (EID)</b></label><br>
-        <input id="eid" type="text" placeholder="Ex.: 2025-TurmaA" required>
-        <div class="row" style="margin-top:8px;">
-          <button type="button" class="btn btn-dark" onclick="goTo('results')">Ver resultados</button>
-          <button type="button" class="btn" onclick="goTo('audit')">Ver auditoria</button>
+      {% set eid_atual = get_current_election_id() %}
+      <div class="row" style="justify-content:space-between;gap:8px">
+        <div>
+          <div class="pill">EID atual: <b>{{ eid_atual }}</b></div>
+          <div style="margin-top:8px" class="row">
+            <a class="btn accent" href="/public/{{ eid_atual }}/results">Ver resultados (EID atual)</a>
+            <a class="btn" href="/public/{{ eid_atual }}/audit">Ver auditoria (EID atual)</a>
+          </div>
         </div>
-      </form>
+        <div class="row">
+          <a class="btn ok" href="/login">Entrar para votar</a>
+          <a class="btn ghost" href="/register">Criar cadastro</a>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="row">
+        <a class="btn ghost" href="/public/elections" target="_blank" rel="noopener">Lista de votações (todas)</a>
+        <span class="muted">Abre um JSON com todos os EIDs já existentes.</span>
+      </div>
     </div>
+
+    <!-- Abrir por EID -->
+    <div class="card">
+      <h3 style="margin:0 0 8px 0">Abrir por EID</h3>
+      <p class="muted">Digite o identificador da votação para acessar os resultados e a auditoria.</p>
+      <div class="row">
+        <input id="eid" type="text" placeholder="ex.: teste-2025-01" style="min-width:260px">
+        <a class="btn" href="#" onclick="openRes();return false;">Resultados</a>
+        <a class="btn" href="#" onclick="openAudit();return false;">Auditoria</a>
+      </div>
+      <small class="code">Dica: os EIDs disponíveis podem ser consultados em <code>/public/elections</code>.</small>
+    </div>
+
+    <!-- Painel Admin (aparece somente se houver ?secret=...) -->
+    <div id="adminPanel" class="card" style="display:none">
+      <h3 style="margin:0 0 8px 0">⚙️ Área do administrador</h3>
+      <p class="muted">Atalhos rápidos para configuração e gestão.</p>
+      <div class="admin-links row">
+        <a id="lnkCandidates" class="btn" href="#">Candidatos & prazo</a>
+        <a id="lnkMeta" class="btn" href="#">Metadados da votação</a>
+        <a id="lnkAssign" class="btn" href="#">Atribuir chaves (UI)</a>
+      </div>
+      <p class="admin-note">Observação: o parâmetro <code>?secret=...</code> é propagado nos links acima. Evite compartilhá-lo.</p>
+    </div>
+
+    <!-- Dicas rápidas -->
+    <div class="grid">
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Como votar</h3>
+        <ul>
+          <li>Faça <b>login</b> com seu usuário e senha.</li>
+          <li>Na tela de votação, insira sua <b>chave de votação</b>.</li>
+          <li>Informe sua preferência entre os candidatos e confirme.</li>
+          <li>Guarde o <b>recibo</b> exibido ao final.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Transparência</h3>
+        <ul>
+          <li>Resultados: <code>/public/&lt;EID&gt;/results</code></li>
+          <li>Auditoria: <code>/public/&lt;EID&gt;/audit</code></li>
+          <li>Lista de eleições: <code>/public/elections</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="muted" style="margin-top:12px">Se você é administrador, pode abrir esta página com <code>?secret=SEU_ADMIN_SECRET</code> para ver atalhos de gestão.</p>
   </div>
 
   <script>
-    function eidValue(){
-      var v = document.getElementById('eid').value.trim();
-      if(!v){ alert('Informe o EID.'); return null; }
-      return encodeURIComponent(v);
+    function qparam(name){
+      const m = new URLSearchParams(window.location.search).get(name);
+      return m ? m : "";
     }
-    function goTo(which){
-      const v = eidValue(); if(!v) return;
-      const url = (which === 'results') ? `/public/${v}/results` : `/public/${v}/audit`;
-      window.location.href = url;
+    function sanitize(s){ return (s||"").trim(); }
+    function openRes(){
+      const eid = sanitize(document.getElementById('eid').value);
+      if(!eid){ alert("Informe um EID."); return; }
+      window.location.href = "/public/" + encodeURIComponent(eid) + "/results";
     }
-    function goToElection(){ goTo('results'); return false; }
+    function openAudit(){
+      const eid = sanitize(document.getElementById('eid').value);
+      if(!eid){ alert("Informe um EID."); return; }
+      window.location.href = "/public/" + encodeURIComponent(eid) + "/audit";
+    }
+
+    // --- Painel Admin dinâmico ---
+    (function(){
+      const secret = qparam("secret");
+      if(!secret) return; // sem secret, painel oculto
+
+      // mostra painel e propaga o secret nos links
+      document.getElementById("adminPanel").style.display = "";
+      const enc = encodeURIComponent(secret);
+      document.getElementById("lnkCandidates").href = "/admin/candidates?secret=" + enc;
+      document.getElementById("lnkMeta").href       = "/admin/election_meta?secret=" + enc;
+      document.getElementById("lnkAssign").href     = "/admin/assign_ui?secret=" + enc;
+    })();
   </script>
 </body>
 </html>
