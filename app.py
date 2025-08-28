@@ -16,6 +16,7 @@ CAND_FILE         = "candidates.json"     # candidatos
 VOTER_KEYS_FILE   = "voter_keys.json"     # chaves
 ELECTION_FILE     = "election.json"       # election_id, deadline_utc, meta por votação
 REGISTRY_FILE     = "user_registry.json"  # usuarios: key, used, pwd_hash, peso, attempts
+TRASH_FILE        = "user_trash.json"     # lixeira (soft delete)
 
 DATA_DIR   = Path("data")
 BAL_DIR    = DATA_DIR / "ballots"
@@ -107,7 +108,34 @@ def is_voting_open():
     if dl is None: return True
     return datetime.now(timezone.utc) < dl
 
-# --------- Arquivos de domínio ----------
+# --------- Auditoria ----------
+def ballots_path(eid: str) -> Path:
+    return BAL_DIR / f"{eid}.json"
+
+def audit_path(eid: str) -> Path:
+    return AUDIT_DIR / f"{eid}.log"
+
+def load_ballots(eid: str):
+    return _read_json(str(ballots_path(eid)), [])
+
+def save_ballots(eid: str, items):
+    _write_json(str(ballots_path(eid)), items)
+
+def append_ballot(eid: str, ballot_obj: dict):
+    items = load_ballots(eid)
+    items.append(ballot_obj)
+    save_ballots(eid, items)
+
+def audit_line(eid: str, text: str):
+    p = audit_path(eid)
+    with open(p, "a", encoding="utf-8") as f:
+        f.write(text.rstrip() + "\n")
+
+def audit_admin(eid: str, action: str, detail: str, ip: str = "-"):
+    ts = datetime.utcnow().isoformat() + "Z"
+    audit_line(eid, f"ADMIN {action} {ts} {detail} by_ip={ip}")
+
+# --------- Candidatos ----------
 def _default_candidates():
     return ["Alice","Bob","Charlie", RESERVED_BLANK, RESERVED_NULL]
 
@@ -139,6 +167,7 @@ def save_candidates(lst):
     _write_json(CAND_FILE, {"candidates": normalize_candidates(lst)})
     return load_candidates()
 
+# --------- Chaves & Registro ----------
 def load_keys():
     d = _read_json(VOTER_KEYS_FILE, {"keys": {}})
     for k, v in list(d.get("keys", {}).items()):
@@ -152,7 +181,7 @@ def save_keys(d):
 
 def load_registry():
     d = _read_json(REGISTRY_FILE, {"users": {}})
-    # estrutura: users: { user_id: {key, used, pwd_hash, peso, attempts{eid:int}} }
+    # estrutura: users: { user_id: {key, used, pwd_hash, peso, attempts} }
     for u, v in list(d.get("users", {}).items()):
         v.setdefault("used", False)
         v.setdefault("peso", 1)
@@ -162,30 +191,43 @@ def load_registry():
 def save_registry(d):
     _write_json(REGISTRY_FILE, d)
 
-# --------- Auditoria / votos por eleição ----------
-def ballots_path(eid: str) -> Path:
-    return BAL_DIR / f"{eid}.json"
+# --------- Lixeira (soft delete) ----------
+def load_trash():
+    d = _read_json(TRASH_FILE, {"users": {}})
+    return d
 
-def audit_path(eid: str) -> Path:
-    return AUDIT_DIR / f"{eid}.log"
+def save_trash(d):
+    _write_json(TRASH_FILE, d)
 
-def load_ballots(eid: str):
-    return _read_json(str(ballots_path(eid)), [])
+def move_user_to_trash(uid: str, entry: dict):
+    trash = load_trash()
+    entry_copy = dict(entry or {})
+    entry_copy["deleted_at"] = datetime.utcnow().isoformat() + "Z"
+    trash["users"][uid] = entry_copy
+    save_trash(trash)
 
-def save_ballots(eid: str, items):
-    _write_json(str(ballots_path(eid)), items)
+def restore_user_from_trash(uid: str):
+    trash = load_trash()
+    reg = load_registry()
+    users = reg.get("users", {})
+    tusers = trash.get("users", {})
+    if uid not in tusers:
+        return False, "Não está na lixeira."
+    if uid in users:
+        return False, "Já existe um usuário ativo com esse id."
+    users[uid] = tusers[uid]
+    users[uid].pop("deleted_at", None)
+    reg["users"] = users
+    save_registry(reg)
+    del tusers[uid]
+    trash["users"] = tusers
+    save_trash(trash)
+    return True, "Restaurado."
 
-def append_ballot(eid: str, ballot_obj: dict):
-    items = load_ballots(eid)
-    items.append(ballot_obj)
-    save_ballots(eid, items)
+def empty_trash():
+    save_trash({"users": {}})
 
-def audit_line(eid: str, text: str):
-    p = audit_path(eid)
-    with open(p, "a", encoding="utf-8") as f:
-        f.write(text.rstrip() + "\n")
-
-# --------- Schulze (empates/cedulas parciais) ----------
+# --------- Schulze (com empates/cedulas parciais) ----------
 def ballot_to_ranks(ballot):
     peso = int(ballot.get("peso", 1))
     if "ranks" in ballot and isinstance(ballot["ranks"], dict):
@@ -413,7 +455,7 @@ def vote():
         if not any((isinstance(v,int) and v>=1) for v in ranks.values()):
             flash("Nenhuma preferência informada.", "error"); return redirect(url_for("vote"))
 
-        # peso: prioriza peso no registro do usuário; senão, peso da chave; default 1
+        # peso final: peso do usuário > peso da chave > 1
         peso = int(entry.get("peso", kinfo.get("peso", 1)))
 
         # marca chave usada
@@ -434,7 +476,7 @@ def vote():
         voter_key_h = key_hash(voter_key)
         append_ballot(eid, {"ranks": ranks, "peso": peso, "voter": voter_key_h})
 
-        # auditoria
+        # auditoria do voto (recibo)
         receipt = str(uuid.uuid4())
         audit_line(eid, f"VOTE {datetime.utcnow().isoformat()}Z voter={voter_key_h} receipt={receipt} ip={request.remote_addr or '-'}")
 
@@ -505,6 +547,7 @@ def admin_candidates():
             lines = [_squash_spaces(ln) for ln in raw.splitlines()]
             save_candidates(lines)
             msg = "Candidatos salvos."
+            audit_admin(get_current_election_id(), "SAVE_CAND", f"count={len([l for l in lines if l])}", request.remote_addr or "-")
         elif action == "set_deadline":
             date_s = (request.form.get("date") or "").strip()
             time_s = (request.form.get("time") or "").strip()
@@ -519,10 +562,12 @@ def admin_candidates():
                     local_dt = datetime(y,m,d,hh,mm,tzinfo=local_tz)
                     save_deadline(local_dt.astimezone(timezone.utc))
                     msg = "Prazo definido."
+                    audit_admin(get_current_election_id(), "SET_DEADLINE", f"{date_s} {time_s} {tz_s}", request.remote_addr or "-")
                 except Exception as e:
                     warn = f"Erro: {e}"
         elif action == "clear_deadline":
             save_deadline(None); msg="Prazo removido."
+            audit_admin(get_current_election_id(), "CLEAR_DEADLINE", "ok", request.remote_addr or "-")
     current = load_candidates()
     core = [c for c in current if c not in (RESERVED_BLANK, RESERVED_NULL)]
     dl_utc = load_deadline()
@@ -586,6 +631,7 @@ def admin_election_meta():
             d["election_id"] = eid
             save_election_doc(d)
             msg = "Metadados salvos."
+            audit_admin(eid, "SAVE_META", f"title='{title}' date={date} time={time} tz={tz}", request.remote_addr or "-")
     meta = get_election_meta(d.get("election_id"))
     sel_tz = (meta or {}).get("tz", "America/Sao_Paulo")
     tz_opts = ["America/Sao_Paulo","America/Bahia","America/Fortaleza","America/Recife","America/Maceio",
@@ -628,7 +674,7 @@ def admin_assign_batch_generate():
     assigned = {}
     for uid in users:
         ent = reg["users"].get(uid, {"used": False, "peso": 1, "attempts": {}})
-        if ent.get("key"):  # NÃO sobrescreve quem já tem chave
+        if ent.get("key"):  # NÃO sobrescreve
             assigned[uid] = ent["key"]
             reg["users"][uid] = ent
             continue
@@ -641,6 +687,8 @@ def admin_assign_batch_generate():
         reg["users"][uid] = ent
         assigned[uid] = k
     save_keys(keys_doc); save_registry(reg)
+    eid = get_current_election_id()
+    audit_admin(eid, "ASSIGN_GENERATE", f"users={','.join(users)} peso={peso}", request.remote_addr or "-")
     return Response(json.dumps({"ok": True, "assigned": assigned}, ensure_ascii=False, indent=2), mimetype="application/json")
 
 @app.route("/admin/assign_batch_use_pool", methods=["GET","POST"])
@@ -650,8 +698,8 @@ def admin_assign_batch_use_pool():
     if not ras_param: return Response('{"error":"informe ras=U1,U2,..."}', status=400, mimetype="application/json")
     users = [r.strip() for r in ras_param.split(",") if r.strip()]
     users = list(dict.fromkeys(users))
-    keys_doc = load_keys()
     reg = load_registry()
+    keys_doc = load_keys()
     pool = _free_keys_from_pool()
     need = len([u for u in users if not reg["users"].get(u, {}).get("key")])
     if need > len(pool):
@@ -671,6 +719,8 @@ def admin_assign_batch_use_pool():
         reg["users"][uid] = ent
         assigned[uid] = k
     save_registry(reg)
+    eid = get_current_election_id()
+    audit_admin(eid, "ASSIGN_FROM_POOL", f"users={','.join(users)}", request.remote_addr or "-")
     return Response(json.dumps({"ok": True, "assigned": assigned}, ensure_ascii=False, indent=2), mimetype="application/json")
 
 # ---- Admin API: alterar peso do usuário manualmente ----
@@ -687,77 +737,86 @@ def admin_set_user_weight():
     ent["peso"] = peso
     reg["users"][uid] = ent
     save_registry(reg)
+    eid = get_current_election_id()
+    audit_admin(eid, "SET_WEIGHT", f"user={uid} peso={peso}", request.remote_addr or "-")
     return Response(json.dumps({"ok": True, "user": uid, "peso": peso}, ensure_ascii=False), mimetype="application/json")
 
-# ---- Admin API: exclusão de usuários ----
+# ---- Admin API: lixeira / exclusão / restauração ----
 @app.route("/admin/delete_user")
 def admin_delete_user():
-    """
-    Exclui um usuário do user_registry.json.
-    Uso:
-      /admin/delete_user?secret=SEU_ADMIN_SECRET&user=usuarioTeste
-
-    Observações:
-    - Não altera voter_keys.json. Se o usuário tinha uma chave atribuída e ela não foi usada,
-      essa chave automaticamente volta ao "pool" (não estará mais atribuída).
-    - Se a chave já foi usada (used:true), permanece marcada como usada.
-    """
-    if not require_admin(request):
-        abort(403)
-
+    if not require_admin(request): abort(403)
     uid = (request.args.get("user") or "").strip()
     if not uid:
         return Response('{"error":"informe ?user=usuario"}', status=400, mimetype="application/json")
-
     reg = load_registry()
     users = reg.get("users", {})
-
     if uid not in users:
         return Response(json.dumps({"error": f"{uid} não encontrado"}, ensure_ascii=False),
                         status=404, mimetype="application/json")
-
+    entry = users[uid]
+    move_user_to_trash(uid, entry)
     del users[uid]
     reg["users"] = users
     save_registry(reg)
-
-    return Response(json.dumps({"ok": True, "deleted": uid}, ensure_ascii=False), mimetype="application/json")
+    eid = get_current_election_id()
+    audit_admin(eid, "DELETE", f"user={uid}", request.remote_addr or "-")
+    return Response(json.dumps({"ok": True, "deleted": uid, "soft": True}, ensure_ascii=False),
+                    mimetype="application/json")
 
 @app.route("/admin/delete_users_batch", methods=["GET","POST"])
 def admin_delete_users_batch():
-    """
-    Exclui vários usuários de uma vez.
-    Usos:
-      GET/POST /admin/delete_users_batch?secret=SEU_ADMIN_SECRET&users=u1,u2,u3
-      (ou enviar em body form-data/x-www-form-urlencoded o campo 'users')
-    Retorno: {"ok":true,"deleted":["u1","u2"],"not_found":["u3"]}
-    """
     if not require_admin(request): abort(403)
     users_param = (request.values.get("users") or "").strip()
     if not users_param:
         return Response('{"error":"informe users=u1,u2,u3"}', status=400, mimetype="application/json")
-
     to_del = [u.strip() for u in users_param.split(",") if u.strip()]
     to_del = list(dict.fromkeys(to_del))
-
     reg = load_registry()
     users = reg.get("users", {})
     deleted, not_found = [], []
-
     for uid in to_del:
         if uid in users:
+            move_user_to_trash(uid, users[uid])
             del users[uid]
             deleted.append(uid)
         else:
             not_found.append(uid)
-
     reg["users"] = users
     save_registry(reg)
-
-    return Response(json.dumps({"ok": True, "deleted": deleted, "not_found": not_found},
+    eid = get_current_election_id()
+    audit_admin(eid, "DELETE_BATCH", f"deleted={len(deleted)} not_found={len(not_found)}", request.remote_addr or "-")
+    return Response(json.dumps({"ok": True, "deleted": deleted, "not_found": not_found, "soft": True},
                                ensure_ascii=False, indent=2),
                     mimetype="application/json")
 
-# ---- Admin API: listas para UI (tabelas ao vivo) ----
+@app.route("/admin/trash_list")
+def admin_trash_list():
+    if not require_admin(request): abort(403)
+    return Response(json.dumps(load_trash(), ensure_ascii=False, indent=2), mimetype="application/json")
+
+@app.route("/admin/restore_user")
+def admin_restore_user():
+    if not require_admin(request): abort(403)
+    uid = (request.args.get("user") or "").strip()
+    if not uid:
+        return Response('{"error":"informe ?user=usuario"}', status=400, mimetype="application/json")
+    ok, msg = restore_user_from_trash(uid)
+    eid = get_current_election_id()
+    audit_admin(eid, "RESTORE", f"user={uid} ok={ok}", request.remote_addr or "-")
+    status = 200 if ok else 409
+    return Response(json.dumps({"ok": ok, "user": uid, "message": msg}, ensure_ascii=False),
+                    status=status, mimetype="application/json")
+
+@app.route("/admin/empty_trash", methods=["POST"])
+def admin_empty_trash():
+    if not require_admin(request): abort(403)
+    empty_trash()
+    eid = get_current_election_id()
+    audit_admin(eid, "EMPTY_TRASH", "all", request.remote_addr or "-")
+    return Response(json.dumps({"ok": True, "emptied": True}, ensure_ascii=False),
+                    mimetype="application/json")
+
+# ---- Listas para UI ----
 @app.route("/admin/keys_list")
 def admin_keys_list():
     if not require_admin(request): abort(403)
@@ -773,7 +832,7 @@ def admin_users_list():
     if not require_admin(request): abort(403)
     return Response(json.dumps(load_registry(), ensure_ascii=False, indent=2), mimetype="application/json")
 
-# ---- Página admin: Assign UI (HTML inline, com edição de peso + CSV) ----
+# ---- Página admin: Assign UI (com lixeira, peso, CSV) ----
 @app.route("/admin/assign_ui")
 def admin_assign_ui():
     if not require_admin(request): abort(403)
@@ -798,6 +857,8 @@ def admin_assign_ui():
     .btn{{padding:9px 12px;border-radius:10px;border:1px solid #111827;background:#111827;color:#fff;cursor:pointer}}
     .btn.alt{{background:#fff;color:#111827}}
     .btn.ghost{{background:#fff;color:#111827;border:1px dashed #9ca3af}}
+    .btn.danger{{background:#b91c1c;border-color:#7f1d1d}}
+    .btn.warn{{background:#92400e;border-color:#78350f;background:#f59e0b;color:#111}}
     table{{border-collapse:collapse;width:100%}}
     th,td{{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.95rem;vertical-align:middle}}
     th{{background:#f3f4f6}}
@@ -805,17 +866,14 @@ def admin_assign_ui():
     .grid{{display:grid; gap:16px; grid-template-columns:1fr 1fr}}
     @media (max-width: 1000px){{ .grid{{grid-template-columns:1fr}} }}
     .muted{{color:#6b7280}}
-    .ok{{color:#059669}}
-    .warn{{color:#b45309}}
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Atribuir chaves (lote)</h1>
 
-    <!-- Bloco de colagem + gerar/atribuir -->
     <div class="card">
-      <p>Cole aqui os <b>usuários</b> (um por linha). Ex..:</p>
+      <p>Cole aqui os <b>usuários</b> (um por linha). Ex.:</p>
       <pre>usuario01
 usuario02
 usuario03</pre>
@@ -834,13 +892,17 @@ usuario03</pre>
         <pre id="resultBox" style="flex:1">(aguardando)</pre>
       </div>
 
-      <!-- Aplicar peso em lote aos usuários colados -->
       <div class="row" style="margin-top:6px">
         <label>Aplicar peso em lote aos usuários colados:
           <input type="number" id="pesoLote" value="1" min="1" class="wsmall">
         </label>
         <button class="btn alt" onclick="applyBatchWeight()">Aplicar peso (lote)</button>
         <span id="batchStatus" class="muted"></span>
+      </div>
+
+      <div class="row" style="margin-top:6px">
+        <button class="btn danger" onclick="deleteBatch()">Excluir usuários (lote)</button>
+        <span class="muted">Soft delete: vão para a lixeira (recuperável).</span>
       </div>
     </div>
 
@@ -857,28 +919,35 @@ usuario03</pre>
 
     <div class="card">
       <h3>Usuários (user_registry.json)</h3>
-
-      <!-- Filtro simples -->
       <div class="row">
         <input type="text" id="filtroUser" placeholder="Filtrar por usuário..." oninput="renderUsers()">
         <span class="muted">EID atual: <b>{current_eid}</b></span>
       </div>
-
       <div id="usersTable">carregando...</div>
     </div>
+
+    <div class="card">
+      <h3>Lixeira (soft delete)</h3>
+      <p class="muted">Usuários excluídos ficam aqui e podem ser restaurados.</p>
+      <div id="trashTable">carregando...</div>
+      <div class="row">
+        <button class="btn warn" onclick="emptyTrash()">Esvaziar lixeira</button>
+        <span class="muted">Atenção: esvaziar remove definitivamente os cadastros daqui.</span>
+      </div>
+    </div>
+
   </div>
 
   <script>
     const secret = {json.dumps(secret)};
     const currentEid = {json.dumps(current_eid)};
     let USERS_CACHE = {{}};
+    let TRASH_CACHE = {{}};
 
     function parseUsersFromTextarea() {{
       const t = document.getElementById('usersBox').value.trim();
       return t ? t.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean) : [];
     }}
-
-    // ===== Operações principais =====
 
     async function genAssign() {{
       const users = parseUsersFromTextarea(); if (!users.length) {{ alert('Cole usuários.'); return; }}
@@ -915,10 +984,46 @@ usuario03</pre>
       await refreshUsers();
     }}
 
-    // ===== Exportar CSV =====
+    async function deleteBatch() {{
+      const users = parseUsersFromTextarea(); if (!users.length) {{ alert('Cole usuários para excluir.'); return; }}
+      if (!confirm('Tem certeza que deseja EXCLUIR (soft delete) os usuários colados?')) return;
+      const url = `/admin/delete_users_batch?secret=${{encodeURIComponent(secret)}}&users=${{encodeURIComponent(users.join(','))}}`;
+      const r = await fetch(url);
+      const txt = await r.text();
+      document.getElementById('resultBox').textContent = txt;
+      await refreshUsers(); await refreshTrash();
+    }}
 
+    async function deleteOne(encUser) {{
+      const u = decodeURIComponent(encUser);
+      if (!confirm('Excluir o usuário "'+u+'" (soft delete)?')) return;
+      const url = `/admin/delete_user?secret=${{encodeURIComponent(secret)}}&user=${{encodeURIComponent(u)}}`;
+      const r = await fetch(url);
+      const txt = await r.text();
+      document.getElementById('resultBox').textContent = txt;
+      await refreshUsers(); await refreshTrash();
+    }}
+
+    async function restoreOne(encUser) {{
+      const u = decodeURIComponent(encUser);
+      const url = `/admin/restore_user?secret=${{encodeURIComponent(secret)}}&user=${{encodeURIComponent(u)}}`;
+      const r = await fetch(url);
+      const txt = await r.text();
+      document.getElementById('resultBox').textContent = txt;
+      await refreshUsers(); await refreshTrash();
+    }}
+
+    async function emptyTrash() {{
+      if (!confirm('Esvaziar a lixeira? Esta ação é permanente.')) return;
+      const r = await fetch(`/admin/empty_trash?secret=${{encodeURIComponent(secret)}}`, {{method:'POST'}});
+      const txt = await r.text();
+      document.getElementById('resultBox').textContent = txt;
+      await refreshTrash();
+    }}
+
+    // ----- CSV -----
     function buildCSV(rows) {{
-      const header = ['usuario','key','used','peso','attempts_{current_eid}'];
+      const header = ['usuario','key','used','peso','attempts_{currentEid}'];
       const esc = v => {{
         if (v===undefined || v===null) return '';
         const s = String(v);
@@ -929,69 +1034,49 @@ usuario03</pre>
       );
       return out.join('\\n');
     }}
-
     function downloadCSV(filename, csvText) {{
       const blob = new Blob([csvText], {{type: 'text/csv;charset=utf-8;'}});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
     }}
-
     function exportCSVAll() {{
       const entries = Object.entries(USERS_CACHE);
       const rows = entries.map(([u,v]) => {{
         return {{
-          usuario: u,
-          key: v.key || '',
-          used: !!v.used,
-          peso: v.peso || 1,
-          attempts: (v.attempts && v.attempts[currentEid]) || 0
+          usuario: u, key: v.key || '', used: !!v.used,
+          peso: v.peso || 1, attempts: (v.attempts && v.attempts[currentEid]) || 0
         }};
       }});
       const csv = buildCSV(rows);
       const ts = new Date().toISOString().replace(/[:.]/g,'-');
       downloadCSV(`usuarios_chaves_pesos_{currentEid}_{ts}.csv`, csv);
     }}
-
     function exportCSVFromTextarea() {{
       const filterSet = new Set(parseUsersFromTextarea());
       if (!filterSet.size) {{ alert('Cole usuários para exportar apenas esse conjunto.'); return; }}
       const rows = Object.entries(USERS_CACHE)
         .filter(([u]) => filterSet.has(u))
         .map(([u,v]) => ({{
-          usuario: u,
-          key: v.key || '',
-          used: !!v.used,
-          peso: v.peso || 1,
-          attempts: (v.attempts && v.attempts[currentEid]) || 0
+          usuario: u, key: v.key || '', used: !!v.used,
+          peso: v.peso || 1, attempts: (v.attempts && v.attempts[currentEid]) || 0
         }}));
       const csv = buildCSV(rows);
       const ts = new Date().toISOString().replace(/[:.]/g,'-');
       downloadCSV(`usuarios_chaves_pesos_FILTRADO_{currentEid}_{ts}.csv`, csv);
     }}
 
-    // ===== Tabelas =====
-
+    // ----- Tabelas -----
     async function refreshKeys() {{
       const r = await fetch(`/admin/keys_list?secret=${{encodeURIComponent(secret)}}`);
       const j = await r.json();
       const rows = Object.entries(j.keys||{{}}).map(([k,v]) =>
-        `<tr>
-           <td>${{k}}</td>
-           <td>${{v.used?'✔️':'—'}}</td>
-           <td>${{v.used_at||'—'}}</td>
-           <td>${{v.peso||1}}</td>
-         </tr>`
+        `<tr><td>${{k}}</td><td>${{v.used?'✔️':'—'}}</td><td>${{v.used_at||'—'}}</td><td>${{v.peso||1}}</td></tr>`
       ).join('');
       document.getElementById('keysTable').innerHTML =
         `<table><thead><tr><th>Chave</th><th>Usada</th><th>Quando</th><th>Peso</th></tr></thead><tbody>${{rows}}</tbody></table>`;
     }}
-
     async function refreshPool() {{
       const r = await fetch(`/admin/pool_list?secret=${{encodeURIComponent(secret)}}`);
       const j = await r.json();
@@ -999,14 +1084,18 @@ usuario03</pre>
       document.getElementById('poolTable').innerHTML =
         `<table><thead><tr><th>Chave livre</th></tr></thead><tbody>${{rows}}</tbody></table>`;
     }}
-
     async function refreshUsers() {{
       const r = await fetch(`/admin/users_list?secret=${{encodeURIComponent(secret)}}`);
       const j = await r.json();
       USERS_CACHE = j.users || {{}};
       renderUsers();
     }}
-
+    async function refreshTrash() {{
+      const r = await fetch(`/admin/trash_list?secret=${{encodeURIComponent(secret)}}`);
+      const j = await r.json();
+      TRASH_CACHE = j.users || {{}};
+      renderTrash();
+    }}
     function renderUsers() {{
       const filtro = (document.getElementById('filtroUser').value || '').toLowerCase();
       const entries = Object.entries(USERS_CACHE);
@@ -1024,54 +1113,448 @@ usuario03</pre>
             <td style="text-align:center">
               <input id="w-${{encodeURIComponent(u)}}" type="number" min="1" value="${{peso}}" class="wsmall" />
               <button class="btn alt" onclick="saveWeight('${{encodeURIComponent(u)}}')">Salvar</button>
+              <button class="btn danger" onclick="deleteOne('${{encodeURIComponent(u)}}')">Excluir</button>
             </td>
             <td style="text-align:center">${{tent}}</td>
           </tr>`;
         }}).join('');
-
       document.getElementById('usersTable').innerHTML =
         `<table>
-          <thead>
-            <tr>
-              <th>Usuário</th>
-              <th>Chave</th>
-              <th>Usou</th>
-              <th>Peso (editar)</th>
-              <th>Tentativas (EID atual)</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Usuário</th><th>Chave</th><th>Usou</th><th>Peso / Ações</th><th>Tentativas (EID atual)</th></tr></thead>
           <tbody>${{rows}}</tbody>
         </table>`;
     }}
-
+    function renderTrash() {{
+      const entries = Object.entries(TRASH_CACHE);
+      if (!entries.length) {{
+        document.getElementById('trashTable').innerHTML = '<p class="muted">Lixeira vazia.</p>';
+        return;
+      }}
+      const rows = entries.map(([u,v]) => {{
+        const delAt = v.deleted_at || '—';
+        const key   = v.key || '—';
+        const used  = v.used ? '✔️' : '—';
+        const peso  = v.peso || 1;
+        return `<tr>
+          <td><code>${{u}}</code></td>
+          <td>${{key}}</td>
+          <td style="text-align:center">${{used}}</td>
+          <td style="text-align:center">${{peso}}</td>
+          <td>${{delAt}}</td>
+          <td style="text-align:center"><button class="btn alt" onclick="restoreOne('${{encodeURIComponent(u)}}')">Restaurar</button></td>
+        </tr>`;
+      }}).join('');
+      document.getElementById('trashTable').innerHTML =
+        `<table>
+          <thead><tr><th>Usuário</th><th>Chave</th><th>Usou</th><th>Peso</th><th>Excluído em</th><th>Ação</th></tr></thead>
+          <tbody>${{rows}}</tbody>
+        </table>`;
+    }}
     async function saveWeight(encUser) {{
       const u = decodeURIComponent(encUser);
       const inp = document.getElementById('w-' + encUser);
       const val = parseInt((inp.value||'1'),10);
       if (!Number.isFinite(val) || val < 1) {{
-        alert('Peso inválido. Use um número inteiro ≥ 1.');
-        return;
+        alert('Peso inválido. Use um número inteiro ≥ 1.'); return;
       }}
       const url = `/admin/set_user_weight?secret=${{encodeURIComponent(secret)}}&user=${{encodeURIComponent(u)}}&peso=${{encodeURIComponent(val)}}`;
       const r = await fetch(url);
       if (r.ok) {{
-        inp.style.borderColor = '#059669';
-        setTimeout(()=>inp.style.borderColor = '#d1d5db', 700);
+        inp.style.borderColor = '#059669'; setTimeout(()=>inp.style.borderColor = '#d1d5db', 700);
         await refreshUsers();
       }} else {{
-        inp.style.borderColor = '#b45309';
-        alert('Falha ao salvar peso para ' + u);
+        inp.style.borderColor = '#b45309'; alert('Falha ao salvar peso para ' + u);
         setTimeout(()=>inp.style.borderColor = '#d1d5db', 1000);
       }}
     }}
-
-    async function refreshAll() {{
-      await Promise.all([refreshKeys(), refreshPool(), refreshUsers()]);
-    }}
-
-    // boot
+    async function refreshAll() {{ await Promise.all([refreshKeys(), refreshPool(), refreshUsers(), refreshTrash()]); }}
     refreshAll();
   </script>
+</body>
+</html>
+"""
+    return Response(html, mimetype="text/html")
+
+# ---- Admin API: audit_raw (JSON com linhas do log) ----
+@app.route("/admin/audit_raw")
+def admin_audit_raw():
+    if not require_admin(request): abort(403)
+    eid = (request.args.get("eid") or get_current_election_id()).strip()
+    p = audit_path(eid)
+    meta = get_election_meta(eid)
+    if not p.exists():
+        return Response(json.dumps({"eid": eid, "meta": meta, "lines": []}, ensure_ascii=False, indent=2),
+                        mimetype="application/json")
+    with open(p, "r", encoding="utf-8") as f:
+        lines = [ln.rstrip("\n") for ln in f.readlines()]
+    return Response(json.dumps({"eid": eid, "meta": meta, "lines": lines}, ensure_ascii=False, indent=2),
+                    mimetype="application/json")
+
+# ---- Admin API: ballots_raw (JSON com cédulas) ----
+@app.route("/admin/ballots_raw")
+def admin_ballots_raw():
+    if not require_admin(request): abort(403)
+    eid = (request.args.get("eid") or get_current_election_id()).strip()
+    ballots = load_ballots(eid)
+    return Response(json.dumps({"eid": eid, "ballots": ballots}, ensure_ascii=False, indent=2),
+                    mimetype="application/json")
+
+# ---- Página admin: audit_preview (UI com filtros + CONSISTÊNCIA) ----
+@app.route("/admin/audit_preview")
+def admin_audit_preview():
+    if not require_admin(request): abort(403)
+    secret = request.args.get("secret","")
+    current_eid = get_current_election_id()
+
+    html = f"""
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Admin · Auditoria (preview)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f8fafc;margin:0}}
+    .wrap{{max-width:1100px;margin:0 auto;padding:22px}}
+    .card{{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:10px 0}}
+    .row{{display:flex;gap:8px;flex-wrap:wrap;align-items:center}}
+    select,input,button{{padding:8px 10px;border:1px solid #d1d5db;border-radius:10px}}
+    button{{cursor:pointer;background:#111827;color:#fff}}
+    button.ghost{{background:#fff;color:#111827;border:1px dashed #9ca3af}}
+    table{{border-collapse:collapse;width:100%}}
+    th,td{{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.93rem;vertical-align:top;white-space:nowrap}}
+    th{{background:#f3f4f6}}
+    code{{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}}
+    .tag{{display:inline-block;padding:2px 6px;border-radius:6px;font-size:.78rem}}
+    .t-vote{{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}}
+    .t-attempt{{background:#fff7ed;color:#7c2d12;border:1px solid #fed7aa}}
+    .t-alimit{{background:#fef3c7;color:#92400e;border:1px solid #fde68a}}
+    .t-admin{{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe}}
+    .muted{{color:#6b7280}}
+    .grid{{display:grid;gap:14px;grid-template-columns:1fr 3fr}}
+    @media(max-width:1000px){{.grid{{grid-template-columns:1fr}}; th,td{{white-space:normal}}}}
+    .ok{{background:#ecfdf5;border:1px solid #a7f3d0}}
+    .warn{{background:#fff7ed;border:1px solid #fed7aa}}
+    .err{{background:#fee2e2;border:1px solid #fecaca}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Auditoria · Preview (Admin)</h1>
+
+    <div class="card">
+      <div class="row">
+        <label>EID:
+          <select id="eidSel"></select>
+        </label>
+        <button onclick="loadAll()">Carregar</button>
+        <label class="muted">Atualização automática:
+          <select id="autoref">
+            <option value="0" selected>Desligada</option>
+            <option value="15000">15s</option>
+            <option value="30000">30s</option>
+            <option value="60000">60s</option>
+          </select>
+        </label>
+        <button class="ghost" onclick="openPublic('results')">Abrir resultados públicos</button>
+        <button class="ghost" onclick="openPublic('audit')">Abrir auditoria pública</button>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="fVote" checked> VOTE</label>
+        <label><input type="checkbox" id="fAttempt" checked> ATTEMPT</label>
+        <label><input type="checkbox" id="fALimit" checked> ATTEMPT-LIMIT</label>
+        <label><input type="checkbox" id="fAdmin" checked> ADMIN</label>
+        <input id="q" type="text" placeholder="buscar: receipt=... user=... voter=... ip=..." style="flex:1;min-width:220px">
+        <button onclick="applyFilters()">Filtrar</button>
+        <button class="ghost" onclick="resetFilters()">Limpar</button>
+        <button class="ghost" onclick="exportJSON()">Exportar JSON</button>
+        <button class="ghost" onclick="exportCSV()">Exportar CSV</button>
+      </div>
+    </div>
+
+    <div id="consistency" class="card">
+      <h3>Resumo / Consistência</h3>
+      <div id="consistBox"><p class="muted">Carregue um EID para ver o diagnóstico.</p></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Resumo por tipo</h3>
+        <div id="summary"><p class="muted">Sem dados.</p></div>
+      </div>
+      <div class="card">
+        <h3>Linhas do log</h3>
+        <div style="overflow:auto; max-height:60vh">
+          <table id="tbl"><thead>
+            <tr><th>Tipo</th><th>Timestamp</th><th>Conteúdo</th></tr>
+          </thead><tbody id="tbody">
+            <tr><td colspan="3" class="muted">Nada carregado.</td></tr>
+          </tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <p class="muted">Dica: clique em uma linha para copiá-la.</p>
+  </div>
+
+<script>
+const secret = {json.dumps(secret)};
+const currentEid = {json.dumps(current_eid)};
+let RAW = [];       // linhas do log (texto)
+let PARSED = [];    // objetos parseados
+let FILTERED = [];  // após filtro
+let BALLOTS = [];   // cédulas carregadas
+let timer = null;
+
+function tag(type){
+  if(type==='VOTE') return '<span class="tag t-vote">VOTE</span>';
+  if(type==='ATTEMPT') return '<span class="tag t-attempt">ATTEMPT</span>';
+  if(type==='ATTEMPT-LIMIT') return '<span class="tag t-alimit">ATTEMPT-LIMIT</span>';
+  if(type==='ADMIN') return '<span class="tag t-admin">ADMIN</span>';
+  return '<span class="tag">'+type+'</span>';
+}
+
+function parseLine(line){
+  const obj = { raw: line, type: 'OTHER', ts: '', fields: {} };
+  let m;
+  if (line.startsWith('ADMIN ')){
+    const parts = line.split(' ');
+    if (parts.length >= 4){
+      obj.type = 'ADMIN';
+      obj.action = parts[1];
+      obj.ts = parts[2];
+      const rest = line.slice(('ADMIN '+obj.action+' '+obj.ts+' ').length);
+      obj.fields = kvparse(rest);
+    }
+    return obj;
+  }
+  m = line.match(/^(VOTE|ATTEMPT|ATTEMPT-LIMIT)\s+(\S+)\s+(.*)$/);
+  if (m){
+    obj.type = m[1];
+    obj.ts = m[2];
+    obj.fields = kvparse(m[3]||'');
+    return obj;
+  }
+  m = line.match(/(\d{4}-\d{2}-\d{2}T[^\s]+Z)/);
+  if (m){ obj.ts = m[1]; }
+  return obj;
+}
+
+function kvparse(txt){
+  const out = {};
+  const parts = txt.split(/\\s+/).filter(Boolean);
+  for (const p of parts){
+    const i = p.indexOf('=');
+    if (i>0) out[p.slice(0,i)] = p.slice(i+1);
+  }
+  return out;
+}
+
+// ---------- Consistência ----------
+function computeConsistency(){
+  const votes = PARSED.filter(o => o.type==='VOTE');
+  const voteHashes = votes.map(o => o.fields.voter).filter(Boolean);
+  const duplicates = findDuplicates(voteHashes);
+
+  const setLog = new Set(voteHashes);
+  const ballotHashes = (BALLOTS||[]).map(b => b.voter).filter(Boolean);
+  const setBall = new Set(ballotHashes);
+
+  const missingInBallots = [...setLog].filter(h => !setBall.has(h));
+  const missingInLog     = [...setBall].filter(h => !setLog.has(h));
+
+  const totalBallots = (BALLOTS||[]).length;
+  const totalWeight  = (BALLOTS||[]).reduce((acc,b)=> acc + (parseInt(b.peso||1,10)||1), 0);
+
+  return {{
+    countLogVotes: votes.length,
+    countBallots: totalBallots,
+    totalWeight,
+    duplicates,
+    missingInBallots,
+    missingInLog
+  }};
+}
+
+function findDuplicates(arr){
+  const seen = new Set(), dup = new Set();
+  for (const x of arr){
+    if (seen.has(x)) dup.add(x);
+    else seen.add(x);
+  }
+  return [...dup];
+}
+
+function renderConsistency(){
+  const el = document.getElementById('consistBox');
+  if (!PARSED.length && !BALLOTS.length){
+    el.innerHTML = '<p class="muted">Sem dados.</p>'; return;
+  }
+  const c = computeConsistency();
+  let status = 'ok', title='Tudo consistente ✅';
+  if (c.duplicates.length || c.missingInBallots.length || c.missingInLog.length){
+    status = (c.duplicates.length || c.missingInLog.length) ? 'err' : 'warn';
+    title  = status==='err' ? 'Divergências detectadas ❌' : 'Atenção ⚠️';
+  }
+  const liDup = c.duplicates.map(h => `<li><code>${{h}}</code></li>`).join('') || '<li class="muted">nenhum</li>';
+  const liMiB = c.missingInBallots.map(h => `<li><code>${{h}}</code></li>`).join('') || '<li class="muted">nenhum</li>';
+  const liMiL = c.missingInLog.map(h => `<li><code>${{h}}</code></li>`).join('') || '<li class="muted">nenhum</li>';
+
+  el.parentElement.classList.remove('ok','warn','err');
+  el.parentElement.classList.add(status);
+
+  el.innerHTML = `
+    <p><b>${{title}}</b></p>
+    <ul>
+      <li><b>VOTE (log):</b> ${{c.countLogVotes}}</li>
+      <li><b>Cédulas (arquivo):</b> ${{c.countBallots}}</li>
+      <li><b>Soma de pesos:</b> ${{c.totalWeight}}</li>
+    </ul>
+    <details><summary><b>Duplicidades de hash no log</b></summary><ul>${{liDup}}</ul></details>
+    <details><summary><b>No log, mas faltando em cédulas</b></summary><ul>${{liMiB}}</ul></details>
+    <details><summary><b>Na cédula, mas faltando no log</b></summary><ul>${{liMiL}}</ul></details>
+  `;
+}
+
+// ---------- Tabela / filtros ----------
+function renderTable(){
+  const tbody = document.getElementById('tbody');
+  if (!FILTERED.length){
+    tbody.innerHTML = '<tr><td colspan="3" class="muted">Sem linhas (ou filtro removeu tudo).</td></tr>';
+    renderSummary();
+    return;
+  }
+  const rows = FILTERED.map(o => `
+    <tr onclick="copyLine(${JSON.stringify(o.raw).replace(/</g,'\\u003c')})" title="Clique para copiar">
+      <td>${tag(o.type)}${o.action?(' <code>'+o.action+'</code>'):''}</td>
+      <td><code>${o.ts||''}</code></td>
+      <td><code>${o.raw.replace(/</g,'&lt;')}</code></td>
+    </tr>
+  `).join('');
+  tbody.innerHTML = rows;
+  renderSummary();
+}
+
+function renderSummary(){
+  const s = {VOTE:0, ATTEMPT:0, 'ATTEMPT-LIMIT':0, ADMIN:0, OTHER:0};
+  for (const o of FILTERED){ s[o.type] = (s[o.type]||0)+1; }
+  document.getElementById('summary').innerHTML = `
+    <ul>
+      <li><b>VOTE:</b> ${s.VOTE||0}</li>
+      <li><b>ATTEMPT:</b> ${s.ATTEMPT||0}</li>
+      <li><b>ATTEMPT-LIMIT:</b> ${s['ATTEMPT-LIMIT']||0}</li>
+      <li><b>ADMIN:</b> ${s.ADMIN||0}</li>
+      <li><b>OUTROS:</b> ${s.OTHER||0}</li>
+    </ul>
+  `;
+}
+
+function applyFilters(){
+  const fVote    = document.getElementById('fVote').checked;
+  const fAtt     = document.getElementById('fAttempt').checked;
+  const fALimit  = document.getElementById('fALimit').checked;
+  const fAdmin   = document.getElementById('fAdmin').checked;
+  const q        = (document.getElementById('q').value||'').toLowerCase().trim();
+
+  FILTERED = PARSED.filter(o=>{
+    if (o.type==='VOTE' && !fVote) return false;
+    if (o.type==='ATTEMPT' && !fAtt) return false;
+    if (o.type==='ATTEMPT-LIMIT' && !fALimit) return false;
+    if (o.type==='ADMIN' && !fAdmin) return false;
+    if (q){
+      const hay = o.raw.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a,b) => (a.ts<b.ts?1:-1)); // desc
+  renderTable();
+}
+
+function resetFilters(){
+  document.getElementById('fVote').checked   = true;
+  document.getElementById('fAttempt').checked= true;
+  document.getElementById('fALimit').checked = true;
+  document.getElementById('fAdmin').checked  = true;
+  document.getElementById('q').value = '';
+  applyFilters();
+}
+
+function copyLine(txt){ navigator.clipboard.writeText(txt); }
+
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(FILTERED, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `audit_filtered.json`; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function toCSV(objs){
+  const headers = ['type','action','ts','raw'];
+  const esc = s => { s = String(s==null?'':s); return /[",\\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const lines = [headers.join(',')].concat(
+    objs.map(o => [o.type, o.action||'', o.ts||'', o.raw].map(esc).join(','))
+  );
+  return lines.join('\\n');
+}
+function exportCSV(){
+  const csv = toCSV(FILTERED);
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `audit_filtered.csv`; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ---------- Loaders ----------
+async function loadEIDs(){
+  const r = await fetch('/public/elections');
+  const j = await r.json();
+  const sel = document.getElementById('eidSel');
+  sel.innerHTML = '';
+  const list = (j.elections||[]);
+  const all = Array.from(new Set([{json.dumps(current_eid)}].concat(list))).filter(Boolean);
+  for (const id of all){
+    const opt = document.createElement('option');
+    opt.value = id; opt.textContent = id;
+    if (id==={json.dumps(current_eid)}) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+async function loadLog(eid){
+  const r = await fetch(`/admin/audit_raw?secret=${{encodeURIComponent(secret)}}&eid=${{encodeURIComponent(eid)}}`);
+  const j = await r.json();
+  RAW = j.lines || [];
+  PARSED = RAW.map(parseLine);
+}
+
+async function loadBallots(eid){
+  const r = await fetch(`/admin/ballots_raw?secret=${{encodeURIComponent(secret)}}&eid=${{encodeURIComponent(eid)}}`);
+  const j = await r.json();
+  BALLOTS = j.ballots || [];
+}
+
+async function loadAll(){
+  const eid = document.getElementById('eidSel').value;
+  await Promise.all([loadLog(eid), loadBallots(eid)]);
+  applyFilters();        // também renderiza tabela/summary
+  renderConsistency();   // usa PARSED + BALLOTS
+}
+
+function openPublic(kind){
+  const eid = document.getElementById('eidSel').value;
+  if (kind==='results') window.open(`/public/${{encodeURIComponent(eid)}}/results`, '_blank');
+  else window.open(`/public/${{encodeURIComponent(eid)}}/audit`, '_blank');
+}
+
+document.getElementById('autoref').addEventListener('change', (e)=>{
+  const ms = parseInt(e.target.value||'0',10);
+  if (timer) {{ clearInterval(timer); timer=null; }}
+  if (ms>0) timer = setInterval(loadAll, ms);
+});
+
+// Boot
+loadEIDs().then(loadAll);
+</script>
 </body>
 </html>
 """
