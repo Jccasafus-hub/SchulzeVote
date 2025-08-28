@@ -13,7 +13,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "mude-isto")
 
 # --------- Arquivos / diretórios ----------
 CAND_FILE         = "candidates.json"     # candidatos
-VOTER_KEYS_FILE   = "voter_keys.json"     # chaves
+VOTER_KEYS_FILE   = "voter_keys.json"     # chaves (pool)
 ELECTION_FILE     = "election.json"       # election_id, deadline_utc, meta por votação
 REGISTRY_FILE     = "user_registry.json"  # usuarios: key, used, pwd_hash, peso, attempts
 TRASH_FILE        = "user_trash.json"     # lixeira (soft delete)
@@ -520,14 +520,14 @@ def public_results(eid):
 def public_audit(eid):
     p = audit_path(eid)
     meta = get_election_meta(eid)
-    head = ""
     if meta:
-        head = (f"<h1>{meta.get('title','Auditoria')}</h1>"
-                f"<p><b>ID:</b> {eid}"
-                + (f" • <b>Data/Hora:</b> {meta.get('date','')} {meta.get('time','')} {meta.get('tz','')}" if meta.get('date') and meta.get('time') else "")
-                + "</p>")
+        head = ("<h1>%s</h1><p><b>ID:</b> %s%s</p>" % (
+            meta.get('title','Auditoria'),
+            eid,
+            (" • <b>Data/Hora:</b> %s %s %s" % (meta.get('date',''), meta.get('time',''), meta.get('tz',''))) if meta.get('date') and meta.get('time') else ""
+        ))
     else:
-        head = f"<h1>Auditoria</h1><p><b>ID:</b> {eid}</p>"
+        head = "<h1>Auditoria</h1><p><b>ID:</b> %s</p>" % eid
     if not p.exists():
         return Response(head + "<pre>(Sem auditoria para esta votação.)</pre>", mimetype="text/html")
     with open(p, "r", encoding="utf-8") as f:
@@ -574,32 +574,48 @@ def admin_candidates():
     tz_default = "America/Sao_Paulo"
     if dl_utc:
         local = dl_utc.astimezone(ZoneInfo(tz_default))
-        deadline_html = f"<p><b>Prazo atual:</b> {local.strftime('%d/%m/%Y %H:%M')} {tz_default}</p>"
+        deadline_html = "<p><b>Prazo atual:</b> %s %s</p>" % (local.strftime('%d/%m/%Y %H:%M'), tz_default)
     else:
         deadline_html = "<p><i>Nenhum prazo definido.</i></p>"
 
-    html = f"""
+    msg_html  = "<p style='color:green'>%s</p>" % msg if msg else ""
+    warn_html = "<p style='color:#b45309'>%s</p>" % warn if warn else ""
+    secret_qs = request.args.get('secret','')
+
+    html = """
     <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Admin · Candidatos & Prazo</title>
     <style>body{{font-family:system-ui;padding:24px}} textarea{{width:100%;min-height:200px}}</style></head><body>
       <h1>Admin · Candidatos & Prazo</h1>
-      {"<p style='color:green'>"+msg+"</p>" if msg else ""}
-      {"<p style='color:#b45309'>"+warn+"</p>" if warn else ""}
+      %s
+      %s
       <form method="POST">
         <input type="hidden" name="action" value="save_candidates">
-        <p><b>Candidatos</b> (um por linha; <i>{RESERVED_BLANK}</i>/<i>{RESERVED_NULL}</i> são fixos no fim):</p>
-        <textarea name="lista">{chr(10).join(core)}</textarea><br><br>
+        <p><b>Candidatos</b> (um por linha; <i>%s</i>/<i>%s</i> são fixos no fim):</p>
+        <textarea name="lista">%s</textarea><br><br>
         <button>Salvar candidatos</button>
       </form>
       <hr>
       <h2>Prazo de votação</h2>
-      {deadline_html}
+      %s
       <form method="POST">
         <input type="hidden" name="action" value="set_deadline">
         <label>Data: <input type="date" name="date"></label>
         <label>Hora: <input type="time" name="time"></label>
         <label>Fuso: 
           <select name="tz">
-            {"".join(f"<option>{tz}</option>" for tz in ["America/Sao_Paulo","America/Bahia","America/Fortaleza","America/Recife","America/Maceio","America/Manaus","America/Belem","America/Boa_Vista","America/Porto_Velho","America/Cuiaba","America/Campo_Grande","America/Noronha","UTC"])}
+            <option>America/Sao_Paulo</option>
+            <option>America/Bahia</option>
+            <option>America/Fortaleza</option>
+            <option>America/Recife</option>
+            <option>America/Maceio</option>
+            <option>America/Manaus</option>
+            <option>America/Belem</option>
+            <option>America/Boa_Vista</option>
+            <option>America/Porto_Velho</option>
+            <option>America/Cuiaba</option>
+            <option>America/Campo_Grande</option>
+            <option>America/Noronha</option>
+            <option>UTC</option>
           </select>
         </label>
         <button>Definir prazo</button>
@@ -607,10 +623,16 @@ def admin_candidates():
       <form method="POST" style="margin-top:8px">
         <input type="hidden" name="action" value="clear_deadline"><button>Limpar prazo</button>
       </form>
-      <p style="margin-top:16px"><a href="/admin/election_meta?secret={request.args.get('secret','')}">Metadados da votação</a></p>
+      <p style="margin-top:16px"><a href="/admin/election_meta?secret=%s">Metadados da votação</a></p>
       <p><a href="/">Início</a></p>
     </body></html>
-    """
+    """ % (
+        msg_html, warn_html,
+        RESERVED_BLANK, RESERVED_NULL,
+        "\n".join(core),
+        deadline_html,
+        secret_qs
+    )
     return Response(html, mimetype="text/html")
 
 @app.route("/admin/election_meta", methods=["GET","POST"])
@@ -634,29 +656,45 @@ def admin_election_meta():
             audit_admin(eid, "SAVE_META", f"title='{title}' date={date} time={time} tz={tz}", request.remote_addr or "-")
     meta = get_election_meta(d.get("election_id"))
     sel_tz = (meta or {}).get("tz", "America/Sao_Paulo")
-    tz_opts = ["America/Sao_Paulo","America/Bahia","America/Fortaleza","America/Recife","America/Maceio",
+    tz_opts_list = ["America/Sao_Paulo","America/Bahia","America/Fortaleza","America/Recife","America/Maceio",
                "America/Manaus","America/Belem","America/Boa_Vista","America/Porto_Velho",
                "America/Cuiaba","America/Campo_Grande","America/Noronha","UTC"]
-    html = f"""
+    tz_options = "".join([
+        '<option value="%s" %s>%s</option>' % (tz, 'selected' if tz==sel_tz else '', tz)
+        for tz in tz_opts_list
+    ])
+
+    msg_html  = "<p style='color:green'>%s</p>" % msg if msg else ""
+    warn_html = "<p style='color:#b45309'>%s</p>" % warn if warn else ""
+
+    html = """
     <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Admin · Metadados</title>
     <style>body{{font-family:system-ui;padding:24px}} input,select{{padding:8px;border:1px solid #ccc;border-radius:8px}}</style></head><body>
       <h1>Metadados da votação</h1>
-      {"<p style='color:green'>"+msg+"</p>" if msg else ""}
-      {"<p style='color:#b45309'>"+warn+"</p>" if warn else ""}
+      %s
+      %s
       <form method="POST">
-        <p><label>EID <input name="eid" value="{d.get('election_id','default')}" required></label></p>
-        <p><label>Título <input name="title" value="{(meta or {}).get('title','')}" required placeholder="Ex.: Eleição da Turma 2025"></label></p>
+        <p><label>EID <input name="eid" value="%s" required></label></p>
+        <p><label>Título <input name="title" value="%s" required placeholder="Ex.: Eleição da Turma 2025"></label></p>
         <p>
-          <label>Data <input type="date" name="date" value="{(meta or {}).get('date','')}" required></label>
-          <label>Hora <input type="time" name="time" value="{(meta or {}).get('time','')}" required></label>
-          <label>Fuso <select name="tz">{"".join(f'<option value="{tz}" '+('selected' if tz==sel_tz else '')+f'>{tz}</option>' for tz in tz_opts)}</select></label>
+          <label>Data <input type="date" name="date" value="%s" required></label>
+          <label>Hora <input type="time" name="time" value="%s" required></label>
+          <label>Fuso <select name="tz">%s</select></label>
         </p>
         <button>Salvar</button>
       </form>
-      <p style="margin-top:12px"><a href="/admin/assign_ui?secret={request.args.get('secret','')}">Atribuir chaves (UI)</a></p>
+      <p style="margin-top:12px"><a href="/admin/assign_ui?secret=%s">Atribuir chaves (UI)</a></p>
       <p><a href="/">Início</a></p>
     </body></html>
-    """
+    """ % (
+        msg_html, warn_html,
+        d.get('election_id','default'),
+        (meta or {}).get('title',''),
+        (meta or {}).get('date',''),
+        (meta or {}).get('time',''),
+        tz_options,
+        request.args.get('secret','')
+    )
     return Response(html, mimetype="text/html")
 
 # ---- Admin API: gerar/atribuir em lote ----
@@ -816,7 +854,6 @@ def admin_empty_trash():
     return Response(json.dumps({"ok": True, "emptied": True}, ensure_ascii=False),
                     mimetype="application/json")
 
-# ---- Listas para UI ----
 @app.route("/admin/keys_list")
 def admin_keys_list():
     if not require_admin(request): abort(403)
@@ -838,34 +875,36 @@ def admin_assign_ui():
     if not require_admin(request): abort(403)
     secret = request.args.get("secret","")
     current_eid = get_current_election_id()
+    js_secret = json.dumps(secret)
+    js_current = json.dumps(current_eid)
 
-    html = f"""
+    html = """
 <!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <title>Admin · Atribuir chaves</title>
   <style>
-    body{{font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; padding:24px; background:#f8fafc}}
-    .wrap{{max-width:1200px;margin:0 auto}}
-    h1{{margin:0 0 12px 0}}
-    .card{{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:12px 0}}
-    textarea{{width:100%;min-height:120px;padding:8px;border:1px solid #d1d5db;border-radius:10px}}
-    .row{{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0}}
-    input[type=number], input[type=text]{{padding:8px;border:1px solid #d1d5db;border-radius:10px}}
-    input.wsmall{{width:90px}}
-    .btn{{padding:9px 12px;border-radius:10px;border:1px solid #111827;background:#111827;color:#fff;cursor:pointer}}
-    .btn.alt{{background:#fff;color:#111827}}
-    .btn.ghost{{background:#fff;color:#111827;border:1px dashed #9ca3af}}
-    .btn.danger{{background:#b91c1c;border-color:#7f1d1d}}
-    .btn.warn{{background:#92400e;border-color:#78350f;background:#f59e0b;color:#111}}
-    table{{border-collapse:collapse;width:100%}}
-    th,td{{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.95rem;vertical-align:middle}}
-    th{{background:#f3f4f6}}
-    pre{{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px;max-height:260px;overflow:auto}}
-    .grid{{display:grid; gap:16px; grid-template-columns:1fr 1fr}}
-    @media (max-width: 1000px){{ .grid{{grid-template-columns:1fr}} }}
-    .muted{{color:#6b7280}}
+    body{font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; padding:24px; background:#f8fafc}
+    .wrap{max-width:1200px;margin:0 auto}
+    h1{margin:0 0 12px 0}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:12px 0}
+    textarea{width:100%;min-height:120px;padding:8px;border:1px solid #d1d5db;border-radius:10px}
+    .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0}
+    input[type=number], input[type=text]{padding:8px;border:1px solid #d1d5db;border-radius:10px}
+    input.wsmall{width:90px}
+    .btn{padding:9px 12px;border-radius:10px;border:1px solid #111827;background:#111827;color:#fff;cursor:pointer}
+    .btn.alt{background:#fff;color:#111827}
+    .btn.ghost{background:#fff;color:#111827;border:1px dashed #9ca3af}
+    .btn.danger{background:#b91c1c;border-color:#7f1d1d}
+    .btn.warn{background:#f59e0b;border-color:#78350f;color:#111}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.95rem;vertical-align:middle}
+    th{background:#f3f4f6}
+    pre{background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px;max-height:260px;overflow:auto}
+    .grid{display:grid; gap:16px; grid-template-columns:1fr 1fr}
+    @media (max-width: 1000px){ .grid{grid-template-columns:1fr} }
+    .muted{color:#6b7280}
   </style>
 </head>
 <body>
@@ -921,7 +960,7 @@ usuario03</pre>
       <h3>Usuários (user_registry.json)</h3>
       <div class="row">
         <input type="text" id="filtroUser" placeholder="Filtrar por usuário..." oninput="renderUsers()">
-        <span class="muted">EID atual: <b>{current_eid}</b></span>
+        <span class="muted">EID atual: <b id="eidNow"></b></span>
       </div>
       <div id="usersTable">carregando...</div>
     </div>
@@ -939,240 +978,244 @@ usuario03</pre>
   </div>
 
   <script>
-    const secret = {json.dumps(secret)};
-    const currentEid = {json.dumps(current_eid)};
-    let USERS_CACHE = {{}};
-    let TRASH_CACHE = {{}};
+    const secret = %s;
+    const currentEid = %s;
+    document.addEventListener('DOMContentLoaded', ()=>{{
+      document.getElementById('eidNow').textContent = currentEid;
+    }});
 
-    function parseUsersFromTextarea() {{
+    let USERS_CACHE = {};
+    let TRASH_CACHE = {};
+
+    function parseUsersFromTextarea() {
       const t = document.getElementById('usersBox').value.trim();
       return t ? t.split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean) : [];
-    }}
+    }
 
-    async function genAssign() {{
-      const users = parseUsersFromTextarea(); if (!users.length) {{ alert('Cole usuários.'); return; }}
+    async function genAssign() {
+      const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários.'); return; }
       const peso = document.getElementById('peso').value || '1';
-      const url = `/admin/assign_batch_generate?secret=${{encodeURIComponent(secret)}}&peso=${{encodeURIComponent(peso)}}&ras=${{encodeURIComponent(users.join(','))}}`;
+      const url = `/admin/assign_batch_generate?secret=${encodeURIComponent(secret)}&peso=${encodeURIComponent(peso)}&ras=${encodeURIComponent(users.join(','))}`;
       const r = await fetch(url);
       document.getElementById('resultBox').textContent = await r.text();
       await refreshAll();
-    }}
+    }
 
-    async function poolAssign() {{
-      const users = parseUsersFromTextarea(); if (!users.length) {{ alert('Cole usuários.'); return; }}
-      const url = `/admin/assign_batch_use_pool?secret=${{encodeURIComponent(secret)}}&ras=${{encodeURIComponent(users.join(','))}}`;
+    async function poolAssign() {
+      const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários.'); return; }
+      const url = `/admin/assign_batch_use_pool?secret=${encodeURIComponent(secret)}&ras=${encodeURIComponent(users.join(','))}`;
       const r = await fetch(url);
       document.getElementById('resultBox').textContent = await r.text();
       await refreshAll();
-    }}
+    }
 
-    async function applyBatchWeight() {{
-      const users = parseUsersFromTextarea(); if (!users.length) {{ alert('Cole usuários.'); return; }}
+    async function applyBatchWeight() {
+      const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários.'); return; }
       const peso = parseInt(document.getElementById('pesoLote').value || '1', 10);
       const status = document.getElementById('batchStatus');
       status.textContent = 'Aplicando...';
       let ok = 0, fail = 0;
 
-      for (const u of users) {{
-        const url = `/admin/set_user_weight?secret=${{encodeURIComponent(secret)}}&user=${{encodeURIComponent(u)}}&peso=${{encodeURIComponent(peso)}}`;
-        try {{
+      for (const u of users) {
+        const url = `/admin/set_user_weight?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}&peso=${encodeURIComponent(peso)}`;
+        try {
           const r = await fetch(url);
           if (r.ok) ok++; else fail++;
-        }} catch(e) {{ fail++; }}
-      }}
-      status.textContent = `Concluído: ok=${{ok}}, falhas=${{fail}}`;
+        } catch(e) { fail++; }
+      }
+      status.textContent = `Concluído: ok=${ok}, falhas=${fail}`;
       await refreshUsers();
-    }}
+    }
 
-    async function deleteBatch() {{
-      const users = parseUsersFromTextarea(); if (!users.length) {{ alert('Cole usuários para excluir.'); return; }}
+    async function deleteBatch() {
+      const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários para excluir.'); return; }
       if (!confirm('Tem certeza que deseja EXCLUIR (soft delete) os usuários colados?')) return;
-      const url = `/admin/delete_users_batch?secret=${{encodeURIComponent(secret)}}&users=${{encodeURIComponent(users.join(','))}}`;
+      const url = `/admin/delete_users_batch?secret=${encodeURIComponent(secret)}&users=${encodeURIComponent(users.join(','))}`;
       const r = await fetch(url);
       const txt = await r.text();
       document.getElementById('resultBox').textContent = txt;
       await refreshUsers(); await refreshTrash();
-    }}
+    }
 
-    async function deleteOne(encUser) {{
+    async function deleteOne(encUser) {
       const u = decodeURIComponent(encUser);
       if (!confirm('Excluir o usuário "'+u+'" (soft delete)?')) return;
-      const url = `/admin/delete_user?secret=${{encodeURIComponent(secret)}}&user=${{encodeURIComponent(u)}}`;
+      const url = `/admin/delete_user?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}`;
       const r = await fetch(url);
       const txt = await r.text();
       document.getElementById('resultBox').textContent = txt;
       await refreshUsers(); await refreshTrash();
-    }}
+    }
 
-    async function restoreOne(encUser) {{
+    async function restoreOne(encUser) {
       const u = decodeURIComponent(encUser);
-      const url = `/admin/restore_user?secret=${{encodeURIComponent(secret)}}&user=${{encodeURIComponent(u)}}`;
+      const url = `/admin/restore_user?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}`;
       const r = await fetch(url);
       const txt = await r.text();
       document.getElementById('resultBox').textContent = txt;
       await refreshUsers(); await refreshTrash();
-    }}
+    }
 
-    async function emptyTrash() {{
+    async function emptyTrash() {
       if (!confirm('Esvaziar a lixeira? Esta ação é permanente.')) return;
-      const r = await fetch(`/admin/empty_trash?secret=${{encodeURIComponent(secret)}}`, {{method:'POST'}});
+      const r = await fetch(`/admin/empty_trash?secret=${encodeURIComponent(secret)}`, {method:'POST'});
       const txt = await r.text();
       document.getElementById('resultBox').textContent = txt;
       await refreshTrash();
-    }}
+    }
 
     // ----- CSV -----
-    function buildCSV(rows) {{
-      const header = ['usuario','key','used','peso','attempts_{currentEid}'];
-      const esc = v => {{
+    function buildCSV(rows) {
+      const header = ['usuario','key','used','peso','attempts_'+currentEid];
+      const esc = v => {
         if (v===undefined || v===null) return '';
         const s = String(v);
         return /[",\\n]/.test(s) ? '"'+ s.replace(/"/g,'""') +'"' : s;
-      }};
+      };
       const out = [header.join(',')].concat(
         rows.map(r => [r.usuario, r.key, r.used, r.peso, r.attempts].map(esc).join(','))
       );
       return out.join('\\n');
-    }}
-    function downloadCSV(filename, csvText) {{
-      const blob = new Blob([csvText], {{type: 'text/csv;charset=utf-8;'}});
+    }
+    function downloadCSV(filename, csvText) {
+      const blob = new Blob([csvText], {type: 'text/csv;charset=utf-8;'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = filename; document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(url);
-    }}
-    function exportCSVAll() {{
+    }
+    function exportCSVAll() {
       const entries = Object.entries(USERS_CACHE);
-      const rows = entries.map(([u,v]) => {{
-        return {{
+      const rows = entries.map(([u,v]) => {
+        return {
           usuario: u, key: v.key || '', used: !!v.used,
           peso: v.peso || 1, attempts: (v.attempts && v.attempts[currentEid]) || 0
-        }};
-      }});
+        };
+      });
       const csv = buildCSV(rows);
       const ts = new Date().toISOString().replace(/[:.]/g,'-');
-      downloadCSV(`usuarios_chaves_pesos_{currentEid}_{ts}.csv`, csv);
-    }}
-    function exportCSVFromTextarea() {{
+      downloadCSV(`usuarios_chaves_pesos_${currentEid}_${ts}.csv`, csv);
+    }
+    function exportCSVFromTextarea() {
       const filterSet = new Set(parseUsersFromTextarea());
-      if (!filterSet.size) {{ alert('Cole usuários para exportar apenas esse conjunto.'); return; }}
+      if (!filterSet.size) { alert('Cole usuários para exportar apenas esse conjunto.'); return; }
       const rows = Object.entries(USERS_CACHE)
         .filter(([u]) => filterSet.has(u))
-        .map(([u,v]) => ({{
+        .map(([u,v]) => ({
           usuario: u, key: v.key || '', used: !!v.used,
           peso: v.peso || 1, attempts: (v.attempts && v.attempts[currentEid]) || 0
-        }}));
+        }));
       const csv = buildCSV(rows);
       const ts = new Date().toISOString().replace(/[:.]/g,'-');
-      downloadCSV(`usuarios_chaves_pesos_FILTRADO_{currentEid}_{ts}.csv`, csv);
-    }}
+      downloadCSV(`usuarios_chaves_pesos_FILTRADO_${currentEid}_${ts}.csv`, csv);
+    }
 
     // ----- Tabelas -----
-    async function refreshKeys() {{
-      const r = await fetch(`/admin/keys_list?secret=${{encodeURIComponent(secret)}}`);
+    async function refreshKeys() {
+      const r = await fetch(`/admin/keys_list?secret=${encodeURIComponent(secret)}`);
       const j = await r.json();
-      const rows = Object.entries(j.keys||{{}}).map(([k,v]) =>
-        `<tr><td>${{k}}</td><td>${{v.used?'✔️':'—'}}</td><td>${{v.used_at||'—'}}</td><td>${{v.peso||1}}</td></tr>`
+      const rows = Object.entries(j.keys||{}).map(([k,v]) =>
+        `<tr><td>${k}</td><td>${v.used?'✔️':'—'}</td><td>${v.used_at||'—'}</td><td>${v.peso||1}</td></tr>`
       ).join('');
       document.getElementById('keysTable').innerHTML =
-        `<table><thead><tr><th>Chave</th><th>Usada</th><th>Quando</th><th>Peso</th></tr></thead><tbody>${{rows}}</tbody></table>`;
-    }}
-    async function refreshPool() {{
-      const r = await fetch(`/admin/pool_list?secret=${{encodeURIComponent(secret)}}`);
+        `<table><thead><tr><th>Chave</th><th>Usada</th><th>Quando</th><th>Peso</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+    async function refreshPool() {
+      const r = await fetch(`/admin/pool_list?secret=${encodeURIComponent(secret)}`);
       const j = await r.json();
-      const rows = (j.pool||[]).map(k => `<tr><td>${{k}}</td></tr>`).join('');
+      const rows = (j.pool||[]).map(k => `<tr><td>${k}</td></tr>`).join('');
       document.getElementById('poolTable').innerHTML =
-        `<table><thead><tr><th>Chave livre</th></tr></thead><tbody>${{rows}}</tbody></table>`;
-    }}
-    async function refreshUsers() {{
-      const r = await fetch(`/admin/users_list?secret=${{encodeURIComponent(secret)}}`);
+        `<table><thead><tr><th>Chave livre</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+    async function refreshUsers() {
+      const r = await fetch(`/admin/users_list?secret=${encodeURIComponent(secret)}`);
       const j = await r.json();
-      USERS_CACHE = j.users || {{}};
+      USERS_CACHE = j.users || {};
       renderUsers();
-    }}
-    async function refreshTrash() {{
-      const r = await fetch(`/admin/trash_list?secret=${{encodeURIComponent(secret)}}`);
+    }
+    async function refreshTrash() {
+      const r = await fetch(`/admin/trash_list?secret=${encodeURIComponent(secret)}`);
       const j = await r.json();
-      TRASH_CACHE = j.users || {{}};
+      TRASH_CACHE = j.users || {};
       renderTrash();
-    }}
-    function renderUsers() {{
+    }
+    function renderUsers() {
       const filtro = (document.getElementById('filtroUser').value || '').toLowerCase();
       const entries = Object.entries(USERS_CACHE);
       const rows = entries
         .filter(([u]) => !filtro || u.toLowerCase().includes(filtro))
-        .map(([u,v]) => {{
+        .map(([u,v]) => {
           const tent = (v.attempts && v.attempts[currentEid]) || 0;
           const peso = v.peso || 1;
           const key  = v.key || '—';
           const used = v.used ? '✔️' : '—';
           return `<tr>
-            <td><code>${{u}}</code></td>
-            <td>${{key}}</td>
-            <td style="text-align:center">${{used}}</td>
+            <td><code>${u}</code></td>
+            <td>${key}</td>
+            <td style="text-align:center">${used}</td>
             <td style="text-align:center">
-              <input id="w-${{encodeURIComponent(u)}}" type="number" min="1" value="${{peso}}" class="wsmall" />
-              <button class="btn alt" onclick="saveWeight('${{encodeURIComponent(u)}}')">Salvar</button>
-              <button class="btn danger" onclick="deleteOne('${{encodeURIComponent(u)}}')">Excluir</button>
+              <input id="w-${encodeURIComponent(u)}" type="number" min="1" value="${peso}" class="wsmall" />
+              <button class="btn alt" onclick="saveWeight('${encodeURIComponent(u)}')">Salvar</button>
+              <button class="btn danger" onclick="deleteOne('${encodeURIComponent(u)}')">Excluir</button>
             </td>
-            <td style="text-align:center">${{tent}}</td>
+            <td style="text-align:center">${tent}</td>
           </tr>`;
-        }}).join('');
+        }).join('');
       document.getElementById('usersTable').innerHTML =
         `<table>
           <thead><tr><th>Usuário</th><th>Chave</th><th>Usou</th><th>Peso / Ações</th><th>Tentativas (EID atual)</th></tr></thead>
-          <tbody>${{rows}}</tbody>
+          <tbody>${rows}</tbody>
         </table>`;
-    }}
-    function renderTrash() {{
+    }
+    function renderTrash() {
       const entries = Object.entries(TRASH_CACHE);
-      if (!entries.length) {{
+      if (!entries.length) {
         document.getElementById('trashTable').innerHTML = '<p class="muted">Lixeira vazia.</p>';
         return;
-      }}
-      const rows = entries.map(([u,v]) => {{
+      }
+      const rows = entries.map(([u,v]) => {
         const delAt = v.deleted_at || '—';
         const key   = v.key || '—';
         const used  = v.used ? '✔️' : '—';
         const peso  = v.peso || 1;
         return `<tr>
-          <td><code>${{u}}</code></td>
-          <td>${{key}}</td>
-          <td style="text-align:center">${{used}}</td>
-          <td style="text-align:center">${{peso}}</td>
-          <td>${{delAt}}</td>
-          <td style="text-align:center"><button class="btn alt" onclick="restoreOne('${{encodeURIComponent(u)}}')">Restaurar</button></td>
+          <td><code>${u}</code></td>
+          <td>${key}</td>
+          <td style="text-align:center">${used}</td>
+          <td style="text-align:center">${peso}</td>
+          <td>${delAt}</td>
+          <td style="text-align:center"><button class="btn alt" onclick="restoreOne('${encodeURIComponent(u)}')">Restaurar</button></td>
         </tr>`;
-      }}).join('');
+      }).join('');
       document.getElementById('trashTable').innerHTML =
         `<table>
           <thead><tr><th>Usuário</th><th>Chave</th><th>Usou</th><th>Peso</th><th>Excluído em</th><th>Ação</th></tr></thead>
-          <tbody>${{rows}}</tbody>
+          <tbody>${rows}</tbody>
         </table>`;
-    }}
-    async function saveWeight(encUser) {{
+    }
+    async function saveWeight(encUser) {
       const u = decodeURIComponent(encUser);
       const inp = document.getElementById('w-' + encUser);
       const val = parseInt((inp.value||'1'),10);
-      if (!Number.isFinite(val) || val < 1) {{
+      if (!Number.isFinite(val) || val < 1) {
         alert('Peso inválido. Use um número inteiro ≥ 1.'); return;
-      }}
-      const url = `/admin/set_user_weight?secret=${{encodeURIComponent(secret)}}&user=${{encodeURIComponent(u)}}&peso=${{encodeURIComponent(val)}}`;
+      }
+      const url = `/admin/set_user_weight?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}&peso=${encodeURIComponent(val)}`;
       const r = await fetch(url);
-      if (r.ok) {{
+      if (r.ok) {
         inp.style.borderColor = '#059669'; setTimeout(()=>inp.style.borderColor = '#d1d5db', 700);
         await refreshUsers();
-      }} else {{
+      } else {
         inp.style.borderColor = '#b45309'; alert('Falha ao salvar peso para ' + u);
         setTimeout(()=>inp.style.borderColor = '#d1d5db', 1000);
-      }}
-    }}
-    async function refreshAll() {{ await Promise.all([refreshKeys(), refreshPool(), refreshUsers(), refreshTrash()]); }}
+      }
+    }
+    async function refreshAll() { await Promise.all([refreshKeys(), refreshPool(), refreshUsers(), refreshTrash()]); }
     refreshAll();
   </script>
 </body>
 </html>
-"""
+""" % (js_secret, js_current)
     return Response(html, mimetype="text/html")
 
 # ---- Admin API: audit_raw (JSON com linhas do log) ----
@@ -1196,8 +1239,7 @@ def admin_ballots_raw():
     if not require_admin(request): abort(403)
     eid = (request.args.get("eid") or get_current_election_id()).strip()
     ballots = load_ballots(eid)
-    return Response(json.dumps({"eid": eid, "ballots": ballots}, ensure_ascii=False, indent=2),
-                    mimetype="application/json")
+    return Response(json.dumps({"eid": eid, "ballots": ballots}, ensure_ascii=False, indent=2), mimetype="application/json")
 
 # ---- Página admin: audit_preview (UI com filtros + CONSISTÊNCIA) ----
 @app.route("/admin/audit_preview")
@@ -1205,8 +1247,10 @@ def admin_audit_preview():
     if not require_admin(request): abort(403)
     secret = request.args.get("secret","")
     current_eid = get_current_election_id()
+    js_secret = json.dumps(secret)
+    js_current = json.dumps(current_eid)
 
-    html = f"""
+    html = """
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -1214,28 +1258,28 @@ def admin_audit_preview():
   <title>Admin · Auditoria (preview)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body{{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f8fafc;margin:0}}
-    .wrap{{max-width:1100px;margin:0 auto;padding:22px}}
-    .card{{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:10px 0}}
-    .row{{display:flex;gap:8px;flex-wrap:wrap;align-items:center}}
-    select,input,button{{padding:8px 10px;border:1px solid #d1d5db;border-radius:10px}}
-    button{{cursor:pointer;background:#111827;color:#fff}}
-    button.ghost{{background:#fff;color:#111827;border:1px dashed #9ca3af}}
-    table{{border-collapse:collapse;width:100%}}
-    th,td{{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.93rem;vertical-align:top;white-space:nowrap}}
-    th{{background:#f3f4f6}}
-    code{{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}}
-    .tag{{display:inline-block;padding:2px 6px;border-radius:6px;font-size:.78rem}}
-    .t-vote{{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}}
-    .t-attempt{{background:#fff7ed;color:#7c2d12;border:1px solid #fed7aa}}
-    .t-alimit{{background:#fef3c7;color:#92400e;border:1px solid #fde68a}}
-    .t-admin{{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe}}
-    .muted{{color:#6b7280}}
-    .grid{{display:grid;gap:14px;grid-template-columns:1fr 3fr}}
-    @media(max-width:1000px){{.grid{{grid-template-columns:1fr}}; th,td{{white-space:normal}}}}
-    .ok{{background:#ecfdf5;border:1px solid #a7f3d0}}
-    .warn{{background:#fff7ed;border:1px solid #fed7aa}}
-    .err{{background:#fee2e2;border:1px solid #fecaca}}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f8fafc;margin:0}
+    .wrap{max-width:1100px;margin:0 auto;padding:22px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:10px 0}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    select,input,button{padding:8px 10px;border:1px solid #d1d5db;border-radius:10px}
+    button{cursor:pointer;background:#111827;color:#fff}
+    button.ghost{background:#fff;color:#111827;border:1px dashed #9ca3af}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #e5e7eb;padding:6px;text-align:left;font-size:.93rem;vertical-align:top;white-space:nowrap}
+    th{background:#f3f4f6}
+    code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .tag{display:inline-block;padding:2px 6px;border-radius:6px;font-size:.78rem}
+    .t-vote{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}
+    .t-attempt{background:#fff7ed;color:#7c2d12;border:1px solid #fed7aa}
+    .t-alimit{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+    .t-admin{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe}
+    .muted{color:#6b7280}
+    .grid{display:grid;gap:14px;grid-template-columns:1fr 3fr}
+    @media(max-width:1000px){.grid{grid-template-columns:1fr}; th,td{white-space:normal}}
+    .ok{background:#ecfdf5;border:1px solid #a7f3d0}
+    .warn{background:#fff7ed;border:1px solid #fed7aa}
+    .err{background:#fee2e2;border:1px solid #fecaca}
   </style>
 </head>
 <body>
@@ -1298,12 +1342,12 @@ def admin_audit_preview():
   </div>
 
 <script>
-const secret = {json.dumps(secret)};
-const currentEid = {json.dumps(current_eid)};
-let RAW = [];       // linhas do log (texto)
-let PARSED = [];    // objetos parseados
-let FILTERED = [];  // após filtro
-let BALLOTS = [];   // cédulas carregadas
+const secret = %s;
+const currentEid = %s;
+let RAW = [];
+let PARSED = [];
+let FILTERED = [];
+let BALLOTS = [];
 let timer = null;
 
 function tag(type){
@@ -1328,14 +1372,14 @@ function parseLine(line){
     }
     return obj;
   }
-  m = line.match(/^(VOTE|ATTEMPT|ATTEMPT-LIMIT)\s+(\S+)\s+(.*)$/);
+  m = line.match(/^(VOTE|ATTEMPT|ATTEMPT-LIMIT)\\s+(\\S+)\\s+(.*)$/);
   if (m){
     obj.type = m[1];
     obj.ts = m[2];
     obj.fields = kvparse(m[3]||'');
     return obj;
   }
-  m = line.match(/(\d{4}-\d{2}-\d{2}T[^\s]+Z)/);
+  m = line.match(/(\\d{4}-\\d{2}-\\d{2}T[^\\s]+Z)/);
   if (m){ obj.ts = m[1]; }
   return obj;
 }
@@ -1366,14 +1410,14 @@ function computeConsistency(){
   const totalBallots = (BALLOTS||[]).length;
   const totalWeight  = (BALLOTS||[]).reduce((acc,b)=> acc + (parseInt(b.peso||1,10)||1), 0);
 
-  return {{
+  return {
     countLogVotes: votes.length,
     countBallots: totalBallots,
     totalWeight,
     duplicates,
     missingInBallots,
     missingInLog
-  }};
+  };
 }
 
 function findDuplicates(arr){
@@ -1396,23 +1440,23 @@ function renderConsistency(){
     status = (c.duplicates.length || c.missingInLog.length) ? 'err' : 'warn';
     title  = status==='err' ? 'Divergências detectadas ❌' : 'Atenção ⚠️';
   }
-  const liDup = c.duplicates.map(h => `<li><code>${{h}}</code></li>`).join('') || '<li class="muted">nenhum</li>';
-  const liMiB = c.missingInBallots.map(h => `<li><code>${{h}}</code></li>`).join('') || '<li class="muted">nenhum</li>';
-  const liMiL = c.missingInLog.map(h => `<li><code>${{h}}</code></li>`).join('') || '<li class="muted">nenhum</li>';
+  const liDup = c.duplicates.map(h => `<li><code>${h}</code></li>`).join('') || '<li class="muted">nenhum</li>';
+  const liMiB = c.missingInBallots.map(h => `<li><code>${h}</code></li>`).join('') || '<li class="muted">nenhum</li>';
+  const liMiL = c.missingInLog.map(h => `<li><code>${h}</code></li>`).join('') || '<li class="muted">nenhum</li>';
 
   el.parentElement.classList.remove('ok','warn','err');
   el.parentElement.classList.add(status);
 
   el.innerHTML = `
-    <p><b>${{title}}</b></p>
+    <p><b>${title}</b></p>
     <ul>
-      <li><b>VOTE (log):</b> ${{c.countLogVotes}}</li>
-      <li><b>Cédulas (arquivo):</b> ${{c.countBallots}}</li>
-      <li><b>Soma de pesos:</b> ${{c.totalWeight}}</li>
+      <li><b>VOTE (log):</b> ${c.countLogVotes}</li>
+      <li><b>Cédulas (arquivo):</b> ${c.countBallots}</li>
+      <li><b>Soma de pesos:</b> ${c.totalWeight}</li>
     </ul>
-    <details><summary><b>Duplicidades de hash no log</b></summary><ul>${{liDup}}</ul></details>
-    <details><summary><b>No log, mas faltando em cédulas</b></summary><ul>${{liMiB}}</ul></details>
-    <details><summary><b>Na cédula, mas faltando no log</b></summary><ul>${{liMiL}}</ul></details>
+    <details><summary><b>Duplicidades de hash no log</b></summary><ul>${liDup}</ul></details>
+    <details><summary><b>No log, mas faltando em cédulas</b></summary><ul>${liMiB}</ul></details>
+    <details><summary><b>Na cédula, mas faltando no log</b></summary><ul>${liMiL}</ul></details>
   `;
 }
 
@@ -1511,24 +1555,24 @@ async function loadEIDs(){
   const sel = document.getElementById('eidSel');
   sel.innerHTML = '';
   const list = (j.elections||[]);
-  const all = Array.from(new Set([{json.dumps(current_eid)}].concat(list))).filter(Boolean);
+  const all = Array.from(new Set([currentEid].concat(list))).filter(Boolean);
   for (const id of all){
     const opt = document.createElement('option');
     opt.value = id; opt.textContent = id;
-    if (id==={json.dumps(current_eid)}) opt.selected = true;
+    if (id===currentEid) opt.selected = true;
     sel.appendChild(opt);
   }
 }
 
 async function loadLog(eid){
-  const r = await fetch(`/admin/audit_raw?secret=${{encodeURIComponent(secret)}}&eid=${{encodeURIComponent(eid)}}`);
+  const r = await fetch(`/admin/audit_raw?secret=${encodeURIComponent(secret)}&eid=${encodeURIComponent(eid)}`);
   const j = await r.json();
   RAW = j.lines || [];
   PARSED = RAW.map(parseLine);
 }
 
 async function loadBallots(eid){
-  const r = await fetch(`/admin/ballots_raw?secret=${{encodeURIComponent(secret)}}&eid=${{encodeURIComponent(eid)}}`);
+  const r = await fetch(`/admin/ballots_raw?secret=${encodeURIComponent(secret)}&eid=${encodeURIComponent(eid)}`);
   const j = await r.json();
   BALLOTS = j.ballots || [];
 }
@@ -1542,13 +1586,13 @@ async function loadAll(){
 
 function openPublic(kind){
   const eid = document.getElementById('eidSel').value;
-  if (kind==='results') window.open(`/public/${{encodeURIComponent(eid)}}/results`, '_blank');
-  else window.open(`/public/${{encodeURIComponent(eid)}}/audit`, '_blank');
+  if (kind==='results') window.open(`/public/${encodeURIComponent(eid)}/results`, '_blank');
+  else window.open(`/public/${encodeURIComponent(eid)}/audit`, '_blank');
 }
 
 document.getElementById('autoref').addEventListener('change', (e)=>{
   const ms = parseInt(e.target.value||'0',10);
-  if (timer) {{ clearInterval(timer); timer=null; }}
+  if (timer) { clearInterval(timer); timer=null; }
   if (ms>0) timer = setInterval(loadAll, ms);
 });
 
@@ -1557,7 +1601,7 @@ loadEIDs().then(loadAll);
 </script>
 </body>
 </html>
-"""
+""" % (js_secret, js_current, js_secret, js_current)
     return Response(html, mimetype="text/html")
 
 # ------------- Debug local -------------
