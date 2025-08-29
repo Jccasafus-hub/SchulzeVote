@@ -1,0 +1,87 @@
+{% extends "base_admin.html" %}
+
+{% block title %}SchulzeVote Admin · Início{% endblock %}
+
+{% block content %}
+  <h1>SchulzeVote · Admin</h1>
+  <p class="muted">Painel exclusivo do administrador. Este app consome as rotas /admin do seu servidor atual.</p>
+
+  <div class="card">
+    <h3>Segredo do administrador</h3>
+    <div class="row">
+      <input id="secret" type="password" placeholder="ADMIN_SECRET">
+      <label style="display:flex;align-items:center;gap:8px;user-select:none">
+        <input type="checkbox" onclick="toggleSecret()"> Mostrar
+      </label>
+      <button class="btn accent" onclick="saveSecret()">Salvar</button>
+      <button class="btn" onclick="clearSecret()">Limpar</button>
+      <span id="status" class="pill">aguardando…</span>
+    </div>
+    <p class="muted" style="margin-top:8px">O segredo é salvo apenas neste dispositivo (localStorage).</p>
+  </div>
+
+  <div class="card">
+    <h3>Ações rápidas</h3>
+    <div class="row">
+      <a class="btn" id="lnkCandidates"  href="#">Candidatos & prazo</a>
+      <a class="btn" id="lnkMeta"        href="#">Metadados da votação</a>
+      <a class="btn" id="lnkAssign"      href="#">Atribuir chaves (UI)</a>
+      <a class="btn" id="lnkAuditPrev"   href="#">Auditoria (preview)</a>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <a class="btn" id="lnkKeys"        href="#">Chaves (JSON)</a>
+      <a class="btn" id="lnkPool"        href="#">Pool (JSON)</a>
+      <a class="btn" id="lnkUsers"       href="#">Usuários (JSON)</a>
+      <a class="btn" id="lnkTrash"       href="#">Lixeira (JSON)</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Instalar como App</h3>
+    <p class="muted">No Safari (iPhone), toque em <b>Compartilhar ▸ Adicionar à Tela de Início</b> para instalar o “SchulzeVote Admin”.</p>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw.js', {scope: '/'});
+}
+function toggleSecret(){
+  const el = document.getElementById('secret');
+  el.type = (el.type === 'password') ? 'text' : 'password';
+}
+function saveSecret(){
+  const v = document.getElementById('secret').value.trim();
+  if(!v){ alert('Digite o ADMIN_SECRET.'); return; }
+  localStorage.setItem('schulze_admin_secret', v);
+  setStatus('salvo'); wireLinks();
+}
+function clearSecret(){
+  localStorage.removeItem('schulze_admin_secret');
+  document.getElementById('secret').value = '';
+  setStatus('limpo'); wireLinks();
+}
+function setStatus(t){ document.getElementById('status').textContent = t; }
+
+function wireLinks(){
+  const s = localStorage.getItem('schulze_admin_secret') || '';
+  const qs = s ? ('?secret='+encodeURIComponent(s)) : '#defina-o-segredo';
+  document.getElementById("lnkCandidates").href = "/admin/candidates"     + qs;
+  document.getElementById("lnkMeta").href       = "/admin/election_meta"  + qs;
+  document.getElementById("lnkAssign").href     = "/admin/assign_ui"      + qs;
+  document.getElementById("lnkAuditPrev").href  = "/admin/audit_preview"  + qs;
+  document.getElementById("lnkKeys").href       = "/admin/keys_list"      + qs;
+  document.getElementById("lnkPool").href       = "/admin/pool_list"      + qs;
+  document.getElementById("lnkUsers").href      = "/admin/users_list"     + qs;
+  document.getElementById("lnkTrash").href      = "/admin/trash_list"     + qs;
+
+  const inp = document.getElementById('secret');
+  if (s && !inp.value) inp.value = s;
+  setStatus(s ? 'carregado' : 'sem segredo');
+}
+
+// boot
+wireLinks();
+</script>
+{% endblock %}
