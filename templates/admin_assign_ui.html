@@ -1,0 +1,299 @@
+{% extends "base_admin.html" %}
+{% block title %}Admin · Atribuir chaves (UI){% endblock %}
+
+{% block content %}
+<h1>Atribuir chaves (lote)</h1>
+
+<div class="card">
+  <p>Cole aqui os <b>usuários</b> (um por linha). Ex.:</p>
+  <pre>usuario01
+usuario02
+usuario03</pre>
+  <textarea id="usersBox" placeholder="usuario01&#10;usuario02&#10;usuario03" style="width:100%;min-height:120px"></textarea>
+
+  <div class="row">
+    <label>Peso padrão:
+      <input type="number" id="peso" value="1" min="1" class="wsmall" style="width:90px">
+    </label>
+    <button class="btn accent" onclick="genAssign()">Gerar e atribuir</button>
+    <button class="btn" onclick="poolAssign()">Atribuir do pool</button>
+    <button class="btn" onclick="exportCSVAll()">Exportar CSV (todos)</button>
+    <button class="btn" onclick="exportCSVFromTextarea()">Exportar CSV (somente colados)</button>
+  </div>
+
+  <div class="row">
+    <b>Resultado:</b>
+    <pre id="resultBox" style="flex:1;max-width:100%">(aguardando)</pre>
+  </div>
+
+  <div class="row">
+    <label>Aplicar peso em lote:
+      <input type="number" id="pesoLote" value="1" min="1" class="wsmall" style="width:90px">
+    </label>
+    <button class="btn" onclick="applyBatchWeight()">Aplicar peso (lote)</button>
+    <span id="batchStatus" class="pill">—</span>
+  </div>
+
+  <div class="row" style="margin-top:6px">
+    <button class="btn" style="background:#7f1d1d;border-color:#7f1d1d" onclick="deleteBatch()">Excluir usuários (lote)</button>
+    <span class="muted">Soft delete: vão para a lixeira (recuperável).</span>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h3>Chaves (voter_keys.json)</h3>
+    <div id="keysTable">carregando...</div>
+  </div>
+  <div class="card">
+    <h3>Pool (livres e não atribuídas)</h3>
+    <div id="poolTable">carregando...</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Usuários (user_registry.json)</h3>
+  <div class="row">
+    <input type="text" id="filtroUser" placeholder="Filtrar por usuário..." oninput="renderUsers()">
+    <span class="pill">EID atual: <b id="eidNow"></b></span>
+  </div>
+  <div id="usersTable">carregando...</div>
+</div>
+
+<div class="card">
+  <h3>Lixeira (soft delete)</h3>
+  <p class="muted">Usuários excluídos ficam aqui e podem ser restaurados.</p>
+  <div id="trashTable">carregando...</div>
+  <div class="row">
+    <button class="btn" onclick="emptyTrash()">Esvaziar lixeira</button>
+    <span class="muted">Atenção: esvaziar remove definitivamente os cadastros daqui.</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const secret = {{ secret|tojson }};
+const currentEid = {{ current_eid|tojson }};
+document.addEventListener('DOMContentLoaded', ()=>{ document.getElementById('eidNow').textContent = currentEid; });
+
+let USERS_CACHE = {};
+let TRASH_CACHE = {};
+
+function parseUsersFromTextarea() {
+  const t = document.getElementById('usersBox').value.trim();
+  return t ? t.split(/\r?\n/).map(s=>s.trim()).filter(Boolean) : [];
+}
+
+async function genAssign() {
+  const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários.'); return; }
+  const peso = document.getElementById('peso').value || '1';
+  const url = `/admin/assign_batch_generate?secret=${encodeURIComponent(secret)}&peso=${encodeURIComponent(peso)}&ras=${encodeURIComponent(users.join(','))}`;
+  const r = await fetch(url);
+  document.getElementById('resultBox').textContent = await r.text();
+  await refreshAll();
+}
+
+async function poolAssign() {
+  const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários.'); return; }
+  const url = `/admin/assign_batch_use_pool?secret=${encodeURIComponent(secret)}&ras=${encodeURIComponent(users.join(','))}`;
+  const r = await fetch(url);
+  document.getElementById('resultBox').textContent = await r.text();
+  await refreshAll();
+}
+
+async function applyBatchWeight() {
+  const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários.'); return; }
+  const peso = parseInt(document.getElementById('pesoLote').value || '1', 10);
+  const status = document.getElementById('batchStatus');
+  status.textContent = 'Aplicando...';
+  let ok = 0, fail = 0;
+
+  for (const u of users) {
+    const url = `/admin/set_user_weight?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}&peso=${encodeURIComponent(peso)}`;
+    try {
+      const r = await fetch(url);
+      if (r.ok) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  status.textContent = `Concluído: ok=${ok}, falhas=${fail}`;
+  await refreshUsers();
+}
+
+async function deleteBatch() {
+  const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários para excluir.'); return; }
+  if (!confirm('Excluir (soft delete) os usuários colados?')) return;
+  const url = `/admin/delete_users_batch?secret=${encodeURIComponent(secret)}&users=${encodeURIComponent(users.join(','))}`;
+  const r = await fetch(url);
+  const txt = await r.text();
+  document.getElementById('resultBox').textContent = txt;
+  await refreshUsers(); await refreshTrash();
+}
+
+async function deleteOne(encUser) {
+  const u = decodeURIComponent(encUser);
+  if (!confirm('Excluir o usuário "'+u+'"?')) return;
+  const url = `/admin/delete_user?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}`;
+  const r = await fetch(url);
+  const txt = await r.text();
+  document.getElementById('resultBox').textContent = txt;
+  await refreshUsers(); await refreshTrash();
+}
+
+async function restoreOne(encUser) {
+  const u = decodeURIComponent(encUser);
+  const url = `/admin/restore_user?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}`;
+  const r = await fetch(url);
+  const txt = await r.text();
+  document.getElementById('resultBox').textContent = txt;
+  await refreshUsers(); await refreshTrash();
+}
+
+async function emptyTrash() {
+  if (!confirm('Esvaziar a lixeira?')) return;
+  const r = await fetch(`/admin/empty_trash?secret=${encodeURIComponent(secret)}`, {method:'POST'});
+  const txt = await r.text();
+  document.getElementById('resultBox').textContent = txt;
+  await refreshTrash();
+}
+
+// ----- CSV -----
+function buildCSV(rows) {
+  const header = ['usuario','key','used','peso','attempts_'+currentEid];
+  const esc = v => {
+    if (v===undefined || v===null) return '';
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"'+ s.replace(/"/g,'""') +'"' : s;
+  };
+  const out = [header.join(',')].concat(
+    rows.map(r => [r.usuario, r.key, r.used, r.peso, r.attempts].map(esc).join(','))
+  );
+  return out.join('\n');
+}
+function downloadCSV(filename, csvText) {
+  const blob = new Blob([csvText], {type: 'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function exportCSVAll() {
+  const entries = Object.entries(USERS_CACHE);
+  const rows = entries.map(([u,v]) => ({
+    usuario: u, key: v.key || '', used: !!v.used, peso: v.peso || 1,
+    attempts: (v.attempts && v.attempts[currentEid]) || 0
+  }));
+  const csv = buildCSV(rows);
+  const ts = new Date().toISOString().replace(/[:.]/g,'-');
+  downloadCSV(`usuarios_chaves_pesos_${currentEid}_${ts}.csv`, csv);
+}
+function exportCSVFromTextarea() {
+  const filterSet = new Set(parseUsersFromTextarea());
+  if (!filterSet.size) { alert('Cole usuários para exportar apenas esse conjunto.'); return; }
+  const rows = Object.entries(USERS_CACHE)
+    .filter(([u]) => filterSet.has(u))
+    .map(([u,v]) => ({
+      usuario: u, key: v.key || '', used: !!v.used, peso: v.peso || 1,
+      attempts: (v.attempts && v.attempts[currentEid]) || 0
+    }));
+  const csv = buildCSV(rows);
+  const ts = new Date().toISOString().replace(/[:.]/g,'-');
+  downloadCSV(`usuarios_chaves_pesos_FILTRADO_${currentEid}_${ts}.csv`, csv);
+}
+
+// ----- Tabelas -----
+async function refreshKeys() {
+  const r = await fetch(`/admin/keys_list?secret=${encodeURIComponent(secret)}`);
+  const j = await r.json();
+  const rows = Object.entries(j.keys||{}).map(([k,v]) =>
+    `<tr><td>${k}</td><td>${v.used?'✔️':'—'}</td><td>${v.used_at||'—'}</td><td>${v.peso||1}</td></tr>`
+  ).join('');
+  document.getElementById('keysTable').innerHTML =
+    `<table><thead><tr><th>Chave</th><th>Usada</th><th>Quando</th><th>Peso</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+async function refreshPool() {
+  const r = await fetch(`/admin/pool_list?secret=${encodeURIComponent(secret)}`);
+  const j = await r.json();
+  const rows = (j.pool||[]).map(k => `<tr><td>${k}</td></tr>`).join('');
+  document.getElementById('poolTable').innerHTML =
+    `<table><thead><tr><th>Chave livre</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+async function refreshUsers() {
+  const r = await fetch(`/admin/users_list?secret=${encodeURIComponent(secret)}`);
+  const j = await r.json();
+  USERS_CACHE = j.users || {};
+  renderUsers();
+}
+async function refreshTrash() {
+  const r = await fetch(`/admin/trash_list?secret=${encodeURIComponent(secret)}`);
+  const j = await r.json();
+  TRASH_CACHE = j.users || {};
+  renderTrash();
+}
+function renderUsers() {
+  const filtro = (document.getElementById('filtroUser').value || '').toLowerCase();
+  const entries = Object.entries(USERS_CACHE);
+  const rows = entries
+    .filter(([u]) => !filtro || u.toLowerCase().includes(filtro))
+    .map(([u,v]) => {
+      const tent = (v.attempts && v.attempts[currentEid]) || 0;
+      const peso = v.peso || 1;
+      const key  = v.key || '—';
+      const used = v.used ? '✔️' : '—';
+      return `<tr>
+        <td><code>${u}</code></td>
+        <td>${key}</td>
+        <td style="text-align:center">${used}</td>
+        <td style="text-align:center">
+          <input id="w-${encodeURIComponent(u)}" type="number" min="1" value="${peso}" style="width:90px" />
+          <button class="btn" onclick="saveWeight('${encodeURIComponent(u)}')">Salvar</button>
+          <button class="btn" style="background:#7f1d1d;border-color:#7f1d1d" onclick="deleteOne('${encodeURIComponent(u)}')">Excluir</button>
+        </td>
+        <td style="text-align:center">${tent}</td>
+      </tr>`;
+    }).join('');
+  document.getElementById('usersTable').innerHTML =
+    `<table>
+      <thead><tr><th>Usuário</th><th>Chave</th><th>Usou</th><th>Peso / Ações</th><th>Tentativas (EID atual)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+function renderTrash() {
+  const entries = Object.entries(TRASH_CACHE);
+  if (!entries.length) {
+    document.getElementById('trashTable').innerHTML = '<p class="muted">Lixeira vazia.</p>'; return;
+  }
+  const rows = entries.map(([u,v]) => {
+    const delAt = v.deleted_at || '—';
+    const key   = v.key || '—';
+    const used  = v.used ? '✔️' : '—';
+    const peso  = v.peso || 1;
+    return `<tr>
+      <td><code>${u}</code></td>
+      <td>${key}</td>
+      <td style="text-align:center">${used}</td>
+      <td style="text-align:center">${peso}</td>
+      <td>${delAt}</td>
+      <td style="text-align:center"><button class="btn" onclick="restoreOne('${encodeURIComponent(u)}')">Restaurar</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('trashTable').innerHTML =
+    `<table>
+      <thead><tr><th>Usuário</th><th>Chave</th><th>Usou</th><th>Peso</th><th>Excluído em</th><th>Ação</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+async function saveWeight(encUser) {
+  const u = decodeURIComponent(encUser);
+  const inp = document.getElementById('w-' + encUser);
+  const val = parseInt((inp.value||'1'),10);
+  if (!Number.isFinite(val) || val < 1) { alert('Peso inválido.'); return; }
+  const url = `/admin/set_user_weight?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}&peso=${encodeURIComponent(val)}`;
+  const r = await fetch(url);
+  if (r.ok) { await refreshUsers(); }
+  else { alert('Falha ao salvar peso para ' + u); }
+}
+async function refreshAll() { await Promise.all([refreshKeys(), refreshPool(), refreshUsers(), refreshTrash()]); }
+refreshAll();
+</script>
+{% endblock %}
