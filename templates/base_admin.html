@@ -7,17 +7,14 @@
   <link rel="manifest" href="/static/manifest_admin.json">
   <meta name="theme-color" content="#000000">
 
-  <!-- iOS PWA essentials -->
+  <!-- iOS PWA -->
   <link rel="apple-touch-icon" href="/static/icon-admin-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="SchulzeVote Admin">
 
   <style>
-    :root{
-      --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
-      --accent:#f97316; --accent-2:#f59e0b; --border:#1f242c; --input:#0f1216;
-    }
+    :root{ --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb; --accent:#f97316; --accent-2:#f59e0b; --border:#1f242c; --input:#0f1216; }
     *{box-sizing:border-box}
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
     .wrap{max-width:920px;margin:0 auto;padding:28px}
@@ -28,9 +25,7 @@
     .btn{padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#1b1f27;color:var(--text);text-decoration:none;cursor:pointer}
     .btn:hover{filter:brightness(1.06)}
     .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#111}
-    input[type=text], input[type=password], input[type=number]{
-      background:var(--input); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:10px; outline:none
-    }
+    input[type=text], input[type=password], input[type=number]{background:var(--input); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:10px; outline:none}
     .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
   </style>
   {% block head %}{% endblock %}
