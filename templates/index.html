@@ -4,6 +4,17 @@
   <meta charset="utf-8">
   <title>SchulzeVote · Início</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#000000">
+
+  <!-- iOS PWA essentials -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="SchulzeVote">
+  <link rel="apple-touch-icon" href="/static/icon-180.png">
+
   <style>
     :root{
       --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
@@ -139,6 +150,15 @@
       document.getElementById("lnkAssign").href     = "/admin/assign_ui?secret=" + enc;
       document.getElementById("lnkAuditPrev").href  = "/admin/audit_preview?secret=" + enc;
     })();
+
+    // --- Service Worker: registra para rodar como PWA em standalone ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
+          .then(() => console.log('SW registrado'))
+          .catch(console.error);
+      });
+    }
   </script>
 </body>
 </html>
