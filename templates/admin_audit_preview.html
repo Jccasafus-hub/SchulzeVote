@@ -1,0 +1,254 @@
+{% extends "base_admin.html" %}
+{% block title %}Admin · Auditoria (preview){% endblock %}
+
+{% block content %}
+<h1>Auditoria · Preview (Admin)</h1>
+
+<div class="card">
+  <div class="row">
+    <label>EID:
+      <select id="eidSel"></select>
+    </label>
+    <button class="btn" onclick="loadAll()">Carregar</button>
+    <label class="muted">Atualização automática:
+      <select id="autoref">
+        <option value="0" selected>Desligada</option>
+        <option value="15000">15s</option>
+        <option value="30000">30s</option>
+        <option value="60000">60s</option>
+      </select>
+    </label>
+    <button class="btn" onclick="openPublic('results')">Abrir resultados públicos</button>
+    <button class="btn" onclick="openPublic('audit')">Abrir auditoria pública</button>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="fVote" checked> VOTE</label>
+    <label><input type="checkbox" id="fAttempt" checked> ATTEMPT</label>
+    <label><input type="checkbox" id="fALimit" checked> ATTEMPT-LIMIT</label>
+    <label><input type="checkbox" id="fAdmin" checked> ADMIN</label>
+    <input id="q" type="text" placeholder="buscar: receipt=... user=... voter=... ip=..." style="flex:1;min-width:220px">
+    <button class="btn" onclick="applyFilters()">Filtrar</button>
+    <button class="btn" onclick="resetFilters()">Limpar</button>
+    <button class="btn" onclick="exportJSON()">Exportar JSON</button>
+    <button class="btn" onclick="exportCSV()">Exportar CSV</button>
+  </div>
+</div>
+
+<div id="consistency" class="card">
+  <h3>Resumo / Consistência</h3>
+  <div id="consistBox"><p class="muted">Carregue um EID para ver o diagnóstico.</p></div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h3>Resumo por tipo</h3>
+    <div id="summary"><p class="muted">Sem dados.</p></div>
+  </div>
+  <div class="card">
+    <h3>Linhas do log</h3>
+    <div style="overflow:auto; max-height:60vh">
+      <table id="tbl"><thead>
+        <tr><th>Tipo</th><th>Timestamp</th><th>Conteúdo</th></tr>
+      </thead><tbody id="tbody">
+        <tr><td colspan="3" class="muted">Nada carregado.</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+</div>
+
+<p class="muted">Dica: clique em uma linha para copiá-la.</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const secret = {{ secret|tojson }};
+const currentEid = {{ current_eid|tojson }};
+let RAW = [], PARSED = [], FILTERED = [], BALLOTS = [];
+let timer = null;
+
+function tag(type){
+  if(type==='VOTE') return '<span class="pill" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0">VOTE</span>';
+  if(type==='ATTEMPT') return '<span class="pill" style="background:#fff7ed;color:#7c2d12;border-color:#fed7aa">ATTEMPT</span>';
+  if(type==='ATTEMPT-LIMIT') return '<span class="pill" style="background:#fef3c7;color:#92400e;border-color:#fde68a">ATTEMPT-LIMIT</span>';
+  if(type==='ADMIN') return '<span class="pill" style="background:#eef2ff;color:#3730a3;border-color:#c7d2fe">ADMIN</span>';
+  return '<span class="pill">'+type+'</span>';
+}
+function parseLine(line){
+  const obj = { raw: line, type: 'OTHER', ts: '', fields: {} };
+  let m;
+  if (line.startsWith('ADMIN ')){
+    const parts = line.split(' ');
+    if (parts.length >= 4){
+      obj.type = 'ADMIN'; obj.action = parts[1]; obj.ts = parts[2];
+      const rest = line.slice(('ADMIN '+obj.action+' '+obj.ts+' ').length);
+      obj.fields = kvparse(rest);
+    }
+    return obj;
+  }
+  m = line.match(/^(VOTE|ATTEMPT|ATTEMPT-LIMIT)\s+(\S+)\s+(.*)$/);
+  if (m){ obj.type = m[1]; obj.ts = m[2]; obj.fields = kvparse(m[3]||''); return obj; }
+  m = line.match(/(\d{4}-\d{2}-\d{2}T[^\s]+Z)/);
+  if (m){ obj.ts = m[1]; }
+  return obj;
+}
+function kvparse(txt){
+  const out = {};
+  const parts = txt.split(/\s+/).filter(Boolean);
+  for (const p of parts){ const i = p.indexOf('='); if (i>0) out[p.slice(0,i)] = p.slice(i+1); }
+  return out;
+}
+// Consistência
+function computeConsistency(){
+  const votes = PARSED.filter(o => o.type==='VOTE');
+  const voteHashes = votes.map(o => o.fields.voter).filter(Boolean);
+  const duplicates = findDuplicates(voteHashes);
+  const setLog = new Set(voteHashes);
+  const ballotHashes = (BALLOTS||[]).map(b => b.voter).filter(Boolean);
+  const setBall = new Set(ballotHashes);
+  const missingInBallots = [...setLog].filter(h => !setBall.has(h));
+  const missingInLog     = [...setBall].filter(h => !setLog.has(h));
+  const totalBallots = (BALLOTS||[]).length;
+  const totalWeight  = (BALLOTS||[]).reduce((acc,b)=> acc + (parseInt(b.peso||1,10)||1), 0);
+  return { countLogVotes: votes.length, countBallots: totalBallots, totalWeight, duplicates, missingInBallots, missingInLog };
+}
+function findDuplicates(arr){ const s=new Set(), d=new Set(); for (const x of arr){ if(s.has(x)) d.add(x); else s.add(x);} return [...d]; }
+function renderConsistency(){
+  const el = document.getElementById('consistBox');
+  if (!PARSED.length && !BALLOTS.length){ el.innerHTML = '<p class="muted">Sem dados.</p>'; return; }
+  const c = computeConsistency();
+  let statusTitle='Tudo consistente ✅';
+  const liDup = c.duplicates.map(h => `<li><code>${h}</code></li>`).join('') || '<li class="muted">nenhum</li>';
+  const liMiB = c.missingInBallots.map(h => `<li><code>${h}</code></li>`).join('') || '<li class="muted">nenhum</li>';
+  const liMiL = c.missingInLog.map(h => `<li><code>${h}</code></li>`).join('') || '<li class="muted">nenhum</li>';
+  if (c.duplicates.length || c.missingInBallots.length || c.missingInLog.length){
+    statusTitle = (c.duplicates.length || c.missingInLog.length) ? 'Divergências detectadas ❌' : 'Atenção ⚠️';
+  }
+  el.innerHTML = `
+    <p><b>${statusTitle}</b></p>
+    <ul>
+      <li><b>VOTE (log):</b> ${c.countLogVotes}</li>
+      <li><b>Cédulas (arquivo):</b> ${c.countBallots}</li>
+      <li><b>Soma de pesos:</b> ${c.totalWeight}</li>
+    </ul>
+    <details><summary><b>Duplicidades de hash no log</b></summary><ul>${liDup}</ul></details>
+    <details><summary><b>No log, mas faltando em cédulas</b></summary><ul>${liMiB}</ul></details>
+    <details><summary><b>Na cédula, mas faltando no log</b></summary><ul>${liMiL}</ul></details>
+  `;
+}
+// Tabela/filtros
+function renderTable(){
+  const tbody = document.getElementById('tbody');
+  if (!FILTERED.length){ tbody.innerHTML = '<tr><td colspan="3" class="muted">Sem linhas.</td></tr>'; renderSummary(); return; }
+  const rows = FILTERED.map(o => `
+    <tr onclick="copyLine(${JSON.stringify(o.raw).replace(/</g,'\\u003c')})" title="Clique para copiar">
+      <td>${tag(o.type)}${o.action?(' <code>'+o.action+'</code>'):''}</td>
+      <td><code>${o.ts||''}</code></td>
+      <td><code>${o.raw.replace(/</g,'&lt;')}</code></td>
+    </tr>
+  `).join('');
+  tbody.innerHTML = rows; renderSummary();
+}
+function renderSummary(){
+  const s = {VOTE:0, ATTEMPT:0, 'ATTEMPT-LIMIT':0, ADMIN:0, OTHER:0};
+  for (const o of FILTERED){ s[o.type] = (s[o.type]||0)+1; }
+  document.getElementById('summary').innerHTML = `
+    <ul>
+      <li><b>VOTE:</b> ${s.VOTE||0}</li>
+      <li><b>ATTEMPT:</b> ${s.ATTEMPT||0}</li>
+      <li><b>ATTEMPT-LIMIT:</b> ${s['ATTEMPT-LIMIT']||0}</li>
+      <li><b>ADMIN:</b> ${s.ADMIN||0}</li>
+      <li><b>OUTROS:</b> ${s.OTHER||0}</li>
+    </ul>
+  `;
+}
+function applyFilters(){
+  const fVote=document.getElementById('fVote').checked,
+        fAtt=document.getElementById('fAttempt').checked,
+        fAL=document.getElementById('fALimit').checked,
+        fAdm=document.getElementById('fAdmin').checked,
+        q=(document.getElementById('q').value||'').toLowerCase().trim();
+  FILTERED = PARSED.filter(o=>{
+    if (o.type==='VOTE' && !fVote) return false;
+    if (o.type==='ATTEMPT' && !fAtt) return false;
+    if (o.type==='ATTEMPT-LIMIT' && !fAL) return false;
+    if (o.type==='ADMIN' && !fAdm) return false;
+    if (q && !o.raw.toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b)=>(a.ts<b.ts?1:-1));
+  renderTable();
+}
+function resetFilters(){
+  document.getElementById('fVote').checked = true;
+  document.getElementById('fAttempt').checked = true;
+  document.getElementById('fALimit').checked = true;
+  document.getElementById('fAdmin').checked = true;
+  document.getElementById('q').value = '';
+  applyFilters();
+}
+function copyLine(txt){ navigator.clipboard.writeText(txt); }
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(FILTERED, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `audit_filtered.json`; a.click(); URL.revokeObjectURL(a.href);
+}
+function toCSV(objs){
+  const headers = ['type','action','ts','raw'];
+  const esc = s => { s = String(s==null?'':s); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const lines = [headers.join(',')].concat(
+    objs.map(o => [o.type, o.action||'', o.ts||'', o.raw].map(esc).join(','))
+  );
+  return lines.join('\n');
+}
+function exportCSV(){
+  const csv = toCSV(FILTERED);
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `audit_filtered.csv`; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// Loaders
+async function loadEIDs(){
+  const r = await fetch('/public/elections');
+  const j = await r.json();
+  const sel = document.getElementById('eidSel');
+  sel.innerHTML = '';
+  const list = (j.elections||[]);
+  const all = Array.from(new Set([currentEid].concat(list))).filter(Boolean);
+  for (const id of all){
+    const opt = document.createElement('option');
+    opt.value = id; opt.textContent = id;
+    if (id===currentEid) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+async function loadLog(eid){
+  const r = await fetch(`/admin/audit_raw?secret=${encodeURIComponent(secret)}&eid=${encodeURIComponent(eid)}`);
+  const j = await r.json();
+  RAW = j.lines || [];
+  PARSED = RAW.map(parseLine);
+}
+async function loadBallots(eid){
+  const r = await fetch(`/admin/ballots_raw?secret=${encodeURIComponent(secret)}&eid=${encodeURIComponent(eid)}`);
+  const j = await r.json();
+  BALLOTS = j.ballots || [];
+}
+async function loadAll(){
+  const eid = document.getElementById('eidSel').value;
+  await Promise.all([loadLog(eid), loadBallots(eid)]);
+  applyFilters(); renderConsistency();
+}
+function openPublic(kind){
+  const eid = document.getElementById('eidSel').value;
+  if (kind==='results') window.open(`/public/${encodeURIComponent(eid)}/results`, '_blank');
+  else window.open(`/public/${encodeURIComponent(eid)}/audit`, '_blank');
+}
+document.getElementById('autoref').addEventListener('change', (e)=>{
+  const ms = parseInt(e.target.value||'0',10);
+  if (timer) { clearInterval(timer); timer=null; }
+  if (ms>0) timer = setInterval(loadAll, ms);
+});
+
+// boot
+loadEIDs().then(loadAll);
+</script>
+{% endblock %}
