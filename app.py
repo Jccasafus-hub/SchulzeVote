@@ -1318,6 +1318,40 @@ def admin_audit_preview():
 </body></html>"""
     return Response(html, mimetype="text/html")
 
+@app.route("/admin/backup_zip")
+def admin_backup_zip():
+    if not require_admin(request): abort(403)
+
+    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    buf = io.BytesIO()
+
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        # --- ajuda local ---
+        def add_if_exists(path, arcname=None):
+            if os.path.exists(path):
+                z.write(path, arcname or path)
+
+        # 1) JSONs "raiz" (fora de data/)
+        for fname in [CAND_FILE, ELECTION_FILE, VOTER_KEYS_FILE, REGISTRY_FILE, TRASH_FILE]:
+            add_if_exists(fname, fname)
+
+        # 2) Tudo que estiver em data/ (ballots/ e audit/, etc.)
+        base_dir = str(DATA_DIR)  # normalmente "data" ou "/var/data"
+        base_prefix = "data"      # como ficará dentro do ZIP
+        if os.path.exists(base_dir):
+            for root, _, files in os.walk(base_dir):
+                for f in files:
+                    full = os.path.join(root, f)
+                    # arcname começa com "data/..." no ZIP
+                    rel = os.path.relpath(full, start=base_dir)
+                    arc = os.path.join(base_prefix, rel)
+                    z.write(full, arc)
+
+    buf.seek(0)
+    resp = Response(buf.getvalue(), mimetype="application/zip")
+    resp.headers["Content-Disposition"] = f'attachment; filename="schulzevote_backup_{ts}.zip"'
+    return resp
+
 # =============== Admin: Dados crus para auditoria ===============
 @app.route("/admin/audit_raw")
 def admin_audit_raw():
