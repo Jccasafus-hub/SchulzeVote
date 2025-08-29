@@ -1673,6 +1673,11 @@ loadEIDs().then(loadAll);
 """ % (js_secret, js_current, js_secret, js_current)
     return Response(html, mimetype="text/html")
 
+@app.route("/admin_app")
+def admin_app_home():
+    # Página inicial do PWA do administrador
+    return render_template("index_admin.html")
+
 # ------------- Debug local -------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
