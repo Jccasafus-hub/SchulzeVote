@@ -1,71 +1,76 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <title>Votação</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    :root{ --bg:#f8fafc; --card:#fff; --text:#111827; --muted:#6b7280; --border:#e5e7eb; --accent:#111827; }
-    body{ font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text); margin:0; }
-    .wrap{ max-width:700px; margin:0 auto; padding:24px; }
-    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
-    h1{ margin:0 0 12px 0; }
-    label{ display:block; margin:10px 0 4px; font-weight:600; }
-    input[type=text], input[type=password], input[type=number]{ width:100%; padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; box-sizing:border-box; }
-    .row{ display:flex; align-items:center; gap:8px; margin:8px 0 6px; }
-    .muted{ color:var(--muted); font-size:.95rem; }
-    .btn{ display:inline-block; background:var(--accent); color:#fff; border:1px solid var(--accent); padding:10px 14px; border-radius:10px; cursor:pointer; }
-    .link{ color:#0f766e; text-decoration:none; }
-    .flash{ padding:10px 12px; border-radius:10px; margin:10px 0; border:1px solid #e5e7eb; }
-    .flash.error{ background:#fef2f2; border-color:#fecaca; color:#7f1d1d; }
-    .flash.success{ background:#ecfdf5; border-color:#a7f3d0; color:#065f46; }
-    .flash.info{ background:#eff6ff; border-color:#bfdbfe; color:#1e40af; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>Votação</h1>
+{% extends "base.html" %}
+{% block title %}SchulzeVote · Votar{% endblock %}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, msg in messages %}
-          <div class="flash {{ category|e }}">{{ msg }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+{% block content %}
+<div class="wrap">
+  <h1>Votar</h1>
 
-    <div class="card">
-      <form method="POST">
-        <label for="voter_id">Chave de votação</label>
-        <input id="voter_id" name="voter_id" type="password" required>
-        <div class="row">
-          <input id="showKey" type="checkbox" onclick="togglePwd('voter_id')">
-          <label for="showKey" class="muted" style="margin:0; font-weight:500">Mostrar chave</label>
+  <div class="card" style="max-width:720px">
+    <form method="POST" action="/vote" onsubmit="return confirm('Confirmar envio do voto?');">
+      <div style="display:grid;gap:12px">
+        <!-- Chave de votação -->
+        <div>
+          <label>Minha chave de votação
+            <input id="vkey" type="password" name="voter_id" required inputmode="latin-prose" placeholder="ex.: ABCD-1234-EFGH">
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:8px;margin-left:8px;user-select:none">
+            <input type="checkbox" onclick="toggleKey()"> Mostrar chave
+          </label>
         </div>
 
-        <h3>Classifique os candidatos (1 = maior preferência)</h3>
-        {% for cand in candidates %}
-          <div class="row">
-            <label style="flex:1">{{ cand }}</label>
-            <input type="number" name="rank_{{ loop.index0 }}" min="1" style="width:80px">
-            <input type="hidden" name="cand_{{ loop.index0 }}" value="{{ cand }}">
+        <div class="sep"></div>
+
+        <!-- Opções especiais -->
+        <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+          <label style="display:flex;align-items:center;gap:8px;user-select:none">
+            <input type="radio" name="special_vote" value="" checked onchange="toggleSpecial(false)"> Ranking normal
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;user-select:none">
+            <input type="radio" name="special_vote" value="BLANK" onchange="toggleSpecial(true)"> <span style="padding:2px 8px;border-radius:10px;border:1px dashed #f59e0b;color:#f59e0b">Voto em Branco</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;user-select:none">
+            <input type="radio" name="special_vote" value="NULL" onchange="toggleSpecial(true)"> <span style="padding:2px 8px;border-radius:10px;border:1px dashed #ef4444;color:#ef4444">Voto Nulo</span>
+          </label>
+        </div>
+
+        <!-- Ranking numérico -->
+        <div id="rankBox">
+          <p class="muted" style="margin:0">Digite o <b>número da preferência</b> para cada candidato que você quiser ordenar (1 = melhor). Deixe em branco se não quiser ranquear aquele candidato.</p>
+          <div style="margin-top:10px;display:grid;gap:8px">
+            {% for c in candidates %}
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <input type="hidden" name="cand_{{ loop.index0 }}" value="{{ c }}">
+                <label style="min-width:240px"><b>{{ c }}</b></label>
+                <input class="rankInput" type="number" min="1" name="rank_{{ loop.index0 }}" placeholder="nº da preferência">
+              </div>
+            {% endfor %}
           </div>
-        {% endfor %}
-
-        <div class="row" style="margin-top:14px">
-          <button class="btn" type="submit">Enviar voto</button>
         </div>
-      </form>
 
-      <p class="muted" style="margin-top:10px">Após confirmar, você receberá um recibo anônimo para auditoria.</p>
-    </div>
+        <div class="sep"></div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn accent" type="submit">Enviar voto</button>
+          <a class="btn" href="/">Início</a>
+        </div>
+      </div>
+    </form>
   </div>
+</div>
+{% endblock %}
 
-  <script>
-    function togglePwd(id){
-      const f = document.getElementById(id);
-      f.type = (f.type === 'password') ? 'text' : 'password';
-    }
-  </script>
-</body>
-</html>
+{% block scripts_extra %}
+<script>
+function toggleKey(){
+  const el = document.getElementById('vkey');
+  el.type = (el.type === 'password') ? 'text' : 'password';
+}
+function toggleSpecial(disableRanks){
+  const inputs = document.querySelectorAll('.rankInput');
+  inputs.forEach(i => {
+    i.disabled = disableRanks;
+    if (disableRanks) i.value = '';
+  });
+}
+</script>
+{% endblock %}
