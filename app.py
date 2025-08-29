@@ -1216,8 +1216,18 @@ def admin_audit_preview():
       <label>EID: <select id="eidSel"></select></label>
       <button onclick="loadAll()">Carregar</button>
       <label class="muted">Auto: <select id="autoref"><option value="0" selected>Off</option><option value="15000">15s</option><option value="30000">30s</option><option value="60000">60s</option></select></label>
-      <button class="ghost" onclick="openPublic('results')">Resultados públicos</button>
-      <button class="ghost" onclick="openPublic('audit')">Auditoria pública</button>
+<button class="ghost" onclick="openPublic('results')">Resultados públicos</button>
+<button class="ghost" onclick="openPublic('audit')">Auditoria pública</button>
+
+<!-- NOVOS: baixar ZIP do EID selecionado -->
+<button class="ghost" onclick="openExportZip()">Baixar ZIP (auditoria do EID)</button>
+
+<!-- NOVOS: CSV de eleições por categoria/data -->
+<span class="muted">CSV de eleições:</span>
+<input id="catCSV" type="text" placeholder="categoria (opcional)" style="min-width:180px">
+<input id="startCSV" type="date" title="Início (YYYY-MM-DD)">
+<input id="endCSV" type="date" title="Fim (YYYY-MM-DD)">
+<button class="ghost" onclick="exportElectionsCSV()">Exportar CSV</button>
     </div>
     <div class="row">
       <label><input type="checkbox" id="fVote" checked> VOTE</label>
@@ -1279,6 +1289,29 @@ def admin_audit_preview():
   async function loadBallots(eid){{const r=await fetch(`/admin/ballots_raw?secret=${{encodeURIComponent(secret)}}&eid=${{encodeURIComponent(eid)}}`); const j=await r.json(); BALLOTS=j.ballots||[];}}
   async function loadAll(){{const eid=document.getElementById('eidSel').value; await Promise.all([loadLog(eid), loadBallots(eid)]); applyFilters();}}
   function openPublic(kind){{const eid=document.getElementById('eidSel').value; if(kind==='results') window.open(`/public/${{encodeURIComponent(eid)}}/results`,'_blank'); else window.open(`/public/${{encodeURIComponent(eid)}}/audit`,'_blank');}}
+  // Baixa o pacote ZIP de auditoria para o EID selecionado
+  function openExportZip(){
+    const eid = document.getElementById('eidSel').value;
+    const url = `/admin/export_audit_bundle?secret=${encodeURIComponent(secret)}&eid=${encodeURIComponent(eid)}`;
+    // abrir em nova aba (ou baixar diretamente)
+    window.open(url, '_blank');
+  }
+
+  // Exporta CSV de eleições com filtros por categoria e intervalo de datas
+  function exportElectionsCSV(){
+    const cat = (document.getElementById('catCSV').value || '').trim();
+    const start = (document.getElementById('startCSV').value || '').trim();
+    const end = (document.getElementById('endCSV').value || '').trim();
+
+    const params = new URLSearchParams();
+    if (cat)   params.set('category', cat);
+    if (start) params.set('start', start);
+    if (end)   params.set('end', end);
+
+    const url = `/public/elections.csv${params.toString() ? ('?' + params.toString()) : ''}`;
+    // abre em nova aba para baixar
+    window.open(url, '_blank');
+  }
   document.getElementById('autoref').addEventListener('change',(e)=>{{const ms=parseInt(e.target.value||'0',10); if(window._T){{clearInterval(window._T); window._T=null;}} if(ms>0) window._T=setInterval(loadAll,ms);}});
   loadEIDs().then(loadAll);
 </script>
