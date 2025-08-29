@@ -497,7 +497,7 @@ def vote():
         receipt = str(uuid.uuid4())
         audit_line(eid, f"VOTE {datetime.utcnow().isoformat()}Z voter={voter_key_h} receipt={receipt} ip={request.remote_addr or '-'}")
 
-        return render_template("receipt.html", receipt=receipt)
+        return render_template("receipt.html", receipt=receipt, election_id=eid)
 
     # GET
     return render_template("vote.html", candidates=candidates)
@@ -512,26 +512,69 @@ def public_elections():
     eids = sorted([p.stem for p in BAL_DIR.glob("*.json")])
     return Response(json.dumps({"elections": eids}, ensure_ascii=False, indent=2), mimetype="application/json")
 
-@app.route("/public/<eid>/results")
-def public_results(eid):
-    ballots = load_ballots(eid)
+@app.route("/public/<eid>/audit")
+def public_audit(eid):
+    p = audit_path(eid)
     meta = get_election_meta(eid)
-    if not ballots:
-        return render_template("results.html", ranking=[], empty=True, total_votos=0, election_id=eid, election_meta=meta)
-    try:
-        candidates = load_candidates()
-        ranking, pairwise, strength = schulze_ranking_from_ballots(ballots, candidates)
-        return render_template(
-            "results.html",
-            ranking=ranking, empty=False,
-            total_votos=sum(int(b.get("peso",1)) for b in ballots),
-            election_id=eid, election_meta=meta,
-            candidates=candidates if request.args.get("debug")=="1" else None,
-            pairwise=pairwise if request.args.get("debug")=="1" else None,
-            strength=strength if request.args.get("debug")=="1" else None
+
+    # Cabeçalho (head) em HTML simples
+    if meta:
+        head = (
+            "<h1>{}</h1><p><b>ID:</b> {}{}</p>".format(
+                meta.get("title", "Auditoria"),
+                eid,
+                (" • <b>Data/Hora:</b> {} {} {}".format(meta.get("date",""), meta.get("time",""), meta.get("tz","")))
+                if meta.get("date") and meta.get("time") else ""
+            )
         )
-    except Exception as e:
-        return Response(f"Erro ao calcular resultados: {e}", status=500)
+    else:
+        head = "<h1>Auditoria</h1><p><b>ID:</b> {}</p>".format(eid)
+
+    # Se não existe log, devolve mensagem simples
+    if not p.exists():
+        html_empty = head + "<pre id='auditpre'>(Sem auditoria para esta votação.)</pre>"
+        return Response(html_empty, mimetype="text/html")
+
+    # Carrega as linhas do log
+    with open(p, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    # Monta HTML completo sem f-string (concatenação + format) – evita conflito com { } do JS
+    html = []
+    html.append(head)
+    html.append("<pre id='auditpre'>")
+    html.append("".join(lines))   # o log é texto puro
+    html.append("</pre>")
+
+    # Script: lê #receipt=..., destaca e rola até a primeira ocorrência
+    html.append("""
+<script>
+(function(){
+  try {
+    var h = location.hash || '';
+    var m = h.match(/receipt=([^&]+)/);
+    if(!m) return;
+    var code = decodeURIComponent(m[1]);
+
+    var pre = document.getElementById('auditpre');
+    if(!pre) return;
+
+    // escapa para regex
+    var esc = code.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+    var re  = new RegExp(esc, 'g');
+
+    // troca por <mark>..</mark> (somente na apresentação)
+    pre.innerHTML = pre.innerHTML.replace(re, '<mark>'+code+'</mark>');
+
+    // rola até a primeira marca
+    var mk = pre.querySelector('mark');
+    if (mk && mk.scrollIntoView) mk.scrollIntoView({block:'center'});
+  } catch(e) {}
+})();
+</script>
+""")
+
+    return Response("".join(html), mimetype="text/html")
 
 @app.route("/public/<eid>/audit")
 def public_audit(eid):
