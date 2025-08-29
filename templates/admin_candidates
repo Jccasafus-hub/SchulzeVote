@@ -1,0 +1,73 @@
+{% extends "base_admin.html" %}
+{% block title %}Admin · Candidatos & Prazo{% endblock %}
+
+{% block content %}
+<h1>Admin · Candidatos & Prazo</h1>
+
+{% if msg %}
+  <p style="color: #16a34a">{{ msg }}</p>
+{% endif %}
+{% if warn %}
+  <p style="color: #b45309">{{ warn }}</p>
+{% endif %}
+
+<div class="card">
+  <h3 style="margin-top:0">Candidatos</h3>
+  <p>Um por linha; <i>{{ reserved_blank }}</i> e <i>{{ reserved_null }}</i> são adicionados automaticamente no fim.</p>
+  <form method="POST">
+    <input type="hidden" name="action" value="save_candidates">
+    <textarea name="lista" style="width:100%;min-height:200px;padding:8px;border:1px solid var(--border);border-radius:10px">{% for c in core %}{{ c }}
+{% endfor %}</textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="btn accent">Salvar candidatos</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Prazo de votação</h3>
+  {% if deadline_str %}
+    <p><b>Prazo atual:</b> {{ deadline_str }}</p>
+  {% else %}
+    <p class="muted"><i>Nenhum prazo definido.</i></p>
+  {% endif %}
+
+  <form method="POST" class="row">
+    <input type="hidden" name="action" value="set_deadline">
+    <label>Data:
+      <input type="date" name="date">
+    </label>
+    <label>Hora:
+      <input type="time" name="time">
+    </label>
+    <label>Fuso:
+      <select name="tz">
+        <option>America/Sao_Paulo</option>
+        <option>America/Bahia</option>
+        <option>America/Fortaleza</option>
+        <option>America/Recife</option>
+        <option>America/Maceio</option>
+        <option>America/Manaus</option>
+        <option>America/Belem</option>
+        <option>America/Boa_Vista</option>
+        <option>America/Porto_Velho</option>
+        <option>America/Cuiaba</option>
+        <option>America/Campo_Grande</option>
+        <option>America/Noronha</option>
+        <option>UTC</option>
+      </select>
+    </label>
+    <button class="btn">Definir prazo</button>
+  </form>
+
+  <form method="POST" style="margin-top:8px">
+    <input type="hidden" name="action" value="clear_deadline">
+    <button class="btn">Limpar prazo</button>
+  </form>
+</div>
+
+<div class="row">
+  <a class="btn" href="/admin/election_meta?secret={{ secret_qs|urlencode }}">Metadados da votação</a>
+  <a class="btn" href="/">Início</a>
+</div>
+{% endblock %}
