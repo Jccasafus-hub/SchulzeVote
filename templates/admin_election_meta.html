@@ -1,0 +1,64 @@
+{% extends "base_admin.html" %}
+{% block title %}Admin · Metadados da votação{% endblock %}
+
+{% block content %}
+<h1>Metadados da votação</h1>
+
+{% if msg %}
+  <p class="pill" style="background:#063; color:#d1fae5; border-color:#065f46">{{ msg }}</p>
+{% endif %}
+{% if warn %}
+  <p class="pill" style="background:#4a2; color:#111; border-color:#78350f">{{ warn }}</p>
+{% endif %}
+
+<div class="card">
+  <form method="POST">
+    <div class="row" style="gap:12px; align-items:flex-end; flex-wrap:wrap">
+      <label style="min-width:260px; display:block">
+        EID
+        <input name="eid" value="{{ election_id }}" required placeholder="ex.: teste-2025-01" style="width:100%">
+      </label>
+
+      <label style="min-width:300px; display:block">
+        Título
+        <input name="title" value="{{ (meta or {}).get('title','') }}" required placeholder="Ex.: Eleição da Turma 2025" style="width:100%">
+      </label>
+
+      <label style="display:block">
+        Data
+        <input type="date" name="date" value="{{ (meta or {}).get('date','') }}" required>
+      </label>
+
+      <label style="display:block">
+        Hora
+        <input type="time" name="time" value="{{ (meta or {}).get('time','') }}" required>
+      </label>
+
+      <label style="display:block; min-width:220px">
+        Fuso
+        <select name="tz" style="width:100%">
+          {% set sel = (meta or {}).get('tz','America/Sao_Paulo') %}
+          {% for tz in tz_options %}
+            <option value="{{ tz }}" {% if tz==sel %}selected{% endif %}>{{ tz }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label style="min-width:260px; display:block">
+        Categoria
+        <input name="category" value="{{ (meta or {}).get('category','') }}" placeholder="Ex.: Assembleia, Trabalho, DA, ..." style="width:100%">
+      </label>
+
+      <div>
+        <button class="btn accent" style="margin-top:8px">Salvar</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="row">
+  <a class="btn" href="/admin/assign_ui?secret={{ secret_qs|urlencode }}">Atribuir chaves (UI)</a>
+  <a class="btn" href="/admin/candidates?secret={{ secret_qs|urlencode }}">Candidatos & Prazo</a>
+  <a class="btn" href="/">Início</a>
+</div>
+{% endblock %}
