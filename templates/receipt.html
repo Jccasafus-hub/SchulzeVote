@@ -1,15 +1,27 @@
-<!doctype html>
-<html lang="pt-BR">
-<head><meta charset="utf-8"><title>Recibo</title></head>
-<body>
-  <div class="container">
-    <h1>Voto registrado!</h1>
-    <p>Guarde seu comprovante: <code>{{ receipt }}</code></p>
-    <div style="margin:14px 0;">
-      <a href="{{ url_for('results') }}">Ver resultados da votação atual</a> ·
-      <a href="/public/elections">Todas as votações</a>
+{% extends "base.html" %}
+{% block title %}Recibo · SchulzeVote{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <h1>Recibo de Voto</h1>
+
+  <div class="card">
+    <p>Seu voto foi registrado com sucesso.</p>
+
+    <p><b>Código do recibo:</b></p>
+    <p style="font-family:ui-monospace, monospace; font-size:1.1rem; background:#0f1216; padding:10px; border-radius:8px">
+      {{ receipt }}
+    </p>
+
+    <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap">
+      <a class="btn accent" href="/public/{{ election_id }}/audit#receipt={{ receipt | urlencode }}">Abrir auditoria com meu recibo</a>
+      <a class="btn" href="/">Início</a>
     </div>
-    <p><a href="{{ url_for('index') }}">Voltar ao início</a></p>
+
+    <p class="muted" style="margin-top:12px">
+      Dica: você pode copiar o recibo e conferir depois em <code>/public/{{ election_id }}/audit</code>.
+      Com o link acima, a página já abre com o recibo destacado.
+    </p>
   </div>
-</body>
-</html>
+</div>
+{% endblock %}
