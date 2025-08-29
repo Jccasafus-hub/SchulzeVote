@@ -1,24 +1,21 @@
 // static/sw.js
-// v1 — aumente este número quando trocar ícones/manifest para forçar atualização de cache
-const CACHE_NAME = 'schulzevote-v1';
+// mude 'schulzevote-v2' quando trocar ícones/manifest para forçar atualização
+const CACHE_NAME = 'schulzevote-v2';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  // opcional: pré-cache bem leve (manter relativo ao escopo)
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll([
-      '/',              // página inicial
+    caches.open(CACHE_NAME).then(cache => cache.addAll([
+      '/',
       '/static/manifest.json',
-      // adicione aqui seus ícones novos, por ex:
-      // '/static/icons/icon-180x180.png',
-      // '/static/icons/icon-192x192.png',
-      // '/static/icons/icon-512x512.png',
-    ]).catch(()=>{}))
+      '/static/icon-180.png',
+      '/static/icon-192.png',
+      '/static/icon-512.png'
+    ])).catch(() => {})
   );
 });
 
 self.addEventListener('activate', (event) => {
-  // limpa caches antigos
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.map(k => k !== CACHE_NAME ? caches.delete(k) : null))
@@ -27,7 +24,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Estratégia: network-first com fallback para cache
   event.respondWith(
     fetch(event.request).catch(() => caches.match(event.request))
   );
