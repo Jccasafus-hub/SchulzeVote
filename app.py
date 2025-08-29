@@ -1327,23 +1327,22 @@ def admin_backup_zip():
     buf = io.BytesIO()
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        # --- ajuda local ---
+        # Ajuda local
         def add_if_exists(path, arcname=None):
             if os.path.exists(path):
                 z.write(path, arcname or path)
 
-        # 1) JSONs "raiz" (fora de data/)
+        # 1) JSONs “raiz”
         for fname in [CAND_FILE, ELECTION_FILE, VOTER_KEYS_FILE, REGISTRY_FILE, TRASH_FILE]:
             add_if_exists(fname, fname)
 
-        # 2) Tudo que estiver em data/ (ballots/ e audit/, etc.)
-        base_dir = str(DATA_DIR)  # normalmente "data" ou "/var/data"
-        base_prefix = "data"      # como ficará dentro do ZIP
+        # 2) Tudo de data/ (ballots e audit)
+        base_dir = str(DATA_DIR)   # normalmente "data" ou "/var/data"
+        base_prefix = "data"       # como fica dentro do ZIP
         if os.path.exists(base_dir):
             for root, _, files in os.walk(base_dir):
                 for f in files:
                     full = os.path.join(root, f)
-                    # arcname começa com "data/..." no ZIP
                     rel = os.path.relpath(full, start=base_dir)
                     arc = os.path.join(base_prefix, rel)
                     z.write(full, arc)
@@ -1351,6 +1350,60 @@ def admin_backup_zip():
     buf.seek(0)
     resp = Response(buf.getvalue(), mimetype="application/zip")
     resp.headers["Content-Disposition"] = f'attachment; filename="schulzevote_backup_{ts}.zip"'
+    return resp
+
+@app.route("/admin/backup_zip_eid")
+def admin_backup_zip_eid():
+    if not require_admin(request): abort(403)
+
+    eid = (request.args.get("eid") or "").strip()
+    if not eid:
+        return Response('{"error":"informe ?eid=..."}', status=400, mimetype="application/json")
+
+    # caminhos dos arquivos da eleição
+    ballots_file = ballots_path(eid)    # data/ballots/<eid>.json
+    audit_file   = audit_path(eid)      # data/audit/<eid>.log
+
+    # pega os metadados (title, date, time, tz) e deadline global (se você usa)
+    meta = get_election_meta(eid) or {}
+    # opcionalmente colocamos também um “context.json” com alguns campos úteis
+    context = {
+        "eid": eid,
+        "meta": meta,
+        # snapshot de candidatos no momento do backup (arquivo inteiro)
+        # (se quiser ‘congelar’ somente os nomes atuais, dá pra salvar uma lista)
+        "candidates_snapshot": load_candidates(),
+    }
+
+    # leitura segura dos arquivos (se existirem)
+    ballots_exists = ballots_file.exists()
+    audit_exists   = audit_file.exists()
+
+    if not ballots_exists and not audit_exists:
+        return Response(
+            json.dumps({"error": "nenhum arquivo encontrado para este EID"}, ensure_ascii=False),
+            status=404, mimetype="application/json"
+        )
+
+    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        # adiciona as peças essenciais
+        if ballots_exists:
+            z.write(str(ballots_file), f"data/ballots/{eid}.json")
+        if audit_exists:
+            z.write(str(audit_file),   f"data/audit/{eid}.log")
+
+        # inclui um JSON pequeno com metadados e snapshot de candidatos
+        z.writestr(f"meta/election_meta_{eid}.json", json.dumps(context, ensure_ascii=False, indent=2))
+
+        # (opcional) também pode incluir o election.json completo, se quiser:
+        if os.path.exists(ELECTION_FILE):
+            z.write(ELECTION_FILE, "election.json")
+
+    buf.seek(0)
+    resp = Response(buf.getvalue(), mimetype="application/zip")
+    resp.headers["Content-Disposition"] = f'attachment; filename="schulzevote_eid_{eid}_{ts}.zip"'
     return resp
 
 # =============== Admin: Dados crus para auditoria ===============
