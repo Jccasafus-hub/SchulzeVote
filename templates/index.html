@@ -1,49 +1,7 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <title>SchulzeVote · Início</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+{% extends "base.html" %}
+{% block title %}SchulzeVote · Início{% endblock %}
 
-  <!-- PWA manifest -->
-  <link rel="manifest" href="/static/manifest.json">
-  <meta name="theme-color" content="#000000">
-
-  <!-- iOS PWA essentials -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="SchulzeVote">
-  <link rel="apple-touch-icon" href="/static/icon-180.png">
-
-  <style>
-    :root{
-      --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
-      --accent:#f97316; --accent-2:#f59e0b; --ok:#10b981; --danger:#ef4444;
-      --border:#1f242c; --input:#0f1216;
-    }
-    *{box-sizing:border-box}
-    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text)}
-    .wrap{max-width:900px;margin:0 auto;padding:28px}
-    h1{margin:0 0 12px 0}
-    p.muted{color:var(--muted)}
-    .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px; margin:14px 0}
-    .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
-    .btn{display:inline-block; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#1b1f27; color:var(--text); text-decoration:none; cursor:pointer}
-    .btn:hover{filter:brightness(1.1)}
-    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#111}
-    .btn.ghost{background:transparent; border:1px dashed #2a323d; color:var(--text)}
-    .btn.ok{background:#113226; border-color:#164e3a}
-    input[type=text]{background:var(--input); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:10px; outline:none}
-    .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
-    @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
-    small.code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color:var(--muted)}
-    .sep{height:1px;background:var(--border);margin:16px 0}
-    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
-    .admin-note{font-size:.9rem;color:#eab308;margin-top:8px}
-    .admin-links a{display:inline-block;margin:6px 8px 0 0}
-  </style>
-</head>
-<body>
+{% block content %}
   <div class="wrap">
     <h1>SchulzeVote</h1>
     <p class="muted">Sistema de votação com método de Schulze, auditoria pública e anonimato de cédulas.</p>
@@ -150,15 +108,5 @@
       document.getElementById("lnkAssign").href     = "/admin/assign_ui?secret=" + enc;
       document.getElementById("lnkAuditPrev").href  = "/admin/audit_preview?secret=" + enc;
     })();
-
-    // --- Service Worker: registra para rodar como PWA em standalone ---
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
-          .then(() => console.log('SW registrado'))
-          .catch(console.error);
-      });
-    }
   </script>
-</body>
-</html>
+{% endblock %}
