@@ -1,70 +1,37 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <title>Login</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    :root{ --bg:#f8fafc; --card:#fff; --text:#111827; --muted:#6b7280; --border:#e5e7eb; --accent:#111827; }
-    body{ font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text); margin:0; }
-    .wrap{ max-width:560px; margin:0 auto; padding:24px; }
-    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
-    h1{ margin:0 0 12px 0; }
-    label{ display:block; margin:10px 0 4px; font-weight:600; }
-    input[type=text], input[type=password]{ width:100%; padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; box-sizing:border-box; }
-    .row{ display:flex; align-items:center; gap:8px; margin:8px 0 6px; }
-    .muted{ color:var(--muted); font-size:.95rem; }
-    .btn{ display:inline-block; background:var(--accent); color:#fff; border:1px solid var(--accent); padding:10px 14px; border-radius:10px; cursor:pointer; }
-    .link{ color:#0f766e; text-decoration:none; }
-    .flash{ padding:10px 12px; border-radius:10px; margin:10px 0; border:1px solid #e5e7eb; }
-    .flash.error{ background:#fef2f2; border-color:#fecaca; color:#7f1d1d; }
-    .flash.success{ background:#ecfdf5; border-color:#a7f3d0; color:#065f46; }
-    .flash.info{ background:#eff6ff; border-color:#bfdbfe; color:#1e40af; }
-    .footer-links{ margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>Login</h1>
+{% extends "base.html" %}
+{% block title %}SchulzeVote · Login{% endblock %}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, msg in messages %}
-          <div class="flash {{ category|e }}">{{ msg }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+{% block content %}
+<div class="wrap">
+  <h1>Entrar</h1>
+  <div class="card">
+    <form method="POST" action="/login" onsubmit="return true;">
+      <div style="display:grid;gap:10px;max-width:420px">
+        <label>Usuário
+          <input type="text" name="user_id" required placeholder="seu usuário">
+        </label>
 
-    <div class="card">
-      <form method="POST" autocomplete="off" novalidate>
-        <label for="user_id">Usuário</label>
-        <input id="user_id" name="user_id" type="text" required autofocus>
+        <label>Senha
+          <input id="login_pwd" type="password" name="password" required placeholder="sua senha">
+        </label>
 
-        <label for="loginpw">Senha</label>
-        <input id="loginpw" name="password" type="password" required>
+        <label style="display:flex;align-items:center;gap:8px;user-select:none">
+          <input type="checkbox" onclick="togglePwd('login_pwd')"> Mostrar senha
+        </label>
 
-        <div class="row">
-          <input id="showLoginPwd" type="checkbox" onclick="togglePwd('loginpw')">
-          <label for="showLoginPwd" class="muted" style="margin:0; font-weight:500">Mostrar senha</label>
-        </div>
-
-        <div class="row" style="margin-top:14px">
-          <button class="btn" type="submit">Entrar</button>
-        </div>
-      </form>
-
-      <div class="footer-links">
-        <a class="link" href="{{ url_for('register') }}">Criar conta</a>
-        <a class="link" href="{{ url_for('index') }}">Início</a>
+        <button class="btn accent" type="submit">Entrar</button>
+        <a class="btn ghost" href="/register">Não tem cadastro? Criar agora</a>
       </div>
-    </div>
+    </form>
   </div>
+</div>
+{% endblock %}
 
-  <script>
-    function togglePwd(id){
-      const f = document.getElementById(id);
-      f.type = (f.type === 'password') ? 'text' : 'password';
-    }
-  </script>
-</body>
-</html>
+{% block scripts_extra %}
+<script>
+function togglePwd(id){
+  const el = document.getElementById(id);
+  el.type = (el.type === 'password') ? 'text' : 'password';
+}
+</script>
+{% endblock %}
