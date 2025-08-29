@@ -1,5 +1,4 @@
 {% extends "base_admin.html" %}
-
 {% block title %}SchulzeVote Admin · Início{% endblock %}
 
 {% block content %}
@@ -34,11 +33,12 @@
       <a class="btn" id="lnkUsers"       href="#">Usuários (JSON)</a>
       <a class="btn" id="lnkTrash"       href="#">Lixeira (JSON)</a>
     </div>
+    <p class="muted" style="margin-top:10px">Público (sem segredo): <a class="btn" href="/public/elections" target="_blank" rel="noopener">Lista de votações</a></p>
   </div>
 
   <div class="card">
     <h3>Instalar como App</h3>
-    <p class="muted">No Safari (iPhone), toque em <b>Compartilhar ▸ Adicionar à Tela de Início</b> para instalar o “SchulzeVote Admin”.</p>
+    <p class="muted">No Safari (iPhone), toque em <b>Compartilhar ▸ Adicionar à Tela de Início</b> para instalar “SchulzeVote Admin”.</p>
   </div>
 {% endblock %}
 
@@ -80,7 +80,6 @@ function wireLinks(){
   if (s && !inp.value) inp.value = s;
   setStatus(s ? 'carregado' : 'sem segredo');
 }
-
 // boot
 wireLinks();
 </script>
