@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from flask import (
-    Flask, render_template, request, redirect, url_for,
+    Flask, render_template, render_template_string, request, redirect, url_for,
     flash, Response, abort, session
 )
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1281,13 +1281,13 @@ def admin_audit_preview():
   async function loadAll(){{const eid=document.getElementById('eidSel').value; await Promise.all([loadLog(eid), loadBallots(eid)]); applyFilters();}}
   function openPublic(kind){{const eid=document.getElementById('eidSel').value; if(kind==='results') window.open(`/public/${{encodeURIComponent(eid)}}/results`,'_blank'); else window.open(`/public/${{encodeURIComponent(eid)}}/audit`,'_blank');}}
   // Baixa o pacote ZIP de auditoria para o EID selecionado
-  function openExportZip(){
+  function openExportZip(){{
     const eid = document.getElementById('eidSel').value;
-    const url = `/admin/export_audit_bundle?secret=${encodeURIComponent(secret)}&eid=${encodeURIComponent(eid)}`;
+    const url = `/admin/export_audit_bundle?secret=${{encodeURIComponent(secret)}}&eid=${{encodeURIComponent(eid)}}`;
     window.open(url, '_blank');
-  }
+  }}
   // Exporta CSV de eleições com filtros por categoria e intervalo de datas
-  function exportElectionsCSV(){
+  function exportElectionsCSV(){{
     const cat = (document.getElementById('catCSV').value || '').trim();
     const start = (document.getElementById('startCSV').value || '').trim();
     const end = (document.getElementById('endCSV').value || '').trim();
@@ -1295,9 +1295,9 @@ def admin_audit_preview():
     if (cat)   params.set('category', cat);
     if (start) params.set('start', start);
     if (end)   params.set('end', end);
-    const url = `/public/elections.csv${params.toString() ? ('?' + params.toString()) : ''}`;
+    const url = `/public/elections.csv${{params.toString() ? ('?' + params.toString()) : ''}}`;
     window.open(url, '_blank');
-  }
+  }}
   document.getElementById('autoref').addEventListener('change',(e)=>{{const ms=parseInt(e.target.value||'0',10); if(window._T){{clearInterval(window._T); window._T=null;}} if(ms>0) window._T=setInterval(loadAll,ms);}});
   loadEIDs().then(loadAll);
 </script>
