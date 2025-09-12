@@ -2,7 +2,6 @@ import os, json, uuid, secrets, string, hashlib, io, zipfile, csv
 from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-import io, zipfile
 from flask import (
     Flask, render_template, request, redirect, url_for,
     flash, Response, abort, session
@@ -262,7 +261,7 @@ def compute_pairwise_weak(ballots, candidates):
             for b in candidates:
                 if a == b: continue
                 rb = ranks.get(b, None)
-                if ra is None and rb is None: 
+                if ra is None and rb is None:
                     continue
                 if rb is None and (ra is not None):
                     P[a][b] += w
@@ -813,7 +812,7 @@ def admin_candidates():
     """
     return Response(html, mimetype="text/html")
 
-# =============== Admin: Election Meta (usa template) ===============
+# =============== Admin: Election Meta (template com categoria) ===============
 @app.route("/admin/election_meta", methods=["GET","POST"])
 def admin_election_meta():
     if not require_admin(request): abort(403)
@@ -860,9 +859,6 @@ def admin_assign_ui():
     js_secret = json.dumps(secret)
     js_current = json.dumps(current_eid)
 
-    # (HTML inline reaproveitado da sua versão estável, com listagens, peso em lote, CSV, lixeira, etc)
-    # Para não alongar demais: mantive exatamente o conteúdo que você já tinha e que funcionava.
-    # -- INÍCIO DO HTML (igual ao anteriormente enviado) --
     html = f"""<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><title>Admin · Atribuir chaves</title>
 <style>
@@ -1004,7 +1000,6 @@ def admin_assign_ui():
   refreshAll();
 </script>
 </body></html>"""
-    # -- FIM DO HTML inline --
     return Response(html, mimetype="text/html")
 
 # =============== Admin: API de atribuição e pesos ===============
@@ -1182,9 +1177,6 @@ def admin_audit_preview():
     js_secret = json.dumps(secret)
     js_current = json.dumps(current_eid)
 
-    # (HTML inline reaproveitado da versão que já funcionava, com filtros, auto-refresh e checagem de consistência)
-    # Para economizar espaço aqui, é o mesmo bloco robusto que você usou anteriormente.
-    # Se preferir, depois migramos para template Jinja.
     html = f"""<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><title>Admin · Auditoria (preview)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -1217,18 +1209,16 @@ def admin_audit_preview():
       <label>EID: <select id="eidSel"></select></label>
       <button onclick="loadAll()">Carregar</button>
       <label class="muted">Auto: <select id="autoref"><option value="0" selected>Off</option><option value="15000">15s</option><option value="30000">30s</option><option value="60000">60s</option></select></label>
-<button class="ghost" onclick="openPublic('results')">Resultados públicos</button>
-<button class="ghost" onclick="openPublic('audit')">Auditoria pública</button>
-
-<!-- NOVOS: baixar ZIP do EID selecionado -->
-<button class="ghost" onclick="openExportZip()">Baixar ZIP (auditoria do EID)</button>
-
-<!-- NOVOS: CSV de eleições por categoria/data -->
-<span class="muted">CSV de eleições:</span>
-<input id="catCSV" type="text" placeholder="categoria (opcional)" style="min-width:180px">
-<input id="startCSV" type="date" title="Início (YYYY-MM-DD)">
-<input id="endCSV" type="date" title="Fim (YYYY-MM-DD)">
-<button class="ghost" onclick="exportElectionsCSV()">Exportar CSV</button>
+      <button class="ghost" onclick="openPublic('results')">Resultados públicos</button>
+      <button class="ghost" onclick="openPublic('audit')">Auditoria pública</button>
+      <!-- NOVO: baixar ZIP da auditoria do EID -->
+      <button class="ghost" onclick="openExportZip()">Baixar ZIP (EID)</button>
+      <!-- CSV de eleições por categoria/data -->
+      <span class="muted">CSV de eleições:</span>
+      <input id="catCSV" type="text" placeholder="categoria (opcional)" style="min-width:180px">
+      <input id="startCSV" type="date" title="Início (YYYY-MM-DD)">
+      <input id="endCSV" type="date" title="Fim (YYYY-MM-DD)">
+      <button class="ghost" onclick="exportElectionsCSV()">Exportar CSV</button>
     </div>
     <div class="row">
       <label><input type="checkbox" id="fVote" checked> VOTE</label>
@@ -1294,23 +1284,18 @@ def admin_audit_preview():
   function openExportZip(){
     const eid = document.getElementById('eidSel').value;
     const url = `/admin/export_audit_bundle?secret=${encodeURIComponent(secret)}&eid=${encodeURIComponent(eid)}`;
-    // abrir em nova aba (ou baixar diretamente)
     window.open(url, '_blank');
   }
-
   // Exporta CSV de eleições com filtros por categoria e intervalo de datas
   function exportElectionsCSV(){
     const cat = (document.getElementById('catCSV').value || '').trim();
     const start = (document.getElementById('startCSV').value || '').trim();
     const end = (document.getElementById('endCSV').value || '').trim();
-
     const params = new URLSearchParams();
     if (cat)   params.set('category', cat);
     if (start) params.set('start', start);
     if (end)   params.set('end', end);
-
     const url = `/public/elections.csv${params.toString() ? ('?' + params.toString()) : ''}`;
-    // abre em nova aba para baixar
     window.open(url, '_blank');
   }
   document.getElementById('autoref').addEventListener('change',(e)=>{{const ms=parseInt(e.target.value||'0',10); if(window._T){{clearInterval(window._T); window._T=null;}} if(ms>0) window._T=setInterval(loadAll,ms);}});
@@ -1319,6 +1304,7 @@ def admin_audit_preview():
 </body></html>"""
     return Response(html, mimetype="text/html")
 
+# =============== Admin: Backups ZIP (global e por EID) ===============
 @app.route("/admin/backup_zip")
 def admin_backup_zip():
     if not require_admin(request): abort(403)
@@ -1360,22 +1346,15 @@ def admin_backup_zip_eid():
     if not eid:
         return Response('{"error":"informe ?eid=..."}', status=400, mimetype="application/json")
 
-    # caminhos dos arquivos da eleição
     ballots_file = ballots_path(eid)    # data/ballots/<eid>.json
     audit_file   = audit_path(eid)      # data/audit/<eid>.log
-
-    # pega os metadados (title, date, time, tz) e deadline global (se você usa)
     meta = get_election_meta(eid) or {}
-    # opcionalmente colocamos também um “context.json” com alguns campos úteis
     context = {
         "eid": eid,
         "meta": meta,
-        # snapshot de candidatos no momento do backup (arquivo inteiro)
-        # (se quiser ‘congelar’ somente os nomes atuais, dá pra salvar uma lista)
         "candidates_snapshot": load_candidates(),
     }
 
-    # leitura segura dos arquivos (se existirem)
     ballots_exists = ballots_file.exists()
     audit_exists   = audit_file.exists()
 
@@ -1388,16 +1367,11 @@ def admin_backup_zip_eid():
     ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        # adiciona as peças essenciais
         if ballots_exists:
             z.write(str(ballots_file), f"data/ballots/{eid}.json")
         if audit_exists:
             z.write(str(audit_file),   f"data/audit/{eid}.log")
-
-        # inclui um JSON pequeno com metadados e snapshot de candidatos
         z.writestr(f"meta/election_meta_{eid}.json", json.dumps(context, ensure_ascii=False, indent=2))
-
-        # (opcional) também pode incluir o election.json completo, se quiser:
         if os.path.exists(ELECTION_FILE):
             z.write(ELECTION_FILE, "election.json")
 
@@ -1428,4 +1402,6 @@ def admin_ballots_raw():
 
 # =============== Debug local ===============
 if __name__ == "__main__":
+    # Em produção (Render), o servidor do container web já chama sua app.
+    # Este bloco é útil apenas para rodar localmente: python app.py
     app.run(host="0.0.0.0", port=5000, debug=True)
