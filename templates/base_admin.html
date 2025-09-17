@@ -6,12 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- PWA -->
-  <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}?v={{ APP_VERSION }}">
   <meta name="theme-color" content="#000000">
 
   <!-- Ícones -->
-  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}">
-  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}?v={{ APP_VERSION }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}?v={{ APP_VERSION }}">
 
   <!-- iOS PWA essentials -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -21,7 +21,7 @@
   <!-- (Opcional) Social preview -->
   <meta property="og:title" content="SchulzeVote Admin">
   <meta property="og:description" content="Painel administrativo do SchulzeVote.">
-  <meta property="og:image" content="{{ url_for('static', filename='admin_icon_512.png') }}">
+  <meta property="og:image" content="{{ url_for('static', filename='admin_icon_512.png') }}?v={{ APP_VERSION }}">
   <meta property="og:type" content="website">
 
   <style>
@@ -46,15 +46,14 @@
     {% block content %}{% endblock %}
   </div>
 
-  <!-- Service Worker dedicado ao admin (escopo /admin) -->
+  <!-- Service Worker dedicado ao admin (escopo /admin) com cache busting -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register(
-          '{{ url_for("static", filename="sw_admin.js") }}',
-          { scope: '/admin' }
-        ).then(() => console.log('SW Admin registrado'))
-         .catch(console.error);
+        const swUrl = '{{ url_for("static", filename="sw_admin.js") }}?v={{ APP_VERSION }}';
+        navigator.serviceWorker.register(swUrl, { scope: '/admin' })
+          .then(() => console.log('SW Admin registrado:', swUrl))
+          .catch(console.error);
       });
     }
   </script>
