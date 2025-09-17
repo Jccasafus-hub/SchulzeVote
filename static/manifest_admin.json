@@ -1,14 +1,27 @@
 {
   "name": "SchulzeVote Admin",
-  "short_name": "SchulzeAdmin",
-  "start_url": "/admin_app?source=pwa",
-  "scope": "/",
+  "short_name": "SV Admin",
+  "start_url": "/admin",
   "display": "standalone",
-  "background_color": "#000000",
+  "background_color": "#ff6600",
   "theme_color": "#000000",
+  "orientation": "portrait",
+  "scope": "/",
   "icons": [
-    { "src": "/static/icon-admin-192.png",          "sizes": "192x192", "type": "image/png" },
-    { "src": "/static/icon-admin-512.png",          "sizes": "512x512", "type": "image/png" },
-    { "src": "/static/icon-admin-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/static/admin_icon_180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/admin_icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/admin_icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
