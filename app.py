@@ -579,6 +579,13 @@ def public_audit(eid):
     with open(p, "r", encoding="utf-8") as f:
         lines = f.readlines()
     return Response(head + "<pre>" + "".join(lines) + "</pre>", mimetype="text/html")
+    
+    # =============== Admin: Home ===============
+@app.route("/admin")
+def admin_home():
+    if not require_admin(request):
+        abort(403)
+    return render_template("admin_home.html")
 
 # =============== /public/elections (metadados + filtros + CSV) ===============
 @app.route("/public/elections")
