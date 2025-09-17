@@ -4,14 +4,20 @@
   <meta charset="utf-8">
   <title>{% block title %}SchulzeVote Admin{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="manifest" href="/static/manifest_admin.json">
+
+  <!-- PWA -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}">
   <meta name="theme-color" content="#000000">
 
-  <!-- iOS PWA -->
-  <link rel="apple-touch-icon" href="/static/icon-admin-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="SchulzeVote Admin">
+  <!-- Ícones -->
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}">
+
+  <!-- (Opcional) Social preview -->
+  <meta property="og:title" content="SchulzeVote Admin">
+  <meta property="og:description" content="Painel administrativo do SchulzeVote.">
+  <meta property="og:image" content="{{ url_for('static', filename='admin_icon_512.png') }}">
+  <meta property="og:type" content="website">
 
   <style>
     :root{ --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb; --accent:#f97316; --accent-2:#f59e0b; --border:#1f242c; --input:#0f1216; }
