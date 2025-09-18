@@ -56,7 +56,7 @@ def ping():
 # ========== Login ==========
 @admin_bp.route("/login", methods=["GET", "POST"])
 def login():
-    # Se excedeu o limite, bloqueia antes mesmo de processar
+    # Bloqueia se excedeu o limite de tentativas na sessão
     if request.method == "POST" and _get_attempts() >= MAX_ADMIN_ATTEMPTS:
         flash("Limite de tentativas atingido para esta sessão do navegador. Tente novamente mais tarde.", "error")
         return redirect(url_for("admin_bp.login"))
@@ -67,10 +67,9 @@ def login():
 
         if ok:
             _reset_attempts()
-            encoded = quote(secret, safe="")  # evita quebrar URL com #, &, +, !
+            encoded = quote(secret, safe="")
             return redirect(url_for("admin_bp.home") + f"?secret={encoded}")
 
-        # Falhou: incrementa e informa restantes
         used = _inc_attempts()
         remaining = max(0, MAX_ADMIN_ATTEMPTS - used)
         if remaining == 0:
@@ -81,12 +80,11 @@ def login():
         return redirect(url_for("admin_bp.login"))
 
     # GET
-    # Passamos o limite para exibir no template (texto informativo)
     return render_template(
         "admin_login.html",
         max_attempts=MAX_ADMIN_ATTEMPTS,
         attempts_used=_get_attempts(),
-        secret=_encoded_secret(request)  # opcional: preserva ?secret= se veio por query
+        secret=_encoded_secret(request)
     )
 
 # ========== Home ==========
@@ -98,9 +96,17 @@ def home():
     current_eid = get_current_election_id()
     return render_template("admin_home.html", secret=secret_encoded, current_eid=current_eid)
 
-# ========== Logout ==========
+# ========== Logout (preserva secret) ==========
 @admin_bp.route("/logout")
 def logout():
+    """
+    Redireciona para o login já com ?secret=<encodado>, para facilitar voltar
+    sem redigitar a chave. Zera o contador de tentativas.
+    """
     _reset_attempts()
+    secret_encoded = _encoded_secret(request)
     flash("Você saiu do painel administrativo.", "info")
+    # Se houver secret atual, preserva no redirect
+    if secret_encoded:
+        return redirect(url_for("admin_bp.login") + f"?secret={secret_encoded}")
     return redirect(url_for("admin_bp.login"))
