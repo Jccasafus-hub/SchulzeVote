@@ -42,7 +42,7 @@
 <body>
   <div class="wrap">
 
-    <!-- FLASH MESSAGES (mostra erros/avisos do login etc.) -->
+    <!-- FLASH MESSAGES -->
     {% with msgs = get_flashed_messages(with_categories=true) %}
       {% if msgs %}
         <div class="card" style="border-color:#b45309;background:#1b140a">
@@ -55,6 +55,32 @@
 
     {% block content %}{% endblock %}
   </div>
+
+  <!-- SW do Admin: registra e fica pronto para receber PURGE_CACHE -->
+  <script>
+    (function () {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw_admin.js')
+          .catch(function(e){ console.warn('SW Admin: falha ao registrar', e); });
+      }
+      // Função global para logout limpando cache do SW antes
+      window.logoutAndClearCache = function(href) {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistration().then(function(reg){
+            try {
+              if (reg && reg.active) {
+                reg.active.postMessage('PURGE_CACHE');
+              }
+            } catch(e) { /* no-op */ }
+          }).finally(function(){
+            window.location.href = href;
+          });
+        } else {
+          window.location.href = href;
+        }
+      };
+    })();
+  </script>
 
   {% block scripts %}{% endblock %}
 </body>
