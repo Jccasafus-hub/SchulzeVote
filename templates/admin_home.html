@@ -1,34 +1,38 @@
 {% extends "base_admin.html" %}
 
-{% block title %}Painel Administrativo · SchulzeVote{% endblock %}
+{% block title %}Painel Admin - SchulzeVote{% endblock %}
 
 {% block content %}
   <h1>Painel Administrativo</h1>
-  <p class="muted">Bem-vindo ao painel do administrador.</p>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <ul>
-        {% for category, msg in messages %}
-          <li class="{{ category }}">{{ msg }}</li>
-        {% endfor %}
-      </ul>
-    {% endif %}
-  {% endwith %}
+  <p><b>Eleição atual:</b> {{ current_eid }}</p>
 
   <div class="card">
-    <h2>Atalhos</h2>
+    <h2>Gerenciamento</h2>
     <ul>
-      <li><a href="{{ url_for('admin_bp.candidates') }}?secret={{ secret }}">Gerenciar candidatos e prazo</a></li>
-      <li><a href="{{ url_for('admin_bp.election_meta') }}?secret={{ secret }}">Metadados da votação</a></li>
-      <li><a href="{{ url_for('admin_bp.backup_zip') }}?secret={{ secret }}">Backup completo (ZIP)</a></li>
-      <li><a href="{{ url_for('admin_bp.backup_zip_eid') }}?secret={{ secret }}&eid={{ current_eid }}">Backup de eleição específica</a></li>
-      <li><a href="{{ url_for('admin_bp.audit_raw') }}?secret={{ secret }}&eid={{ current_eid }}">Ver auditoria (JSON cru)</a></li>
-      <li><a href="{{ url_for('admin_bp.ballots_raw') }}?secret={{ secret }}&eid={{ current_eid }}">Ver cédulas (JSON cru)</a></li>
+      <li><a href="{{ url_for('admin_bp.home') }}?secret={{ secret }}">🏠 Início</a></li>
+      <li><a href="{{ url_for('admin_bp.login') }}?secret={{ secret }}">🔑 Login</a></li>
+      <li><a href="{{ url_for('admin_bp.logout') }}?secret={{ secret }}">🚪 Logout</a></li>
     </ul>
   </div>
 
-  <p style="margin-top:16px">
-    <a href="{{ url_for('index') }}">Voltar ao site público</a>
-  </p>
+  <div class="card">
+    <h2>Administração</h2>
+    <ul>
+      <li><a href="/admin/candidates?secret={{ secret }}">🗳️ Candidatos & Prazo</a></li>
+      <li><a href="/admin/election_meta?secret={{ secret }}">📝 Metadados da Eleição</a></li>
+      <li><a href="/admin/export_audit_bundle?secret={{ secret }}">📦 Exportar Pacote de Auditoria</a></li>
+      <li><a href="/admin/backup_zip?secret={{ secret }}">💾 Backup Global (ZIP)</a></li>
+      <li><a href="/admin/backup_zip_eid?eid={{ current_eid }}&secret={{ secret }}">💾 Backup da Eleição Atual</a></li>
+      <li><a href="/admin/audit_raw?eid={{ current_eid }}&secret={{ secret }}">📜 Auditoria (JSON)</a></li>
+      <li><a href="/admin/ballots_raw?eid={{ current_eid }}&secret={{ secret }}">📂 Cédulas (JSON)</a></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Diagnóstico</h2>
+    <ul>
+      <li><a href="/admin/ping?secret={{ secret }}">📡 Testar conexão (ping)</a></li>
+    </ul>
+  </div>
 {% endblock %}
