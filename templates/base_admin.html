@@ -5,95 +5,91 @@
   <title>{% block title %}SchulzeVote Admin{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- PWA -->
+  <!-- PWA (Admin) -->
   <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}">
   <meta name="theme-color" content="#000000">
 
-  <!-- Ícones -->
+  <!-- Ícones Admin -->
   <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}">
   <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}">
-
-  <!-- (Opcional) Social preview -->
-  <meta property="og:title" content="SchulzeVote Admin">
-  <meta property="og:description" content="Painel administrativo do SchulzeVote.">
-  <meta property="og:image" content="{{ url_for('static', filename='admin_icon_512.png') }}">
-  <meta property="og:type" content="website">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="SchulzeVote Admin">
 
   <style>
     :root {
-      --bg:#0b0d10; --card:#111317; --muted:#98a2b3;
-      --text:#e5e7eb; --accent:#f97316; --accent-2:#f59e0b;
-      --border:#1f242c; --input:#0f1216;
+      --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
+      --accent:#f97316; --accent-2:#f59e0b; --border:#1f242c; --input:#0f1216;
     }
-    * { box-sizing:border-box }
-    body {
-      margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      background:var(--bg);
-      color:var(--text)
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      background:var(--bg); color:var(--text)
     }
-    .wrap { max-width:920px; margin:0 auto; padding:28px }
-    h1 { margin:0 0 12px }
-    p.muted { color:var(--muted) }
-    .card {
-      background:var(--card);
-      border:1px solid var(--border);
-      border-radius:14px;
-      padding:18px;
-      margin:14px 0
+    .wrap{max-width:920px;margin:0 auto;padding:28px}
+    h1{margin:0 0 12px}
+    p.muted{color:var(--muted)}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin:14px 0}
+    .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .btn{
+      padding:12px 14px;border-radius:12px;border:1px solid var(--border);
+      background:#1b1f27;color:var(--text);text-decoration:none;cursor:pointer;font-size:.95rem
     }
-    .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center }
-    .btn {
-      padding:12px 14px;
-      border-radius:12px;
-      border:1px solid var(--border);
-      background:#1b1f27;
-      color:var(--text);
-      text-decoration:none;
-      cursor:pointer;
-      font-size:0.95rem;
+    .btn:hover{filter:brightness(1.06)}
+    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#111;font-weight:600}
+    .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+    .btn.ghost:hover{background:#1b1f27;color:var(--text)}
+    .btn.danger{background:#3a0d0d;border-color:#ef4444;color:#ef4444}
+    .btn.danger:hover{filter:brightness(1.2)}
+    input[type=text],input[type=password],input[type=number]{
+      background:var(--input);border:1px solid var(--border);color:var(--text);
+      padding:10px 12px;border-radius:10px;outline:none;width:100%
     }
-    .btn:hover { filter:brightness(1.06) }
-    .btn.accent {
-      background:linear-gradient(90deg,var(--accent),var(--accent-2));
-      color:#111;
-      font-weight:600;
-    }
-    .btn.ghost {
-      background:transparent;
-      color:var(--muted);
-      border:1px solid var(--border);
-    }
-    .btn.ghost:hover {
-      background:#1b1f27;
-      color:var(--text);
-    }
-    input[type=text],
-    input[type=password],
-    input[type=number] {
-      background:var(--input);
-      border:1px solid var(--border);
-      color:var(--text);
-      padding:10px 12px;
-      border-radius:10px;
-      outline:none;
-    }
-    .pill {
-      display:inline-block;
-      padding:4px 8px;
-      border-radius:999px;
-      background:#0f1319;
-      border:1px solid var(--border);
-      color:var(--muted);
-      font-size:.85rem
-    }
+    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
   </style>
+
   {% block head %}{% endblock %}
 </head>
 <body>
   <div class="wrap">
+
+    <!-- Botão global: voltar ao painel do admin (preserva secret da query) -->
+    <div class="row" style="justify-content:flex-end; margin-bottom:8px">
+      <a class="btn ghost" href="{{ url_for('admin_bp.home') }}?secret={{ (request.args.get('secret','')|urlencode) }}">Voltar ao painel</a>
+    </div>
+
+    <!-- FLASH MESSAGES -->
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% if msgs %}
+        <div class="card" style="border-color:#b45309;background:#1b140a">
+          {% for cat, msg in msgs %}
+            <p class="muted" style="margin:0"><b>{{ cat|upper }}:</b> {{ msg }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
     {% block content %}{% endblock %}
   </div>
+
+  <!-- Registro do SW do Admin (se estiver usando PWA admin) -->
+  <script>
+    (function () {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw_admin.js').catch(function(e){ console.warn('SW Admin: falha ao registrar', e); });
+      }
+      window.logoutAndClearCache = function(href) {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistration().then(function(reg){
+            try { if (reg && reg.active) reg.active.postMessage('PURGE_CACHE'); } catch(e){}
+          }).finally(function(){ window.location.href = href; });
+        } else {
+          window.location.href = href;
+        }
+      };
+    })();
+  </script>
+
   {% block scripts %}{% endblock %}
 </body>
 </html>
