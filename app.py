@@ -721,6 +721,10 @@ def public_pairwise_csv(eid):
     resp.headers["Content-Disposition"] = f'attachment; filename="pairwise_{eid}.csv"'
     return resp
 
+@app.route("/como-funciona")
+def schulze_guide():
+    return render_template("schulze_guide.html")
+
 # =============== Pacote de Auditoria (ZIP) ===============
 def _sha256_file(path: Path):
     h = hashlib.sha256()
