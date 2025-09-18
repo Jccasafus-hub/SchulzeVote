@@ -20,15 +20,19 @@ app.jinja_env.globals['APP_VERSION'] = APP_VERSION
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "troque-admin")
 ID_SALT      = os.environ.get("ID_SALT", "mude-este-salt")
 
-# ===== Blueprint do Admin (login/home/logout sob /admin) =====
-# Certifique-se de ter criado: admin/__init__.py e admin/views.py (que definem admin_bp)
+# ===== Blueprint do Admin =====
+# Requer a estrutura:
+# /admin/__init__.py   (define admin_bp)
+# /admin/views.py      (registra rotas no admin_bp)
 try:
     from admin import admin_bp
     app.register_blueprint(admin_bp)
+    print("[info] Admin blueprint registrado em /admin")
 except Exception as e:
-    # Se o blueprint ainda não existir, o app continua funcionando sem as rotas /admin/login e /admin/logout.
-    # A rota /admin/home NÃO é registrada aqui para evitar conflitos.
-    print(f"[warn] Admin blueprint não registrado: {e}")
+    import traceback
+    print(f"[ERROR] Falha ao registrar admin blueprint: {e}")
+    traceback.print_exc()
+    raise  # não esconda o erro; ajuda a ver no log do Render
 
 # =============== Arquivos & Pastas ===============
 CAND_FILE       = "candidates.json"
