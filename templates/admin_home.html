@@ -11,11 +11,35 @@
   </p>
 
   <div class="row" style="margin-top:14px; flex-direction:column; align-items:flex-start">
-    <a class="btn accent" href="{{ url_for('admin_candidates') }}">Candidatos &amp; Prazo</a>
-    <a class="btn" href="{{ url_for('admin_election_meta') }}">Metadados da votação</a>
-    <a class="btn" href="{{ url_for('admin_audit_raw') }}">Auditoria (JSON)</a>
-    <a class="btn" href="{{ url_for('admin_ballots_raw') }}">Cédulas (JSON)</a>
+    <a class="btn accent" href="{{ url_for('admin_candidates') }}?secret={{ request.args.get('secret','') }}">Candidatos &amp; Prazo</a>
+    <a class="btn" href="{{ url_for('admin_election_meta') }}?secret={{ request.args.get('secret','') }}">Metadados da votação</a>
+    <a class="btn" href="{{ url_for('admin_audit_raw') }}?secret={{ request.args.get('secret','') }}">Auditoria (JSON)</a>
+    <a class="btn" href="{{ url_for('admin_ballots_raw') }}?secret={{ request.args.get('secret','') }}">Cédulas (JSON)</a>
     <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao site público</a>
+
+    <!-- Botão Sair: limpa o cache do SW admin e redireciona -->
+    <a id="admin-logout" class="btn danger" href="{{ url_for('admin_logout') }}">Sair</a>
   </div>
 </div>
+
+<script>
+  // Intercepta o clique em "Sair" para pedir ao SW que limpe os caches do Admin
+  (function() {
+    const link = document.getElementById('admin-logout');
+    if (!link) return;
+    link.addEventListener('click', function(ev) {
+      if ('serviceWorker' in navigator) {
+        ev.preventDefault();
+        navigator.serviceWorker.getRegistration('/admin').then(reg => {
+          try {
+            reg && reg.active && reg.active.postMessage({ type: 'PURGE_CACHE' });
+          } catch (e) { /* ignore */ }
+        }).finally(() => {
+          // Segue para o logout no servidor
+          window.location.href = link.getAttribute('href');
+        });
+      }
+    }, { passive: false });
+  })();
+</script>
 {% endblock %}
