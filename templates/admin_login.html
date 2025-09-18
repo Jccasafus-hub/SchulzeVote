@@ -11,12 +11,12 @@
     Digite sua chave de administrador para acessar o painel.
   </p>
 
-  <!-- Importante: endpoint do Blueprint -->
+  <!-- Importante: endpoint do Blueprint e input name="secret" -->
   <form method="POST" action="{{ url_for('admin_bp.login') }}">
     <div class="row" style="flex-direction:column; align-items:flex-start; width:100%; gap:12px">
       <label style="width:100%">
         <span>Chave secreta</span><br>
-        <input type="password" name="secret" placeholder="••••••••" required style="width:100%">
+        <input type="password" name="secret" placeholder="••••••••" required>
       </label>
       <button class="btn accent" type="submit">Entrar</button>
     </div>
