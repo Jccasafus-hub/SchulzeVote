@@ -725,6 +725,25 @@ def public_pairwise_csv(eid):
 def schulze_guide():
     return render_template("schulze_guide.html")
 
+# --- ABA: Guia do Método de Schulze -----------------------------------------
+from flask import request  # (no topo do arquivo você já importa request; ok)
+
+@app.route("/schulze")
+def schulze():
+    # Renderiza o guia/simulador
+    # Template: templates/schulze_guide.html
+    return render_template("schulze_guide.html")
+
+# (Opcional, mas recomendado) Redireciona o caminho antigo para o novo,
+# preservando qualquer query string (?state=...)
+@app.route("/schulze_guide")
+def schulze_guide_legacy():
+    qs = request.query_string.decode("utf-8")
+    target = url_for("schulze")
+    if qs:
+        target = f"{target}?{qs}"
+    return redirect(target, code=301)
+
 # =============== Pacote de Auditoria (ZIP) ===============
 def _sha256_file(path: Path):
     h = hashlib.sha256()
