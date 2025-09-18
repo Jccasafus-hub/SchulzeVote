@@ -15,6 +15,7 @@
           <div style="margin-top:8px" class="row">
             <a class="btn accent" href="/public/{{ eid_atual }}/results">Ver resultados (EID atual)</a>
             <a class="btn" href="/public/{{ eid_atual }}/audit">Ver auditoria (EID atual)</a>
+            <a class="btn ghost" href="{{ url_for('schulze') }}">Entender o Método de Schulze</a>
           </div>
         </div>
         <div class="row">
@@ -98,9 +99,8 @@
     // --- Painel Admin dinâmico ---
     (function(){
       const secret = qparam("secret");
-      if(!secret) return; // sem secret, painel oculto
+      if(!secret) return;
 
-      // mostra painel e propaga o secret nos links
       document.getElementById("adminPanel").style.display = "";
       const enc = encodeURIComponent(secret);
       document.getElementById("lnkCandidates").href = "/admin/candidates?secret=" + enc;
