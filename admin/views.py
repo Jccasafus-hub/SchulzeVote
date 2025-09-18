@@ -30,6 +30,10 @@ def _extract_secret(req) -> str:
     """Obtém o secret da query ou header (sem validar)."""
     return (req.args.get("secret") or req.headers.get("X-Admin-Secret") or "").strip()
 
+def _encoded_secret(req) -> str:
+    """Retorna o secret já URL-encoded para usar nos templates."""
+    return quote(_extract_secret(req), safe="")
+
 # ========== Diagnóstico ==========
 @admin_bp.route("/ping")
 def ping():
@@ -57,9 +61,9 @@ def login():
 def home():
     if not require_admin(request):
         return redirect(url_for("admin_bp.login"))
-    secret = _extract_secret(request)
+    secret_encoded = _encoded_secret(request)
     current_eid = get_current_election_id()
-    return render_template("admin_home.html", secret=secret, current_eid=current_eid)
+    return render_template("admin_home.html", secret=secret_encoded, current_eid=current_eid)
 
 # ========== Logout ==========
 @admin_bp.route("/logout")
