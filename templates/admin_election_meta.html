@@ -1,64 +1,52 @@
 {% extends "base_admin.html" %}
-{% block title %}Admin · Metadados da votação{% endblock %}
+
+{% block title %}Admin · Metadados da Eleição{% endblock %}
 
 {% block content %}
-<h1>Metadados da votação</h1>
+  <h1>Admin · Metadados da Eleição</h1>
 
-{% if msg %}
-  <p class="pill" style="background:#063; color:#d1fae5; border-color:#065f46">{{ msg }}</p>
-{% endif %}
-{% if warn %}
-  <p class="pill" style="background:#fef3c7; color:#92400e; border-color:#fde68a">{{ warn }}</p>
-{% endif %}
+  {% if msg %}<p style="color:#10b981;margin:.5rem 0 0">{{ msg }}</p>{% endif %}
+  {% if warn %}<p style="color:#f59e0b;margin:.5rem 0 0">{{ warn }}</p>{% endif %}
 
-<div class="card">
-  <form method="POST">
-    <div class="row" style="gap:12px; align-items:flex-end; flex-wrap:wrap">
-      <label style="min-width:260px; display:block">
-        EID
-        <input name="eid" value="{{ election_id }}" required placeholder="ex.: teste-2025-01" style="width:100%">
+  <div class="card" style="margin-top:12px">
+    <form method="POST" class="grid" style="grid-template-columns:1fr 1fr">
+      <label>EID<br>
+        <input type="text" name="eid" value="{{ election_id }}">
       </label>
-
-      <label style="min-width:300px; display:block">
-        Título
-        <input name="title" value="{{ (meta or {}).get('title','') }}" required placeholder="Ex.: Eleição da Turma 2025" style="width:100%">
+      <label>Título<br>
+        <input type="text" name="title" value="{{ (meta.title if meta else '') }}">
       </label>
-
-      <label style="display:block">
-        Data
-        <input type="date" name="date" value="{{ (meta or {}).get('date','') }}" required>
+      <label>Data<br>
+        <input type="date" name="date" value="{{ (meta.date if meta else '') }}">
       </label>
-
-      <label style="display:block">
-        Hora
-        <input type="time" name="time" value="{{ (meta or {}).get('time','') }}" required>
+      <label>Hora<br>
+        <input type="time" name="time" value="{{ (meta.time if meta else '') }}">
       </label>
-
-      <label style="display:block; min-width:220px">
-        Fuso
-        <select name="tz" style="width:100%">
-          {% set sel = (meta or {}).get('tz','America/Sao_Paulo') %}
+      <label>Fuso<br>
+        <select name="tz">
           {% for tz in tz_options %}
-            <option value="{{ tz }}" {% if tz==sel %}selected{% endif %}>{{ tz }}</option>
+            <option {% if meta and meta.tz==tz %}selected{% endif %}>{{ tz }}</option>
           {% endfor %}
         </select>
       </label>
-
-      <label style="min-width:260px; display:block">
-        Categoria
-        <input name="category" value="{{ (meta or {}).get('category','') }}" placeholder="Ex.: Assembleia, Trabalho, DA, ..." style="width:100%">
+      <label>Categoria (opcional)<br>
+        <input type="text" name="category" value="{{ (meta.category if meta else '') }}">
       </label>
 
-      <div>
-        <button class="btn accent" style="margin-top:8px">Salvar</button>
+      <div style="grid-column:1/-1;margin-top:8px">
+        <button class="btn accent" type="submit">Salvar metadados</button>
       </div>
-    </div>
-  </form>
-</div>
+    </form>
+  </div>
 
-<div class="row">
-  <a class="btn" href="/admin/assign_ui?secret={{ secret_qs|urlencode }}">Atribuir chaves (UI)</a>
-  <a class="btn" href="/admin/candidates?secret={{ secret_qs|urlencode }}">Candidatos & Prazo</a>
-  <a class="btn" href="/">Início</a>
-</div>
+  {% if meta %}
+  <div class="card">
+    <h2>Atual</h2>
+    <p class="muted" style="margin:.25rem 0 0">
+      <b>{{ meta.title }}</b><br>
+      {{ election_id }} • {{ meta.date }} {{ meta.time }} {{ meta.tz }}
+      {% if meta.category %} • {{ meta.category }}{% endif %}
+    </p>
+  </div>
+  {% endif %}
 {% endblock %}
