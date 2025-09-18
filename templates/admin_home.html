@@ -3,63 +3,25 @@
 
 {% block content %}
   <h1>Painel do Administrador</h1>
-  <p class="muted">Atalhos para configuração e gestão da votação.</p>
+  <p class="muted">Atalhos rápidos de administração.</p>
 
   <div class="card">
-    <div class="row">
-      <a class="btn" href="{{ url_for('admin_candidates') }}?secret={{ request.args.get('secret','')|urlencode }}">Candidatos & prazo</a>
-      <a class="btn" href="{{ url_for('admin_election_meta') }}?secret={{ request.args.get('secret','')|urlencode }}">Metadados da eleição</a>
-      <a class="btn" href="/admin/assign_ui?secret={{ request.args.get('secret','')|urlencode }}">Atribuir chaves (UI)</a>
-      <a class="btn" href="/admin/audit_preview?secret={{ request.args.get('secret','')|urlencode }}">Auditoria (preview)</a>
+    <div class="row admin-links">
+      {# Propaga o ?secret= via Jinja; se não vier na URL, os links funcionam sem secret #}
+      {% set secret = request.args.get('secret','') %}
+      <a class="btn" href="/admin/candidates{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Candidatos & prazo</a>
+      <a class="btn" href="/admin/election_meta{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Metadados da votação</a>
+      <a class="btn" href="/admin/assign_ui{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Atribuir chaves (UI)</a>
+      <a class="btn" href="/admin/audit_preview{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Auditoria (preview)</a>
     </div>
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 8px 0">Backups</h3>
+    <h3 style="margin:0 0 8px 0">Saída</h3>
+    <p class="muted">Você pode sair e manter o secret na URL para voltar rápido depois.</p>
     <div class="row">
-      <a class="btn ghost" href="/admin/backup_zip?secret={{ request.args.get('secret','')|urlencode }}">Backup completo (ZIP)</a>
-      <a class="btn ghost" href="#" onclick="backupEID();return false;">Backup por EID (ZIP)</a>
-    </div>
-    <div class="sep"></div>
-    <div class="row">
-      <input id="eid" type="text" placeholder="EID para backup específico" style="min-width:260px">
-      <a class="btn" href="#" onclick="openRes();return false;">Resultados (EID)</a>
-      <a class="btn" href="#" onclick="openAudit();return false;">Auditoria (EID)</a>
+      <a class="btn ghost" href="/admin/logout{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Sair</a>
+      <a class="btn" href="/{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Ir para o site público</a>
     </div>
   </div>
-
-  <div class="card">
-    <h3 style="margin:0 0 8px 0">Sessão</h3>
-    <div class="row">
-      <a class="btn"
-         href="{{ url_for('admin_bp.admin_logout') }}?secret={{ request.args.get('secret','')|urlencode }}">
-        Sair (manter secret)
-      </a>
-      <a class="btn ghost" href="{{ url_for('admin_bp.admin_logout') }}">Sair (limpar secret)</a>
-    </div>
-  </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-function sanitize(s){ return (s||"").trim(); }
-function openRes(){
-  const eid = sanitize(document.getElementById('eid').value);
-  if(!eid){ alert("Informe um EID."); return; }
-  window.location.href = "/public/" + encodeURIComponent(eid) + "/results";
-}
-function openAudit(){
-  const eid = sanitize(document.getElementById('eid').value);
-  if(!eid){ alert("Informe um EID."); return; }
-  window.location.href = "/public/" + encodeURIComponent(eid) + "/audit";
-}
-function backupEID(){
-  const eid = sanitize(document.getElementById('eid').value);
-  if(!eid){ alert("Informe um EID."); return; }
-  const secret = new URLSearchParams(location.search).get('secret') || '';
-  const qs = secret ? "?secret="+encodeURIComponent(secret)+"&eid="+encodeURIComponent(eid)
-                    : "?eid="+encodeURIComponent(eid);
-  window.location.href = "/admin/backup_zip_eid" + qs;
-}
-</script>
 {% endblock %}
