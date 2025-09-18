@@ -1,38 +1,65 @@
 {% extends "base_admin.html" %}
-
-{% block title %}Painel Admin - SchulzeVote{% endblock %}
+{% block title %}SchulzeVote Admin · Painel{% endblock %}
 
 {% block content %}
-  <h1>Painel Administrativo</h1>
-
-  <p><b>Eleição atual:</b> {{ current_eid }}</p>
+  <h1>Painel do Administrador</h1>
+  <p class="muted">Atalhos para configuração e gestão da votação.</p>
 
   <div class="card">
-    <h2>Gerenciamento</h2>
-    <ul>
-      <li><a href="{{ url_for('admin_bp.home') }}?secret={{ secret }}">🏠 Início</a></li>
-      <li><a href="{{ url_for('admin_bp.login') }}?secret={{ secret }}">🔑 Login</a></li>
-      <li><a href="{{ url_for('admin_bp.logout') }}?secret={{ secret }}">🚪 Logout</a></li>
-    </ul>
+    <div class="row">
+      <a class="btn" href="{{ url_for('admin_candidates') }}?secret={{ request.args.get('secret','')|urlencode }}">Candidatos & prazo</a>
+      <a class="btn" href="{{ url_for('admin_election_meta') }}?secret={{ request.args.get('secret','')|urlencode }}">Metadados da eleição</a>
+      <a class="btn" href="/admin/assign_ui?secret={{ request.args.get('secret','')|urlencode }}">Atribuir chaves (UI)</a>
+      <a class="btn" href="/admin/audit_preview?secret={{ request.args.get('secret','')|urlencode }}">Auditoria (preview)</a>
+    </div>
   </div>
 
   <div class="card">
-    <h2>Administração</h2>
-    <ul>
-      <li><a href="/admin/candidates?secret={{ secret }}">🗳️ Candidatos & Prazo</a></li>
-      <li><a href="/admin/election_meta?secret={{ secret }}">📝 Metadados da Eleição</a></li>
-      <li><a href="/admin/export_audit_bundle?secret={{ secret }}">📦 Exportar Pacote de Auditoria</a></li>
-      <li><a href="/admin/backup_zip?secret={{ secret }}">💾 Backup Global (ZIP)</a></li>
-      <li><a href="/admin/backup_zip_eid?eid={{ current_eid }}&secret={{ secret }}">💾 Backup da Eleição Atual</a></li>
-      <li><a href="/admin/audit_raw?eid={{ current_eid }}&secret={{ secret }}">📜 Auditoria (JSON)</a></li>
-      <li><a href="/admin/ballots_raw?eid={{ current_eid }}&secret={{ secret }}">📂 Cédulas (JSON)</a></li>
-    </ul>
+    <h3 style="margin:0 0 8px 0">Backups</h3>
+    <div class="row">
+      <a class="btn ghost" href="/admin/backup_zip?secret={{ request.args.get('secret','')|urlencode }}">Backup completo (ZIP)</a>
+      <a class="btn ghost" href="#" onclick="backupEID();return false;">Backup por EID (ZIP)</a>
+    </div>
+    <div class="sep"></div>
+    <div class="row">
+      <input id="eid" type="text" placeholder="EID para backup específico" style="min-width:260px">
+      <a class="btn" href="#" onclick="openRes();return false;">Resultados (EID)</a>
+      <a class="btn" href="#" onclick="openAudit();return false;">Auditoria (EID)</a>
+    </div>
   </div>
 
   <div class="card">
-    <h2>Diagnóstico</h2>
-    <ul>
-      <li><a href="/admin/ping?secret={{ secret }}">📡 Testar conexão (ping)</a></li>
-    </ul>
+    <h3 style="margin:0 0 8px 0">Sessão</h3>
+    <div class="row">
+      <a class="btn"
+         href="{{ url_for('admin_bp.admin_logout') }}?secret={{ request.args.get('secret','')|urlencode }}">
+        Sair (manter secret)
+      </a>
+      <a class="btn ghost" href="{{ url_for('admin_bp.admin_logout') }}">Sair (limpar secret)</a>
+    </div>
   </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function sanitize(s){ return (s||"").trim(); }
+function openRes(){
+  const eid = sanitize(document.getElementById('eid').value);
+  if(!eid){ alert("Informe um EID."); return; }
+  window.location.href = "/public/" + encodeURIComponent(eid) + "/results";
+}
+function openAudit(){
+  const eid = sanitize(document.getElementById('eid').value);
+  if(!eid){ alert("Informe um EID."); return; }
+  window.location.href = "/public/" + encodeURIComponent(eid) + "/audit";
+}
+function backupEID(){
+  const eid = sanitize(document.getElementById('eid').value);
+  if(!eid){ alert("Informe um EID."); return; }
+  const secret = new URLSearchParams(location.search).get('secret') || '';
+  const qs = secret ? "?secret="+encodeURIComponent(secret)+"&eid="+encodeURIComponent(eid)
+                    : "?eid="+encodeURIComponent(eid);
+  window.location.href = "/admin/backup_zip_eid" + qs;
+}
+</script>
 {% endblock %}
