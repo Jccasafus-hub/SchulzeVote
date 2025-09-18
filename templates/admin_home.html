@@ -10,29 +10,29 @@
   <div class="card">
     <h2>Gerenciamento</h2>
     <ul>
-      <li><a href="{{ url_for('admin_bp.home') }}?secret={{ secret }}">🏠 Início</a></li>
-      <li><a href="{{ url_for('admin_bp.login') }}?secret={{ secret }}">🔑 Login</a></li>
-      <li><a href="{{ url_for('admin_bp.logout') }}?secret={{ secret }}">🚪 Logout</a></li>
+      <li><a href="{{ url_for('admin_bp.home') }}?secret={{ secret|urlencode }}">🏠 Início</a></li>
+      <li><a href="{{ url_for('admin_bp.login') }}?secret={{ secret|urlencode }}">🔑 Login</a></li>
+      <li><a href="{{ url_for('admin_bp.logout') }}?secret={{ secret|urlencode }}">🚪 Logout</a></li>
     </ul>
   </div>
 
   <div class="card">
     <h2>Administração</h2>
     <ul>
-      <li><a href="/admin/candidates?secret={{ secret }}">🗳️ Candidatos & Prazo</a></li>
-      <li><a href="/admin/election_meta?secret={{ secret }}">📝 Metadados da Eleição</a></li>
-      <li><a href="/admin/export_audit_bundle?secret={{ secret }}">📦 Exportar Pacote de Auditoria</a></li>
-      <li><a href="/admin/backup_zip?secret={{ secret }}">💾 Backup Global (ZIP)</a></li>
-      <li><a href="/admin/backup_zip_eid?eid={{ current_eid }}&secret={{ secret }}">💾 Backup da Eleição Atual</a></li>
-      <li><a href="/admin/audit_raw?eid={{ current_eid }}&secret={{ secret }}">📜 Auditoria (JSON)</a></li>
-      <li><a href="/admin/ballots_raw?eid={{ current_eid }}&secret={{ secret }}">📂 Cédulas (JSON)</a></li>
+      <li><a href="/admin/candidates?secret={{ secret|urlencode }}">🗳️ Candidatos & Prazo</a></li>
+      <li><a href="/admin/election_meta?secret={{ secret|urlencode }}">📝 Metadados da Eleição</a></li>
+      <li><a href="/admin/export_audit_bundle?secret={{ secret|urlencode }}">📦 Exportar Pacote de Auditoria</a></li>
+      <li><a href="/admin/backup_zip?secret={{ secret|urlencode }}">💾 Backup Global (ZIP)</a></li>
+      <li><a href="/admin/backup_zip_eid?eid={{ current_eid }}&secret={{ secret|urlencode }}">💾 Backup da Eleição Atual</a></li>
+      <li><a href="/admin/audit_raw?eid={{ current_eid }}&secret={{ secret|urlencode }}">📜 Auditoria (JSON)</a></li>
+      <li><a href="/admin/ballots_raw?eid={{ current_eid }}&secret={{ secret|urlencode }}">📂 Cédulas (JSON)</a></li>
     </ul>
   </div>
 
   <div class="card">
     <h2>Diagnóstico</h2>
     <ul>
-      <li><a href="/admin/ping?secret={{ secret }}">📡 Testar conexão (ping)</a></li>
+      <li><a href="/admin/ping?secret={{ secret|urlencode }}">📡 Testar conexão (ping)</a></li>
     </ul>
   </div>
 {% endblock %}
