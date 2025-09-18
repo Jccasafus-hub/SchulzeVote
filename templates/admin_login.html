@@ -1,65 +1,32 @@
+<!-- templates/admin_login.html -->
 {% extends "base_admin.html" %}
-
-{% block title %}Login - SchulzeVote Admin{% endblock %}
+{% block title %}SchulzeVote Admin · Login{% endblock %}
 
 {% block content %}
-  <h1>Login Administrativo</h1>
-  <p class="muted">
-    Use sua chave definida em <code>ADMIN_SECRET</code>.
-    {% if max_attempts is defined %}
-      (Máx. {{ max_attempts }} tentativas por sessão)
-    {% endif %}
-  </p>
+  <h1>Entrar no Painel do Administrador</h1>
+  <p class="muted">Informe sua chave de administrador para acessar o painel.</p>
 
   <div class="card">
-    <form method="POST" action="{{ url_for('admin_bp.login') }}{% if secret %}?secret={{ secret }}{% endif %}">
-      <label for="secret"><b>Chave secreta</b></label>
-      <div class="row" style="gap:8px; align-items:stretch; margin-top:8px">
-        <input
-          type="password"
-          id="secret"
-          name="secret"
-          placeholder="Digite a chave secreta"
-          required
-          style="flex:1; min-width:240px"
-        >
-        <button
-          type="button"
-          class="btn ghost"
-          id="toggle-secret"
-          aria-controls="secret"
-          aria-pressed="false"
-          title="Ver chave"
-        >
-          Ver chave
-        </button>
+    <form method="POST" class="row" style="gap:12px; align-items:flex-end">
+      <div style="display:flex; flex-direction:column; gap:6px; min-width:260px">
+        <label for="secret">Chave de administrador</label>
+        <input id="secret" name="secret" type="password" placeholder="Cole sua chave aqui" required>
+        <a href="#" class="btn ghost" onclick="
+          const i=document.getElementById('secret');
+          i.type = (i.type==='password' ? 'text' : 'password');
+          this.blur();
+          return false;
+        ">ver chave</a>
       </div>
-
-      {% if attempts_used is defined and max_attempts is defined %}
-        <p class="muted" style="margin:10px 0 0 0">
-          Tentativas usadas: {{ attempts_used }}/{{ max_attempts }}
-        </p>
-      {% endif %}
-
-      <div style="margin-top:14px">
-        <button class="btn accent" type="submit">Entrar</button>
-      </div>
+      <button class="btn accent" type="submit">Entrar</button>
     </form>
   </div>
 
-  <script>
-    (function(){
-      const input = document.getElementById('secret');
-      const btn   = document.getElementById('toggle-secret');
-      if (!input || !btn) return;
-
-      btn.addEventListener('click', function(){
-        const showing = input.type === 'text';
-        input.type = showing ? 'password' : 'text';
-        btn.innerText = showing ? 'Ver chave' : 'Ocultar chave';
-        btn.setAttribute('aria-pressed', String(!showing));
-        btn.title = showing ? 'Ver chave' : 'Ocultar chave';
-      });
-    })();
-  </script>
+  <div class="row" style="margin-top:16px">
+    {% if request.args.get('secret') %}
+      <a class="btn" href="/admin/?secret={{ request.args.get('secret')|urlencode }}">Voltar ao painel inicial</a>
+    {% else %}
+      <a class="btn" href="/">Voltar ao início</a>
+    {% endif %}
+  </div>
 {% endblock %}
