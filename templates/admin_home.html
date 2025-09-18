@@ -11,35 +11,20 @@
   </p>
 
   <div class="row" style="margin-top:14px; flex-direction:column; align-items:flex-start">
-    <!-- As rotas abaixo permanecem no app.py; propagamos o secret da query -->
+    <!-- Rotas que permanecem no app.py; propagamos o secret da query -->
     <a class="btn accent" href="{{ url_for('admin_candidates') }}?secret={{ request.args.get('secret','') }}">Candidatos &amp; Prazo</a>
     <a class="btn" href="{{ url_for('admin_election_meta') }}?secret={{ request.args.get('secret','') }}">Metadados da votação</a>
     <a class="btn" href="{{ url_for('admin_audit_raw') }}?secret={{ request.args.get('secret','') }}">Auditoria (JSON)</a>
     <a class="btn" href="{{ url_for('admin_ballots_raw') }}?secret={{ request.args.get('secret','') }}">Cédulas (JSON)</a>
     <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao site público</a>
 
-    <!-- Importante: endpoint do Blueprint -->
-    <a id="admin-logout" class="btn danger" href="{{ url_for('admin_bp.logout') }}">Sair</a>
+    <!-- Sair com PURGE_CACHE: chama função definida no base_admin.html -->
+    <a
+      id="admin-logout"
+      class="btn danger"
+      href="#"
+      onclick="logoutAndClearCache('{{ url_for('admin_bp.logout') }}'); return false;"
+    >Sair</a>
   </div>
 </div>
-
-<script>
-  // No logout, pede ao Service Worker para limpar caches do Admin antes de sair
-  (function() {
-    const link = document.getElementById('admin-logout');
-    if (!link) return;
-    link.addEventListener('click', function(ev) {
-      if ('serviceWorker' in navigator) {
-        ev.preventDefault();
-        navigator.serviceWorker.getRegistration('/admin').then(reg => {
-          try {
-            reg && reg.active && reg.active.postMessage({ type: 'PURGE_CACHE' });
-          } catch (e) { /* no-op */ }
-        }).finally(() => {
-          window.location.href = link.getAttribute('href');
-        });
-      }
-    }, { passive: false });
-  })();
-</script>
 {% endblock %}
