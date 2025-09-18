@@ -5,98 +5,58 @@
   <title>{% block title %}SchulzeVote Admin{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- PWA (Admin) -->
+  <!-- PWA -->
   <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}?v={{ APP_VERSION }}">
   <meta name="theme-color" content="#000000">
 
-  <!-- Ícones Admin -->
+  <!-- Ícones -->
   <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}?v={{ APP_VERSION }}">
   <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}?v={{ APP_VERSION }}">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="SchulzeVote Admin">
+
+  <!-- Social -->
+  <meta property="og:title" content="SchulzeVote Admin">
+  <meta property="og:description" content="Painel administrativo do SchulzeVote.">
+  <meta property="og:image" content="{{ url_for('static', filename='admin_icon_512.png') }}?v={{ APP_VERSION }}">
+  <meta property="og:type" content="website">
 
   <style>
-    :root {
-      --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
-      --accent:#f97316; --accent-2:#f59e0b; --border:#1f242c; --input:#0f1216;
-    }
+    :root{ --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb; --accent:#f97316; --accent-2:#f59e0b; --border:#1f242c; --input:#0f1216; }
     *{box-sizing:border-box}
-    body{
-      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      background:var(--bg); color:var(--text)
-    }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
     .wrap{max-width:920px;margin:0 auto;padding:28px}
     h1{margin:0 0 12px}
     p.muted{color:var(--muted)}
     .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin:14px 0}
     .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-
-    .btn{
-      padding:12px 14px;border-radius:12px;border:1px solid var(--border);
-      background:#1b1f27;color:var(--text);text-decoration:none;cursor:pointer;font-size:.95rem
-    }
+    .btn{padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#1b1f27;color:var(--text);text-decoration:none;cursor:pointer}
     .btn:hover{filter:brightness(1.06)}
-    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#111;font-weight:600}
-    .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
-    .btn.ghost:hover{background:#1b1f27;color:var(--text)}
-    .btn.danger{background:#3a0d0d;border-color:#ef4444;color:#ef4444}
-    .btn.danger:hover{filter:brightness(1.2)}
-
-    input[type=text],input[type=password],input[type=number]{
-      background:var(--input);border:1px solid var(--border);color:var(--text);
-      padding:10px 12px;border-radius:10px;outline:none;width:100%
-    }
-    textarea, .textarea{
-      background:var(--input);border:1px solid var(--border);color:var(--text);
-      padding:10px 12px;border-radius:10px;outline:none;width:100%;min-height:220px;
-      font-family:inherit; font-size:1rem;
-    }
+    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#111}
+    .btn.ghost{background:transparent;border:1px dashed #2a323d;color:var(--text)}
+    input[type=text], input[type=password], input[type=number]{background:var(--input); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:10px; outline:none}
+    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
+    .topbar{display:flex;gap:8px;align-items:center;justify-content:flex-start;margin:0 auto;max-width:920px;padding:12px 28px}
+    .sep{height:1px;background:var(--border);margin:12px 0}
   </style>
-
   {% block head %}{% endblock %}
 </head>
 <body>
-  <div class="wrap">
 
-    {# Botão de voltar só em páginas internas (não aparece no painel admin) #}
-    {% if request.endpoint not in ["admin_bp.home"] %}
-      <div class="row" style="justify-content:flex-end; margin-bottom:8px">
-        <a class="btn ghost" href="{{ url_for('admin_bp.home') }}?secret={{ (request.args.get('secret','')|urlencode) }}">Voltar ao painel</a>
-      </div>
+  {# Topbar com botão condicional #}
+  {% set secret_qs = request.args.get('secret', '') %}
+  {% set is_admin_home = request.endpoint in ('admin_bp.admin_home',) %}
+  <div class="topbar">
+    {% if not is_admin_home %}
+      <a class="btn ghost"
+         href="{{ url_for('admin_bp.admin_home') }}{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">
+        Voltar ao painel
+      </a>
     {% endif %}
-
-    {% with msgs = get_flashed_messages(with_categories=true) %}
-      {% if msgs %}
-        <div class="card">
-          {% for cat, msg in msgs %}
-            <p class="muted" style="margin:0"><b>{{ cat|upper }}:</b> {{ msg }}</p>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
-
-    {% block content %}{% endblock %}
+    <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao início</a>
   </div>
 
-  <!-- Service Worker do Admin (se estiver usando) + helper para limpar cache ao sair -->
-  <script>
-    (function () {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('{{ url_for("static", filename="sw_admin.js") }}?v={{ APP_VERSION }}')
-          .catch(function(e){ console.warn('SW Admin: falha ao registrar', e); });
-      }
-      window.logoutAndClearCache = function(href) {
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistration().then(function(reg){
-            try { if (reg && reg.active) reg.active.postMessage('PURGE_CACHE'); } catch(e){}
-          }).finally(function(){ window.location.href = href; });
-        } else {
-          window.location.href = href;
-        }
-      };
-    })();
-  </script>
+  <div class="wrap">
+    {% block content %}{% endblock %}
+  </div>
 
   {% block scripts %}{% endblock %}
 </body>
