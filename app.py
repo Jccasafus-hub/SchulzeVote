@@ -813,14 +813,12 @@ def admin_export_audit_bundle():
     resp.headers["Content-Disposition"] = f'attachment; filename="audit_bundle_{eid}.zip"'
     return resp
 
-# =============== Admin: Candidatos & Prazo ===============
+# =============== Admin: Candidatos & Prazo (usa template admin_candidates.html) ===============
 @app.route("/admin/candidates", methods=["GET","POST"])
 def admin_candidates():
     if not require_admin(request):
         abort(403)
-
     msg = warn = None
-
     if request.method == "POST":
         action = request.form.get("action", "")
         if action == "save_candidates":
