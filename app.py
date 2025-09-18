@@ -1060,6 +1060,15 @@ def admin_ballots_raw():
     ballots = load_ballots(eid)
     return Response(json.dumps({"eid": eid, "ballots": ballots}, ensure_ascii=False, indent=2), mimetype="application/json")
 
+@app.route("/admin/ping")
+def admin_ping():
+    ok = require_admin(request)
+    return Response(
+        json.dumps({"ok": ok}, ensure_ascii=False),
+        status=200 if ok else 403,
+        mimetype="application/json"
+    )
+
 # =============== Debug local ===============
 if __name__ == "__main__":
     # Em produção (Render), o servidor do container web já chama sua app.
