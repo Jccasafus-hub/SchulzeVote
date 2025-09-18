@@ -1,1 +1,474 @@
+{% extends "base.html" %}
+{% block title %}Como funciona o Método de Schulze · SchulzeVote{% endblock %}
 
+{% block content %}
+  <div class="wrap">
+    <h1>Método de Schulze — explicação simples</h1>
+    <p class="muted">Entenda como as preferências viram um ranking final justo e auditável. Abaixo há um simulador interativo.</p>
+
+    <div class="card">
+      <h2>Ideia geral</h2>
+      <ol>
+        <li>Cada pessoa ordena os candidatos por preferência (1º, 2º, 3º...).</li>
+        <li>Comparamos cada par (A×B, A×C...) e contamos quantos eleitores preferem X a Y: <b>d(X,Y)</b>.</li>
+        <li>Calculamos os <b>caminhos mais fortes</b>: a força de um caminho é o <i>mínimo</i> das vitórias ao longo dele; <b>p(X,Y)</b> é o máximo entre todos os caminhos X→Y.</li>
+        <li>Ranking final: para cada par X,Y, comparamos <b>p(X,Y)</b> vs <b>p(Y,X)</b> (regra de Schulze).</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>Exemplo pequeno (fixo)</h2>
+      <p>3 candidatos: <b>A</b>, <b>B</b>, <b>C</b>. 7 eleitores:</p>
+      <ul>
+        <li>3: A &gt; B &gt; C</li>
+        <li>2: B &gt; C &gt; A</li>
+        <li>2: C &gt; A &gt; B</li>
+      </ul>
+      <p>Confrontos diretos: A×B (5×2), A×C (3×4), B×C (5×2). O Schulze resulta em <b>A &gt; B &gt; C</b>.</p>
+    </div>
+
+    <div class="card">
+      <h2>Como tratamos “Voto em Branco” e “Voto Nulo”</h2>
+      <p>No SchulzeVote, essas opções são <b>candidatos especiais</b>, sempre presentes ao final da lista:</p>
+      <ul>
+        <li><b>Voto em Branco</b>: a cédula registra preferência por <i>Voto em Branco</i> acima dos demais nomes.</li>
+        <li><b>Voto Nulo</b>: a cédula registra preferência por <i>Voto Nulo</i> acima dos demais nomes.</li>
+      </ul>
+      <p class="muted">Eles participam dos pares. Se muitos escolhem “Branco”, d(Branco,X) cresce — e Branco pode até liderar no ranking se for majoritário.</p>
+    </div>
+
+    <!-- ====== SIMULADOR ====== -->
+    <div class="card">
+      <h2>Simulador interativo (N candidatos)</h2>
+      <p>Edite a matriz <b>d(X,Y)</b> abaixo. O sistema calcula <b>p(X,Y)</b> (caminhos mais fortes) e o <b>ranking Schulze</b> automaticamente.</p>
+
+      <div class="row" style="gap:8px;margin:10px 0">
+        <label class="pill">Candidatos:
+          <select id="preset-select" style="background:var(--input);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 6px;margin-left:6px">
+            <option value="ABC">A,B,C (exemplo)</option>
+            <option value="ABCD">A,B,C,D</option>
+            <option value="ABCDE">A,B,C,D,E</option>
+            <option value="custom">Personalizado…</option>
+          </select>
+        </label>
+        <button class="btn" id="btn-add">+ Adicionar candidato</button>
+        <button class="btn ghost" id="btn-remove">– Remover último</button>
+        <button class="btn" id="btn-reset">Resetar exemplo</button>
+        <button class="btn ghost" id="btn-clear">Zerar matriz</button>
+        <button class="btn" id="btn-share">Gerar link do cenário</button>
+        <button class="btn ghost" id="btn-open-link">Abrir link</button>
+      </div>
+
+      <!-- ===== Branco/Nulo controls ===== -->
+      <div class="card" style="padding:12px;margin-top:10px">
+        <h4 style="margin:0 0 8px 0">Branco/Nulo no simulador</h4>
+        <div class="row" style="gap:8px;align-items:flex-end">
+          <label class="pill">
+            <input id="bn-toggle" type="checkbox" style="vertical-align:middle;margin-right:6px">
+            Incluir <b>Voto em Branco</b> e <b>Voto Nulo</b>
+          </label>
+
+          <div>
+            <label class="pill" style="display:inline-block">Eleitores “Branco”:
+              <input id="bn-branco" type="number" min="0" step="1" value="0"
+                     style="margin-left:6px;width:90px;background:var(--input);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 6px">
+            </label>
+          </div>
+          <div>
+            <label class="pill" style="display:inline-block">Eleitores “Nulo”:
+              <input id="bn-nulo" type="number" min="0" step="1" value="0"
+                     style="margin-left:6px;width:90px;background:var(--input);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 6px">
+            </label>
+          </div>
+
+          <button class="btn" id="bn-apply">Aplicar (preferência acima dos demais)</button>
+          <button class="btn ghost" id="bn-neutral">Modo neutro (sem interferir)</button>
+        </div>
+        <p class="muted" style="margin:.5rem 0 0">
+          Aplicar = incrementa d(Branco,X) e d(Nulo,X) contra todos os demais X, simulando cédulas em que “Branco/Nulo” vêm no topo.
+          Modo neutro = zera pares envolvendo Branco/Nulo (efeito informativo, sem alterar o vencedor entre os demais).
+        </p>
+      </div>
+
+      <div class="card" style="padding:12px">
+        <h4 style="margin:0 0 8px 0">Editar d(X,Y)</h4>
+        <div style="overflow:auto">
+          <table id="table-d-edit" style="border-collapse:collapse;min-width:520px"></table>
+        </div>
+        <p class="muted" style="margin:.5rem 0 0">
+          Dica: preencha apenas o que for relevante. A diagonal é “—”. Valores são não-negativos (0,1,2…).
+        </p>
+      </div>
+
+      <div class="grid" style="margin-top:12px">
+        <div class="card" style="padding:12px">
+          <h4 style="margin:0 0 8px 0">Matriz p(X,Y)</h4>
+          <div style="overflow:auto">
+            <table id="table-p-view" style="border-collapse:collapse;min-width:520px"></table>
+          </div>
+        </div>
+        <div class="card" style="padding:12px">
+          <h4 style="margin:0 0 8px 8px">Comparações e ranking</h4>
+          <div id="pairwise-summary" class="muted" style="margin:8px"></div>
+          <div style="margin:8px 8px 0 8px"><b>Ranking Schulze:</b> <span id="ranking-out">—</span></div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao início</a>
+      </div>
+    </div>
+  </div>
+
+  {% block scripts_extra %}
+  <script>
+  (function(){
+    // ===== util =====
+    const cssCell = 'border:1px solid var(--border);padding:6px;text-align:center;';
+    const cssHead = 'border:1px solid var(--border);padding:6px;background:#0f1319;';
+    const cssInp  = 'width:80px;background:var(--input);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 8px;';
+    const BRANCO = 'Voto em Branco';
+    const NULO   = 'Voto Nulo';
+
+    function clampInt(v){
+      if (v === '' || v === null || v === undefined) return 0;
+      const n = parseInt(v, 10);
+      return isNaN(n) || n < 0 ? 0 : n;
+    }
+
+    // ===== estado =====
+    let names = ['A','B','C'];
+    let d = {};
+    function initD(){
+      d = {};
+      names.forEach(x=>{
+        d[x] = {};
+        names.forEach(y=> d[x][y] = (x===y?0:0));
+      });
+    }
+    function seedExampleABC(){
+      names = ['A','B','C'];
+      d = {
+        'A': {'A':0,'B':5,'C':3},
+        'B': {'A':2,'B':0,'C':5},
+        'C': {'A':4,'B':2,'C':0},
+      };
+    }
+
+    // ===== Schulze =====
+    function schulzeP(d, names){
+      const n = names.length;
+      const p = {};
+      for (let i=0;i<n;i++){
+        const xi = names[i];
+        p[xi] = {};
+        for (let j=0;j<n;j++){
+          const yj = names[j];
+          p[xi][yj] = (i===j) ? 0 : (d[xi][yj] > d[yj][xi] ? d[xi][yj] : 0);
+        }
+      }
+      for (let i=0;i<n;i++){
+        const vi = names[i];
+        for (let j=0;j<n;j++){
+          if (i===j) continue;
+          const vj = names[j];
+          for (let k=0;k<n;k++){
+            if (i===k || j===k) continue;
+            const vk = names[k];
+            const via = Math.min(p[vj][vi], p[vi][vk]);
+            if (via > p[vj][vk]) p[vj][vk] = via;
+          }
+        }
+      }
+      return p;
+    }
+
+    function computeRanking(p, names){
+      const n = names.length;
+      const wins = {}, losses = {};
+      names.forEach(nm => { wins[nm]=0; losses[nm]=0; });
+      for (let i=0;i<n;i++){
+        for (let j=i+1;j<n;j++){
+          const a=names[i], b=names[j];
+          const pab=p[a][b], pba=p[b][a];
+          if (pab>pba){ wins[a]++; losses[b]++; }
+          else if (pba>pab){ wins[b]++; losses[a]++; }
+        }
+      }
+      const arr = names.slice().sort((x,y)=>{
+        const sx=[wins[x], -losses[x]]; const sy=[wins[y], -losses[y]];
+        if (sx[0]!==sy[0]) return sy[0]-sx[0];
+        if (sx[1]!==sy[1]) return sy[1]-sx[1];
+        return x.localeCompare(y);
+      });
+      return {order:arr, wins, losses};
+    }
+
+    // ===== render =====
+    const tDEdit = document.getElementById('table-d-edit');
+    const tPView = document.getElementById('table-p-view');
+    const pairwiseDiv = document.getElementById('pairwise-summary');
+    const rankOut = document.getElementById('ranking-out');
+
+    function renderTableDEdit(){
+      let html = '<thead><tr><th style="'+cssHead+'">d(X,Y)</th>';
+      names.forEach(nm => html += '<th style="'+cssHead+'">'+nm+'</th>');
+      html += '</tr></thead><tbody>';
+      for (let i=0;i<names.length;i++){
+        const X = names[i];
+        html += '<tr><th style="'+cssHead+'">'+X+'</th>';
+        for (let j=0;j<names.length;j++){
+          const Y = names[j];
+          if (i===j){
+            html += '<td style="'+cssCell+'">—</td>';
+          }else{
+            const val = d[X]?.[Y] ?? 0;
+            html += '<td style="'+cssCell+'">'
+                  + '<input data-x="'+X+'" data-y="'+Y+'" type="number" min="0" step="1" value="'+val+'" style="'+cssInp+'">'
+                  + '</td>';
+          }
+        }
+        html += '</tr>';
+      }
+      html += '</tbody>';
+      tDEdit.innerHTML = html;
+      tDEdit.querySelectorAll('input[type=number]').forEach(inp=>{
+        inp.addEventListener('input', ()=>{
+          const X = inp.getAttribute('data-x');
+          const Y = inp.getAttribute('data-y');
+          d[X][Y] = clampInt(inp.value);
+          recalcAndRender();
+        });
+      });
+    }
+
+    function renderTableP(p){
+      let html = '<thead><tr><th style="'+cssHead+'">p(X,Y)</th>';
+      names.forEach(nm => html += '<th style="'+cssHead+'">'+nm+'</th>');
+      html += '</tr></thead><tbody>';
+      for (let i=0;i<names.length;i++){
+        const X=names[i];
+        html += '<tr><th style="'+cssHead+'">'+X+'</th>';
+        for (let j=0;j<names.length;j++){
+          const Y=names[j];
+          html += '<td style="'+cssCell+'">'+(i===j?'—':(p[X][Y]??0))+'</td>';
+        }
+        html += '</tr>';
+      }
+      html += '</tbody>';
+      tPView.innerHTML = html;
+    }
+
+    function renderSummaryAndRank(p){
+      const n = names.length;
+      const lines = [];
+      for (let i=0;i<n;i++){
+        for (let j=i+1;j<n;j++){
+          const a=names[i], b=names[j];
+          const pab=p[a][b], pba=p[b][a];
+          let line = `${a} vs ${b} → p(${a},${b})=${pab} × p(${b},${a})=${pba} → `;
+          if (pab>pba) line += `${a} > ${b}`;
+          else if (pba>pab) line += `${b} > ${a}`;
+          else line += `empate`;
+          lines.push(line);
+        }
+      }
+      pairwiseDiv.textContent = lines.join(' | ');
+      const {order} = computeRanking(p, names);
+      rankOut.textContent = order.join(' > ');
+    }
+
+    function recalcAndRender(){
+      const p = schulzeP(d, names);
+      renderTableP(p);
+      renderSummaryAndRank(p);
+    }
+
+    // ===== preset/add/remove =====
+    const presetSel = document.getElementById('preset-select');
+    const btnAdd    = document.getElementById('btn-add');
+    const btnRemove = document.getElementById('btn-remove');
+    const btnReset  = document.getElementById('btn-reset');
+    const btnClear  = document.getElementById('btn-clear');
+
+    presetSel.addEventListener('change', ()=>{
+      const v = presetSel.value;
+      if (v==='ABC'){
+        seedExampleABC();
+      } else if (v==='ABCD'){
+        names = ['A','B','C','D']; initD();
+      } else if (v==='ABCDE'){
+        names = ['A','B','C','D','E']; initD();
+      } else {
+        const txt = prompt('Informe os rótulos separados por vírgula:', 'A,B,C,D');
+        if (!txt) return;
+        names = txt.split(',').map(s=>s.trim()).filter(Boolean);
+        if (names.length<2) names = ['A','B'];
+        initD();
+      }
+      ensureBNIfToggled();
+      renderTableDEdit(); recalcAndRender();
+    });
+
+    btnAdd.addEventListener('click', ()=>{
+      function nextLabel(){
+        const base = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        for (let i=0;i<base.length;i++){
+          const L = base[i];
+          if (!names.includes(L)) return L;
+        }
+        let idx=1; while (names.includes('A'+idx)) idx++;
+        return 'A'+idx;
+      }
+      names.push(nextLabel());
+      names.forEach(x=>{ if(!d[x]) d[x]={}; names.forEach(y=>{ if(d[x][y]==null) d[x][y]=(x===y?0:0); }); });
+      ensureBNIfToggled();
+      renderTableDEdit(); recalcAndRender();
+    });
+
+    btnRemove.addEventListener('click', ()=>{
+      let removable = names.filter(nm => nm!==BRANCO && nm!==NULO);
+      if (removable.length<=2) return;
+      const rem = removable[removable.length-1];
+      names = names.filter(nm => nm!==rem);
+      delete d[rem];
+      names.forEach(x=> delete d[x][rem]);
+      renderTableDEdit(); recalcAndRender();
+    });
+
+    btnReset.addEventListener('click', ()=>{
+      seedExampleABC();
+      if (bnToggle.checked) addBNIfMissing();
+      renderTableDEdit(); recalcAndRender();
+      presetSel.value = 'ABC';
+    });
+
+    btnClear.addEventListener('click', ()=>{
+      initD();
+      renderTableDEdit(); recalcAndRender();
+    });
+
+    // ===== Branco/Nulo =====
+    const bnToggle = document.getElementById('bn-toggle');
+    const bnBranco = document.getElementById('bn-branco');
+    const bnNulo   = document.getElementById('bn-nulo');
+    const bnApply  = document.getElementById('bn-apply');
+    const bnNeutral= document.getElementById('bn-neutral');
+
+    function addBNIfMissing(){
+      const haveBranco = names.includes(BRANCO);
+      const haveNulo   = names.includes(NULO);
+      if (!haveBranco) names.push(BRANCO);
+      if (!haveNulo)   names.push(NULO);
+      const old = d;
+      d = {};
+      names.forEach(x=>{
+        d[x] = {};
+        names.forEach(y=>{
+          if (x===y) d[x][y]=0;
+          else if (old[x] && old[x][y] != null) d[x][y]=old[x][y];
+          else d[x][y]=0;
+        });
+      });
+    }
+    function removeBNIfPresent(){
+      [BRANCO,NULO].forEach(tag=>{
+        if (names.includes(tag)){
+          delete d[tag];
+          names.forEach(x=>{ if (d[x]) delete d[x][tag]; });
+          names = names.filter(n=>n!==tag);
+        }
+      });
+    }
+    function ensureBNIfToggled(){
+      if (bnToggle.checked) addBNIfMissing();
+      else removeBNIfPresent();
+    }
+
+    bnToggle.addEventListener('change', ()=>{
+      ensureBNIfToggled();
+      renderTableDEdit(); recalcAndRender();
+    });
+
+    bnApply.addEventListener('click', ()=>{
+      ensureBNIfToggled();
+      const qBranco = clampInt(bnBranco.value);
+      const qNulo   = clampInt(bnNulo.value);
+      names.forEach(X=>{
+        if (X!==BRANCO){ d[BRANCO][X] = clampInt(d[BRANCO][X]) + qBranco; d[X][BRANCO] = clampInt(d[X][BRANCO]); }
+        if (X!==NULO){   d[NULO][X]   = clampInt(d[NULO][X])   + qNulo;   d[X][NULO]   = clampInt(d[X][NULO]); }
+      });
+      renderTableDEdit(); recalcAndRender();
+    });
+
+    bnNeutral.addEventListener('click', ()=>{
+      ensureBNIfToggled();
+      names.forEach(X=>{
+        if (X!==BRANCO){ d[BRANCO][X]=0; d[X][BRANCO]=0; }
+        if (X!==NULO){   d[NULO][X]=0;   d[X][NULO]=0; }
+      });
+      renderTableDEdit(); recalcAndRender();
+    });
+
+    // ===== Compartilhamento via URL =====
+    function encodeState(obj){ return encodeURIComponent(JSON.stringify(obj)); }
+    function decodeState(s){ try{ return JSON.parse(decodeURIComponent(s)); }catch(e){ return null; } }
+    function snapshotState(){ return { names, d }; }
+    function loadState(st){
+      if (!st || !Array.isArray(st.names) || typeof st.d !== 'object') return false;
+      names = st.names.slice();
+      const nd = {};
+      names.forEach(x=>{
+        nd[x] = {};
+        names.forEach(y=>{
+          const v = st.d?.[x]?.[y];
+          nd[x][y] = (x===y?0: (typeof v === 'number' ? Math.max(0, Math.floor(v)) : 0));
+        });
+      });
+      d = nd;
+      const hasBranco = names.includes(BRANCO);
+      const hasNulo   = names.includes(NULO);
+      const bnToggleEl = document.getElementById('bn-toggle');
+      if (bnToggleEl){ bnToggleEl.checked = (hasBranco || hasNulo); }
+      renderTableDEdit(); recalcAndRender();
+      return true;
+    }
+    function currentPageBase(){ return window.location.origin + window.location.pathname; }
+
+    const btnShare = document.getElementById('btn-share');
+    const btnOpen  = document.getElementById('btn-open-link');
+
+    if (btnShare){
+      btnShare.addEventListener('click', ()=>{
+        const qs = 'state=' + encodeState(snapshotState());
+        const url = currentPageBase() + '?' + qs;
+        if (navigator.clipboard?.writeText){
+          navigator.clipboard.writeText(url).then(()=>alert('Link do cenário copiado!'),
+                                                 ()=>prompt('Copie o link do cenário:', url));
+        }else{
+          prompt('Copie o link do cenário:', url);
+        }
+      });
+    }
+    if (btnOpen){
+      btnOpen.addEventListener('click', ()=>{
+        const qs = 'state=' + encodeState(snapshotState());
+        window.location.href = currentPageBase() + '?' + qs;
+      });
+    }
+    (function restoreFromQuery(){
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get('state');
+      if (!raw) return;
+      const st = decodeState(raw);
+      loadState(st);
+    })();
+
+    // ===== inicialização =====
+    seedExampleABC();
+    renderTableDEdit();
+    recalcAndRender();
+  })();
+  </script>
+  {% endblock %}
+{% endblock %}
