@@ -4,24 +4,62 @@
 
 {% block content %}
   <h1>Login Administrativo</h1>
+  <p class="muted">
+    Use sua chave definida em <code>ADMIN_SECRET</code>.
+    {% if max_attempts is defined %}
+      (Máx. {{ max_attempts }} tentativas por sessão)
+    {% endif %}
+  </p>
 
   <div class="card">
     <form method="POST" action="{{ url_for('admin_bp.login') }}{% if secret %}?secret={{ secret }}{% endif %}">
-      <label for="secret">Chave Secreta:</label><br>
-      <input type="password" name="secret" id="secret" required placeholder="Digite a chave secreta"><br><br>
-      <button type="submit" class="btn accent">Entrar</button>
+      <label for="secret"><b>Chave secreta</b></label>
+      <div class="row" style="gap:8px; align-items:stretch; margin-top:8px">
+        <input
+          type="password"
+          id="secret"
+          name="secret"
+          placeholder="Digite a chave secreta"
+          required
+          style="flex:1; min-width:240px"
+        >
+        <button
+          type="button"
+          class="btn ghost"
+          id="toggle-secret"
+          aria-controls="secret"
+          aria-pressed="false"
+          title="Ver chave"
+        >
+          👁️ Ver
+        </button>
+      </div>
+
+      {% if attempts_used is defined and max_attempts is defined %}
+        <p class="muted" style="margin:10px 0 0 0">
+          Tentativas usadas: {{ attempts_used }}/{{ max_attempts }}
+        </p>
+      {% endif %}
+
+      <div style="margin-top:14px">
+        <button class="btn accent" type="submit">Entrar</button>
+      </div>
     </form>
   </div>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <ul>
-        {% for category, message in messages %}
-          <li class="{{ category }}">{{ message }}</li>
-        {% endfor %}
-      </ul>
-    {% endif %}
-  {% endwith %}
+  <script>
+    (function(){
+      const input = document.getElementById('secret');
+      const btn   = document.getElementById('toggle-secret');
+      if (!input || !btn) return;
 
-  <p class="muted">Use sua chave secreta definida como <code>ADMIN_SECRET</code>.</p>
+      btn.addEventListener('click', function(){
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        btn.innerText = showing ? '👁️ Ver' : '🙈 Ocultar';
+        btn.setAttribute('aria-pressed', String(!showing));
+        btn.title = showing ? 'Ver chave' : 'Ocultar chave';
+      });
+    })();
+  </script>
 {% endblock %}
