@@ -1,40 +1,66 @@
 import os
-from flask import render_template, request, redirect, url_for, flash
+import json
+from flask import render_template, request, redirect, url_for, flash, Response
 from . import admin_bp
 
-# Lê o segredo do ambiente (mantém compatibilidade com seu app.py)
-ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "troque-admin")
+# Lê o segredo do ambiente (compatível com app.py)
+ADMIN_SECRET = (os.environ.get("ADMIN_SECRET", "troque-admin") or "").strip()
 
 def require_admin(req):
     """
-    Compatível com o seu mecanismo atual: aceita ?secret=... ou header X-Admin-Secret
+    Verifica o token vindo por query (?secret=...) ou header (X-Admin-Secret).
+    Mantém compatibilidade com o require_admin do app principal.
     """
-    token = req.args.get("secret") or req.headers.get("X-Admin-Secret")
+    token = (req.args.get("secret") or req.headers.get("X-Admin-Secret") or "").strip()
     return bool(ADMIN_SECRET and token == ADMIN_SECRET)
 
-# ========= Login =========
+# ========== Diagnóstico ==========
+@admin_bp.route("/ping")
+def ping():
+    """
+    Endpoint de verificação simples:
+    - Retorna {"ok": true} se o secret fornecido (query/header) estiver correto.
+    - Útil para depurar sem depender de templates.
+    """
+    ok = require_admin(request)
+    return Response(
+        json.dumps({"ok": ok}, ensure_ascii=False),
+        status=200 if ok else 403,
+        mimetype="application/json"
+    )
+
+# ========== Login ==========
 @admin_bp.route("/login", methods=["GET", "POST"])
 def login():
+    """
+    Tela de login do Admin. No POST, valida o secret e redireciona para /admin
+    já propagando ?secret=... na URL (para rotas admin que dependem do query).
+    """
     if request.method == "POST":
         secret = (request.form.get("secret") or "").strip()
         if secret == ADMIN_SECRET:
-            # Redireciona já com o secret na query (mantém compat com require_admin existente)
             return redirect(url_for("admin_bp.home") + f"?secret={secret}")
         flash("Chave secreta inválida.", "error")
         return redirect(url_for("admin_bp.login"))
     return render_template("admin_login.html")
 
-# ========= Home =========
+# ========== Home ==========
 @admin_bp.route("/")
 def home():
-    # Caso não tenha ?secret=, manda pro login
+    """
+    Página inicial do painel admin. Exige secret válido (via query/header).
+    Se não houver, redireciona para a página de login.
+    """
     if not require_admin(request):
         return redirect(url_for("admin_bp.login"))
     return render_template("admin_home.html")
 
-# ========= Logout =========
+# ========== Logout ==========
 @admin_bp.route("/logout")
 def logout():
-    # A limpeza de cache do SW é feita no front (admin_home.html) via postMessage('PURGE_CACHE')
+    """
+    Logout "estateless": apenas redireciona ao login.
+    A limpeza de cache do PWA é iniciada no front (admin_home.html) via postMessage('PURGE_CACHE').
+    """
     flash("Você saiu do painel administrativo.", "info")
     return redirect(url_for("admin_bp.login"))
