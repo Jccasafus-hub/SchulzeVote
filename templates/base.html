@@ -15,13 +15,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="SchulzeVote">
 
-  <!-- (Opcional) Open Graph -->
+  <!-- Open Graph (opcional) -->
   <meta property="og:title" content="SchulzeVote">
   <meta property="og:description" content="Sistema de votação com método de Schulze, auditoria pública e anonimato de cédulas.">
   <meta property="og:image" content="{{ url_for('static', filename='icon-512.png') }}">
   <meta property="og:type" content="website">
 
-  <!-- Estilos base do app -->
+  <!-- Estilos base -->
   <style>
     :root{
       --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
@@ -62,19 +62,19 @@
     small.code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color:var(--muted)}
     .sep{height:1px;background:var(--border);margin:16px 0}
     .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
-    .admin-note{font-size:.9rem;color:#eab308;margin-top:8px}
-    .admin-links a{display:inline-block;margin:6px 8px 0 0}
   </style>
 
   {% block head_extra %}{% endblock %}
 </head>
 <body>
-
   <div class="wrap">
-    <!-- Botão global: voltar ao início público -->
-    <div class="row" style="justify-content:flex-end; margin-bottom:8px">
-      <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao início</a>
-    </div>
+
+    {# Botão de voltar só em páginas internas (não aparece na home) #}
+    {% if request.endpoint not in ["index"] %}
+      <div class="row" style="justify-content:flex-end; margin-bottom:8px">
+        <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao início</a>
+      </div>
+    {% endif %}
 
     {% with msgs = get_flashed_messages(with_categories=true) %}
       {% if msgs %}
@@ -89,7 +89,7 @@
     {% block content %}{% endblock %}
   </div>
 
-  <!-- Registro do Service Worker (escopo raiz) -->
+  <!-- Service Worker (escopo raiz) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
