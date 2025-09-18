@@ -12,8 +12,23 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mude-isto")
 
+# Versão para cache busting (manifest/ícones/SW)
+APP_VERSION = os.environ.get("APP_VERSION", datetime.utcnow().strftime("%Y%m%d%H%M%S"))
+# Expõe para os templates Jinja (usado no base_admin.html)
+app.jinja_env.globals['APP_VERSION'] = APP_VERSION
+
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "troque-admin")
 ID_SALT      = os.environ.get("ID_SALT", "mude-este-salt")
+
+# ===== Blueprint do Admin (login/home/logout sob /admin) =====
+# Certifique-se de ter criado: admin/__init__.py e admin/views.py (que definem admin_bp)
+try:
+    from admin import admin_bp
+    app.register_blueprint(admin_bp)
+except Exception as e:
+    # Se o blueprint ainda não existir, o app continua funcionando sem as rotas /admin/login e /admin/logout.
+    # A rota /admin/home NÃO é registrada aqui para evitar conflitos.
+    print(f"[warn] Admin blueprint não registrado: {e}")
 
 # =============== Arquivos & Pastas ===============
 CAND_FILE       = "candidates.json"
@@ -43,6 +58,7 @@ def key_hash(k: str) -> str:
     return hashlib.sha256((ID_SALT + norm(k)).encode()).hexdigest()
 
 def require_admin(req):
+    # Compatível com fluxo atual: ?secret=... ou header X-Admin-Secret
     token = req.args.get("secret") or req.headers.get("X-Admin-Secret")
     return (ADMIN_SECRET and token == ADMIN_SECRET)
 
@@ -579,13 +595,6 @@ def public_audit(eid):
     with open(p, "r", encoding="utf-8") as f:
         lines = f.readlines()
     return Response(head + "<pre>" + "".join(lines) + "</pre>", mimetype="text/html")
-    
-    # =============== Admin: Home ===============
-@app.route("/admin")
-def admin_home():
-    if not require_admin(request):
-        abort(403)
-    return render_template("admin_home.html")
 
 # =============== /public/elections (metadados + filtros + CSV) ===============
 @app.route("/public/elections")
