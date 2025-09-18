@@ -1,4 +1,3 @@
-<!-- templates/admin_login.html -->
 {% extends "base_admin.html" %}
 {% block title %}SchulzeVote Admin · Login{% endblock %}
 
@@ -7,26 +6,27 @@
   <p class="muted">Informe sua chave de administrador para acessar o painel.</p>
 
   <div class="card">
-    <form method="POST" class="row" style="gap:12px; align-items:flex-end">
+    <!-- action preserva ?secret= que esteja na URL, para não “sumir” após POST inválido -->
+    <form method="POST"
+          action="{{ url_for('admin_bp.admin_login') }}{% if request.args.get('secret') %}?secret={{ request.args.get('secret')|urlencode }}{% endif %}"
+          class="row" style="gap:12px; align-items:flex-end">
       <div style="display:flex; flex-direction:column; gap:6px; min-width:260px">
         <label for="secret">Chave de administrador</label>
         <input id="secret" name="secret" type="password" placeholder="Cole sua chave aqui" required>
-        <a href="#" class="btn ghost" onclick="
-          const i=document.getElementById('secret');
-          i.type = (i.type==='password' ? 'text' : 'password');
-          this.blur();
-          return false;
-        ">ver chave</a>
+
+        <!-- Link discreto “ver chave” (sem .btn) -->
+        <a href="#"
+           onclick="const i=document.getElementById('secret'); i.type = (i.type==='password'?'text':'password'); this.blur(); return false;"
+           style="font-size:.9rem; color:var(--muted); text-decoration:underline; align-self:flex-start;">
+          ver chave
+        </a>
       </div>
+
       <button class="btn accent" type="submit">Entrar</button>
     </form>
   </div>
 
-  <div class="row" style="margin-top:16px">
-    {% if request.args.get('secret') %}
-      <a class="btn" href="/admin/?secret={{ request.args.get('secret')|urlencode }}">Voltar ao painel inicial</a>
-    {% else %}
-      <a class="btn" href="/">Voltar ao início</a>
-    {% endif %}
-  </div>
+  {# Removemos botões de navegação aqui para evitar duplicidade.
+     O base_admin.html deve controlar se mostra “Voltar ao painel” (quando há ?secret=)
+     ou “Voltar ao início” (sem secret). #}
 {% endblock %}
