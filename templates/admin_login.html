@@ -31,7 +31,7 @@
           aria-pressed="false"
           title="Ver chave"
         >
-          👁️ Ver
+          Ver chave
         </button>
       </div>
 
@@ -56,7 +56,7 @@
       btn.addEventListener('click', function(){
         const showing = input.type === 'text';
         input.type = showing ? 'password' : 'text';
-        btn.innerText = showing ? '👁️ Ver' : '🙈 Ocultar';
+        btn.innerText = showing ? 'Ver chave' : 'Ocultar chave';
         btn.setAttribute('aria-pressed', String(!showing));
         btn.title = showing ? 'Ver chave' : 'Ocultar chave';
       });
