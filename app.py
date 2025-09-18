@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from flask import (
-    Flask, render_template, render_template_string, request, redirect, url_for,
+    Flask, render_template, request, redirect, url_for,
     flash, Response, abort, session
 )
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -790,12 +790,14 @@ def admin_export_audit_bundle():
     resp.headers["Content-Disposition"] = f'attachment; filename="audit_bundle_{eid}.zip"'
     return resp
 
-# =============== Admin: Candidatos & Prazo (inline via render_template_string) ===============
+# =============== Admin: Candidatos & Prazo ===============
 @app.route("/admin/candidates", methods=["GET","POST"])
 def admin_candidates():
     if not require_admin(request):
         abort(403)
+
     msg = warn = None
+
     if request.method == "POST":
         action = request.form.get("action", "")
         if action == "save_candidates":
@@ -846,72 +848,8 @@ def admin_candidates():
     else:
         deadline_html = "<p><i>Nenhum prazo definido.</i></p>"
 
-    tmpl = """
-    <!doctype html>
-    <html lang="pt-BR">
-    <head>
-      <meta charset="utf-8"><title>Admin · Candidatos & Prazo</title>
-      <style>
-        body{font-family:system-ui;padding:24px}
-        textarea{width:100%;min-height:200px}
-        .msg{color:green}
-        .warn{color:#b45309}
-      </style>
-    </head>
-    <body>
-      <h1>Admin · Candidatos &amp; Prazo</h1>
-      {% if msg %}<p class="msg">{{ msg }}</p>{% endif %}
-      {% if warn %}<p class="warn">{{ warn }}</p>{% endif %}
-
-      <form method="POST">
-        <input type="hidden" name="action" value="save_candidates">
-        <p><b>Candidatos</b> (um por linha;
-          <i>{{ RESERVED_BLANK }}</i>/<i>{{ RESERVED_NULL }}</i> são fixos no fim):</p>
-        <textarea name="lista">{{ core_text }}</textarea><br><br>
-        <button>Salvar candidatos</button>
-      </form>
-
-      <hr>
-      <h2>Prazo de votação</h2>
-      {{ deadline_html|safe }}
-      <form method="POST">
-        <input type="hidden" name="action" value="set_deadline">
-        <label>Data: <input type="date" name="date"></label>
-        <label>Hora: <input type="time" name="time"></label>
-        <label>Fuso:
-          <select name="tz">
-            <option>America/Sao_Paulo</option>
-            <option>America/Bahia</option>
-            <option>America/Fortaleza</option>
-            <option>America/Recife</option>
-            <option>America/Maceio</option>
-            <option>America/Manaus</option>
-            <option>America/Belem</option>
-            <option>America/Boa_Vista</option>
-            <option>America/Porto_Velho</option>
-            <option>America/Cuiaba</option>
-            <option>America/Campo_Grande</option>
-            <option>America/Noronha</option>
-            <option>UTC</option>
-          </select>
-        </label>
-        <button>Definir prazo</button>
-      </form>
-
-      <form method="POST" style="margin-top:8px">
-        <input type="hidden" name="action" value="clear_deadline">
-        <button>Limpar prazo</button>
-      </form>
-
-      <p style="margin-top:16px">
-        <a href="/admin/election_meta?secret={{ secret_qs|e }}">Metadados da votação</a>
-      </p>
-      <p><a href="/">Início</a></p>
-    </body>
-    </html>
-    """
-    return render_template_string(
-        tmpl,
+    return render_template(
+        "admin_candidates.html",
         msg=msg, warn=warn,
         RESERVED_BLANK=RESERVED_BLANK,
         RESERVED_NULL=RESERVED_NULL,
