@@ -1,1 +1,21 @@
+{% extends "base_admin.html" %}
 
+{% block title %}SchulzeVote Admin · Início{% endblock %}
+
+{% block content %}
+<div class="card">
+  <span class="pill">SchulzeVote Admin</span>
+  <h1>Painel Administrativo</h1>
+  <p class="muted">
+    Bem-vindo ao painel de administração do SchulzeVote. Escolha uma das seções abaixo para gerenciar a eleição atual.
+  </p>
+
+  <div class="row" style="margin-top:14px; flex-direction:column; align-items:flex-start">
+    <a class="btn accent" href="{{ url_for('admin_candidates') }}">Candidatos &amp; Prazo</a>
+    <a class="btn" href="{{ url_for('admin_election_meta') }}">Metadados da votação</a>
+    <a class="btn" href="{{ url_for('admin_audit_raw') }}">Auditoria (JSON)</a>
+    <a class="btn" href="{{ url_for('admin_ballots_raw') }}">Cédulas (JSON)</a>
+    <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao site público</a>
+  </div>
+</div>
+{% endblock %}
