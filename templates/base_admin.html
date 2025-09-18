@@ -59,12 +59,13 @@
 <body>
   <div class="wrap">
 
-    <!-- Botão global: voltar ao painel do admin (preserva secret da query) -->
-    <div class="row" style="justify-content:flex-end; margin-bottom:8px">
-      <a class="btn ghost" href="{{ url_for('admin_bp.home') }}?secret={{ (request.args.get('secret','')|urlencode) }}">Voltar ao painel</a>
-    </div>
+    {# Botão de voltar só em páginas internas (não aparece no painel admin) #}
+    {% if request.endpoint not in ["admin_bp.home"] %}
+      <div class="row" style="justify-content:flex-end; margin-bottom:8px">
+        <a class="btn ghost" href="{{ url_for('admin_bp.home') }}?secret={{ (request.args.get('secret','')|urlencode) }}">Voltar ao painel</a>
+      </div>
+    {% endif %}
 
-    <!-- FLASH MESSAGES -->
     {% with msgs = get_flashed_messages(with_categories=true) %}
       {% if msgs %}
         <div class="card">
@@ -78,7 +79,7 @@
     {% block content %}{% endblock %}
   </div>
 
-  <!-- Registro do SW do Admin (se estiver usando PWA admin) + helper para limpar cache ao sair -->
+  <!-- Service Worker do Admin (se estiver usando) + helper para limpar cache ao sair -->
   <script>
     (function () {
       if ('serviceWorker' in navigator) {
