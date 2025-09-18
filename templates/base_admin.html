@@ -35,18 +35,14 @@
 </head>
 <body>
   <div class="wrap">
-    <!-- Header com um ÚNICO botão de retorno -->
+    <!-- Header: SEM “Voltar ao início”. Apenas “Voltar ao painel”. -->
     <header>
       <div class="left">
         <div class="pill">SchulzeVote · Admin</div>
       </div>
       <div class="right">
         {% set secret = request.args.get('secret') %}
-        {% if secret %}
-          <a class="btn" href="{{ url_for('admin_bp.admin_home') }}?secret={{ secret|urlencode }}">Voltar ao painel</a>
-        {% else %}
-          <a class="btn" href="/">Voltar ao início</a>
-        {% endif %}
+        <a class="btn" href="{{ url_for('admin_bp.admin_home') }}{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Voltar ao painel</a>
       </div>
     </header>
 
