@@ -1,1 +1,29 @@
+{% extends "base_admin.html" %}
 
+{% block title %}Login · SchulzeVote Admin{% endblock %}
+
+{% block content %}
+<div class="card">
+  <span class="pill">SchulzeVote Admin</span>
+  <h1>Login do Administrador</h1>
+
+  <p class="muted">
+    Digite sua chave de administrador para acessar o painel.
+  </p>
+
+  <form method="GET" action="{{ url_for('admin_home') }}">
+    <div class="row" style="flex-direction:column; align-items:flex-start; width:100%; gap:12px">
+      <label style="width:100%">
+        <span>Chave secreta</span><br>
+        <input type="password" name="secret" placeholder="••••••••" required style="width:100%">
+      </label>
+      <button class="btn accent" type="submit">Entrar</button>
+    </div>
+  </form>
+
+  <p class="muted" style="margin-top:14px">
+    Acesso restrito aos responsáveis pela eleição.  
+    <br>Se você não é administrador, volte para a <a href="{{ url_for('index') }}">página inicial</a>.
+  </p>
+</div>
+{% endblock %}
