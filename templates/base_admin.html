@@ -38,19 +38,23 @@
         <div class="pill">SchulzeVote · Admin</div>
       </div>
       <div class="right">
+        {# ------- LÓGICA DO BOTÃO DE RETORNO ------- #}
+        {% set ep = request.endpoint or '' %}
         {% set secret = request.args.get('secret') %}
-        {% if request.endpoint == 'admin_bp.admin_login' %}
-          <!-- Na tela de login, faz sentido voltar ao site público -->
-          <a class="btn" href="/">Voltar ao início</a>
+        {% set is_login = (ep == 'admin_bp.admin_login') %}
+        {% set is_home  = (ep == 'admin_bp.admin_home') %}
 
-        {% elif request.endpoint == 'admin_bp.admin_home' %}
-          <!-- No painel inicial, não mostramos “voltar”.
-               Se quiser, ative o logout com preservação de secret: -->
-          {# <a class="btn ghost" href="{{ url_for('admin_bp.admin_logout') }}{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Sair</a> #}
+        {# NADA no login e NO HOME #}
+        {% if is_login or is_home %}
+          {# sem botões aqui #}
 
-        {% else %}
-          <!-- Nas demais telas do admin, mostrar Voltar ao painel -->
+        {# Nas demais páginas DO ADMIN, mostrar “Voltar ao painel” #}
+        {% elif ep.startswith('admin_bp.') %}
           <a class="btn" href="{{ url_for('admin_bp.admin_home') }}{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Voltar ao painel</a>
+
+        {# Se por algum acaso um template admin for renderizado fora do blueprint, não mostra nada #}
+        {% else %}
+          {# sem botões #}
         {% endif %}
       </div>
     </header>
