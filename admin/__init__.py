@@ -1,13 +1,12 @@
+# admin/__init__.py
 from flask import Blueprint
 
-# Todas as rotas do admin vivem aqui
+# Deixe o Flask usar a pasta /templates da aplicação principal
 admin_bp = Blueprint(
     "admin_bp",
     __name__,
     url_prefix="/admin",
-    template_folder="../templates",
-    static_folder="../static",
 )
 
-# Importa as rotas para registrá-las (deixe no fim para evitar import circular)
+# Importa as rotas no fim para evitar import circular
 from . import views  # noqa: E402,F401
