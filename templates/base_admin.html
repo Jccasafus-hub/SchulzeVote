@@ -6,18 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- PWA -->
-  <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}?v={{ APP_VERSION }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}?v={{ APP_VERSION|default('1') }}">
   <meta name="theme-color" content="#000000">
 
   <!-- Ícones -->
-  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}?v={{ APP_VERSION }}">
-  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}?v={{ APP_VERSION }}">
-
-  <!-- Social -->
-  <meta property="og:title" content="SchulzeVote Admin">
-  <meta property="og:description" content="Painel administrativo do SchulzeVote.">
-  <meta property="og:image" content="{{ url_for('static', filename='admin_icon_512.png') }}?v={{ APP_VERSION }}">
-  <meta property="og:type" content="website">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}?v={{ APP_VERSION|default('1') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}?v={{ APP_VERSION|default('1') }}">
 
   <style>
     :root{ --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb; --accent:#f97316; --accent-2:#f59e0b; --border:#1f242c; --input:#0f1216; }
@@ -31,30 +25,31 @@
     .btn{padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#1b1f27;color:var(--text);text-decoration:none;cursor:pointer}
     .btn:hover{filter:brightness(1.06)}
     .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#111}
-    .btn.ghost{background:transparent;border:1px dashed #2a323d;color:var(--text)}
+    .btn.ghost{background:transparent;border:1px dashed #2a323d}
     input[type=text], input[type=password], input[type=number]{background:var(--input); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:10px; outline:none}
     .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
-    .topbar{display:flex;gap:8px;align-items:center;justify-content:flex-start;margin:0 auto;max-width:920px;padding:12px 28px}
-    .sep{height:1px;background:var(--border);margin:12px 0}
+    header{display:flex;justify-content:space-between;align-items:center;margin:0 0 16px}
+    header .left, header .right{display:flex;gap:10px;align-items:center}
   </style>
   {% block head %}{% endblock %}
 </head>
 <body>
-
-  {# Topbar com botão condicional #}
-  {% set secret_qs = request.args.get('secret', '') %}
-  {% set is_admin_home = request.endpoint in ('admin_bp.admin_home',) %}
-  <div class="topbar">
-    {% if not is_admin_home %}
-      <a class="btn ghost"
-         href="{{ url_for('admin_bp.admin_home') }}{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">
-        Voltar ao painel
-      </a>
-    {% endif %}
-    <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao início</a>
-  </div>
-
   <div class="wrap">
+    <!-- Header com um ÚNICO botão de retorno -->
+    <header>
+      <div class="left">
+        <div class="pill">SchulzeVote · Admin</div>
+      </div>
+      <div class="right">
+        {% set secret = request.args.get('secret') %}
+        {% if secret %}
+          <a class="btn" href="{{ url_for('admin_bp.admin_home') }}?secret={{ secret|urlencode }}">Voltar ao painel</a>
+        {% else %}
+          <a class="btn" href="/">Voltar ao início</a>
+        {% endif %}
+      </div>
+    </header>
+
     {% block content %}{% endblock %}
   </div>
 
