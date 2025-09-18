@@ -1,26 +1,27 @@
 {% extends "base_admin.html" %}
 
-{% block title %}Login · SchulzeVote Admin{% endblock %}
+{% block title %}Login - SchulzeVote Admin{% endblock %}
 
 {% block content %}
   <h1>Login Administrativo</h1>
-  <p class="muted">Insira sua chave secreta para acessar o painel administrativo.</p>
+
+  <div class="card">
+    <form method="POST" action="{{ url_for('admin_bp.login') }}">
+      <label for="secret">Chave Secreta:</label><br>
+      <input type="password" name="secret" id="secret" required placeholder="Digite a chave secreta"><br><br>
+      <button type="submit" class="btn accent">Entrar</button>
+    </form>
+  </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       <ul>
-        {% for category, msg in messages %}
-          <li class="{{ category }}">{{ msg }}</li>
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message }}</li>
         {% endfor %}
       </ul>
     {% endif %}
   {% endwith %}
 
-  <form method="POST" action="{{ url_for('admin_bp.login') }}">
-    <div class="card">
-      <label for="secret"><b>Chave secreta</b></label><br>
-      <input type="password" id="secret" name="secret" placeholder="Digite a chave" required style="width:100%; margin-top:8px;">
-    </div>
-    <button class="btn accent" type="submit">Entrar</button>
-  </form>
+  <p class="muted">Use sua chave secreta definida como <code>ADMIN_SECRET</code>.</p>
 {% endblock %}
