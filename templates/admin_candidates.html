@@ -5,26 +5,34 @@
 {% block content %}
   <h1>Admin · Candidatos &amp; Prazo</h1>
 
-  {% if msg %}<p style="color:#10b981;margin:.5rem 0 0">{{ msg }}</p>{% endif %}
-  {% if warn %}<p style="color:#f59e0b;margin:.5rem 0 0">{{ warn }}</p>{% endif %}
+  {% if msg %}
+    <div class="card"><p class="muted" style="margin:0"><b>OK:</b> {{ msg }}</p></div>
+  {% endif %}
+  {% if warn %}
+    <div class="card"><p class="muted" style="margin:0"><b>AVISO:</b> {{ warn }}</p></div>
+  {% endif %}
 
-  <div class="card" style="margin-top:12px">
+  <div class="card">
     <form method="POST">
       <input type="hidden" name="action" value="save_candidates">
       <p><b>Candidatos</b> (um por linha;
         <i>{{ RESERVED_BLANK }}</i>/<i>{{ RESERVED_NULL }}</i> são fixos no fim):</p>
-      <textarea name="lista" style="width:100%;min-height:220px">{{ core_text }}</textarea><br><br>
-      <button class="btn accent">Salvar candidatos</button>
+
+      <textarea name="lista" class="textarea">{{ core_text }}</textarea>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn accent">Salvar candidatos</button>
+      </div>
     </form>
   </div>
 
   <div class="card">
     <h2>Prazo de votação</h2>
-    <div style="margin:.5rem 0 1rem">
+    <div class="muted" style="margin:.25rem 0 1rem">
       {{ deadline_html|safe }}
     </div>
 
-    <form method="POST" class="row" style="gap:12px;align-items:flex-end">
+    <form method="POST" class="row">
       <input type="hidden" name="action" value="set_deadline">
       <label>Data<br><input type="date" name="date"></label>
       <label>Hora<br><input type="time" name="time"></label>
@@ -48,7 +56,7 @@
       <button class="btn accent" type="submit">Definir prazo</button>
     </form>
 
-    <form method="POST" style="margin-top:10px">
+    <form method="POST" class="row" style="margin-top:10px">
       <input type="hidden" name="action" value="clear_deadline">
       <button class="btn danger" type="submit">Limpar prazo</button>
     </form>
