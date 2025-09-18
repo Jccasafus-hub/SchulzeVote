@@ -1,6 +1,6 @@
 import os
 import json
-from flask import render_template, request, redirect, url_for, flash, Response
+from flask import render_template, request, redirect, url_for, flash, Response, current_app
 from . import admin_bp
 
 # Lê o segredo do ambiente (compatível com app.py)
@@ -35,13 +35,25 @@ def login():
     """
     Tela de login do Admin. No POST, valida o secret e redireciona para /admin
     já propagando ?secret=... na URL (para rotas admin que dependem do query).
+    Mostra mensagens flash em caso de erro.
     """
     if request.method == "POST":
         secret = (request.form.get("secret") or "").strip()
-        if secret == ADMIN_SECRET:
+        ok = (secret == ADMIN_SECRET)
+
+        # Log básico da tentativa (sem revelar o segredo)
+        try:
+            current_app.logger.info("ADMIN login attempt ip=%s ok=%s", request.remote_addr, ok)
+        except Exception:
+            pass
+
+        if ok:
+            # Redireciona para a home com ?secret=... para que links internos funcionem
             return redirect(url_for("admin_bp.home") + f"?secret={secret}")
+
         flash("Chave secreta inválida.", "error")
         return redirect(url_for("admin_bp.login"))
+
     return render_template("admin_login.html")
 
 # ========== Home ==========
