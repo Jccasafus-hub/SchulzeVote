@@ -21,7 +21,7 @@
   <meta property="og:image" content="{{ url_for('static', filename='icon-512.png') }}">
   <meta property="og:type" content="website">
 
-  <!-- Estilos base do app (ajuste/importe os seus CSS aqui) -->
+  <!-- Estilos base do app -->
   <style>
     :root{
       --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
@@ -56,7 +56,15 @@
 </head>
 <body>
 
-  {% block content %}{% endblock %}
+  <div class="wrap">
+
+    <!-- Botão global: voltar ao início público -->
+    <div class="row" style="justify-content:flex-end; margin-bottom:8px">
+      <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao início</a>
+    </div>
+
+    {% block content %}{% endblock %}
+  </div>
 
   <!-- Registro do Service Worker (escopo raiz) -->
   <script>
