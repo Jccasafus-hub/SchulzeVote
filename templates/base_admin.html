@@ -6,12 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- PWA (Admin) -->
-  <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}?v={{ APP_VERSION }}">
   <meta name="theme-color" content="#000000">
 
   <!-- Ícones Admin -->
-  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}">
-  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}?v={{ APP_VERSION }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}?v={{ APP_VERSION }}">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="SchulzeVote Admin">
@@ -31,6 +31,7 @@
     p.muted{color:var(--muted)}
     .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin:14px 0}
     .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+
     .btn{
       padding:12px 14px;border-radius:12px;border:1px solid var(--border);
       background:#1b1f27;color:var(--text);text-decoration:none;cursor:pointer;font-size:.95rem
@@ -41,11 +42,16 @@
     .btn.ghost:hover{background:#1b1f27;color:var(--text)}
     .btn.danger{background:#3a0d0d;border-color:#ef4444;color:#ef4444}
     .btn.danger:hover{filter:brightness(1.2)}
+
     input[type=text],input[type=password],input[type=number]{
       background:var(--input);border:1px solid var(--border);color:var(--text);
       padding:10px 12px;border-radius:10px;outline:none;width:100%
     }
-    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
+    textarea, .textarea{
+      background:var(--input);border:1px solid var(--border);color:var(--text);
+      padding:10px 12px;border-radius:10px;outline:none;width:100%;min-height:220px;
+      font-family:inherit; font-size:1rem;
+    }
   </style>
 
   {% block head %}{% endblock %}
@@ -61,7 +67,7 @@
     <!-- FLASH MESSAGES -->
     {% with msgs = get_flashed_messages(with_categories=true) %}
       {% if msgs %}
-        <div class="card" style="border-color:#b45309;background:#1b140a">
+        <div class="card">
           {% for cat, msg in msgs %}
             <p class="muted" style="margin:0"><b>{{ cat|upper }}:</b> {{ msg }}</p>
           {% endfor %}
@@ -72,11 +78,12 @@
     {% block content %}{% endblock %}
   </div>
 
-  <!-- Registro do SW do Admin (se estiver usando PWA admin) -->
+  <!-- Registro do SW do Admin (se estiver usando PWA admin) + helper para limpar cache ao sair -->
   <script>
     (function () {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/static/sw_admin.js').catch(function(e){ console.warn('SW Admin: falha ao registrar', e); });
+        navigator.serviceWorker.register('{{ url_for("static", filename="sw_admin.js") }}?v={{ APP_VERSION }}')
+          .catch(function(e){ console.warn('SW Admin: falha ao registrar', e); });
       }
       window.logoutAndClearCache = function(href) {
         if ('serviceWorker' in navigator) {
