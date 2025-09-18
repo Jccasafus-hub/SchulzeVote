@@ -1,13 +1,13 @@
 import os
 import json
-from pathlib import Path
 from urllib.parse import quote
-from flask import render_template, request, redirect, url_for, flash, Response, abort
+from flask import render_template, request, redirect, url_for, flash, Response, abort, session
 from . import admin_bp
 
 # === Config / helpers locais (evita import circular com app.py) ===
 ADMIN_SECRET = (os.environ.get("ADMIN_SECRET", "troque-admin") or "").strip()
 ELECTION_FILE = "election.json"
+MAX_ADMIN_ATTEMPTS = int(os.environ.get("ADMIN_LOGIN_MAX_ATTEMPTS", "5"))  # padrão: 5
 
 def require_admin(req) -> bool:
     token = (req.args.get("secret") or req.headers.get("X-Admin-Secret") or "").strip()
@@ -27,12 +27,21 @@ def get_current_election_id() -> str:
     return d.get("election_id", "default")
 
 def _extract_secret(req) -> str:
-    """Obtém o secret da query ou header (sem validar)."""
     return (req.args.get("secret") or req.headers.get("X-Admin-Secret") or "").strip()
 
 def _encoded_secret(req) -> str:
-    """Retorna o secret já URL-encoded para usar nos templates."""
     return quote(_extract_secret(req), safe="")
+
+def _get_attempts() -> int:
+    return int(session.get("admin_attempts", 0))
+
+def _inc_attempts() -> int:
+    n = _get_attempts() + 1
+    session["admin_attempts"] = n
+    return n
+
+def _reset_attempts():
+    session.pop("admin_attempts", None)
 
 # ========== Diagnóstico ==========
 @admin_bp.route("/ping")
@@ -47,14 +56,38 @@ def ping():
 # ========== Login ==========
 @admin_bp.route("/login", methods=["GET", "POST"])
 def login():
+    # Se excedeu o limite, bloqueia antes mesmo de processar
+    if request.method == "POST" and _get_attempts() >= MAX_ADMIN_ATTEMPTS:
+        flash("Limite de tentativas atingido para esta sessão do navegador. Tente novamente mais tarde.", "error")
+        return redirect(url_for("admin_bp.login"))
+
     if request.method == "POST":
         secret = (request.form.get("secret") or "").strip()
-        if secret == ADMIN_SECRET:
+        ok = (secret == ADMIN_SECRET)
+
+        if ok:
+            _reset_attempts()
             encoded = quote(secret, safe="")  # evita quebrar URL com #, &, +, !
             return redirect(url_for("admin_bp.home") + f"?secret={encoded}")
-        flash("Chave secreta inválida.", "error")
+
+        # Falhou: incrementa e informa restantes
+        used = _inc_attempts()
+        remaining = max(0, MAX_ADMIN_ATTEMPTS - used)
+        if remaining == 0:
+            msg = "Chave secreta inválida. Você atingiu o limite de tentativas para esta sessão."
+        else:
+            msg = f"Chave secreta inválida. {remaining} tentativa(s) restante(s)."
+        flash(msg, "error")
         return redirect(url_for("admin_bp.login"))
-    return render_template("admin_login.html")
+
+    # GET
+    # Passamos o limite para exibir no template (texto informativo)
+    return render_template(
+        "admin_login.html",
+        max_attempts=MAX_ADMIN_ATTEMPTS,
+        attempts_used=_get_attempts(),
+        secret=_encoded_secret(request)  # opcional: preserva ?secret= se veio por query
+    )
 
 # ========== Home ==========
 @admin_bp.route("/")
@@ -68,6 +101,6 @@ def home():
 # ========== Logout ==========
 @admin_bp.route("/logout")
 def logout():
-    # Limpeza de cache é disparada no front (base_admin.html) via postMessage('PURGE_CACHE')
+    _reset_attempts()
     flash("Você saiu do painel administrativo.", "info")
     return redirect(url_for("admin_bp.login"))
