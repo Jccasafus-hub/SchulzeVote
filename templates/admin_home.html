@@ -1,30 +1,34 @@
 {% extends "base_admin.html" %}
 
-{% block title %}SchulzeVote Admin · Início{% endblock %}
+{% block title %}Painel Administrativo · SchulzeVote{% endblock %}
 
 {% block content %}
-<div class="card">
-  <span class="pill">SchulzeVote Admin</span>
   <h1>Painel Administrativo</h1>
-  <p class="muted">
-    Bem-vindo ao painel de administração do SchulzeVote. Escolha uma das seções abaixo para gerenciar a eleição atual.
-  </p>
+  <p class="muted">Bem-vindo ao painel do administrador.</p>
 
-  <div class="row" style="margin-top:14px; flex-direction:column; align-items:flex-start">
-    <!-- Rotas que permanecem no app.py; propagamos o secret da query -->
-    <a class="btn accent" href="{{ url_for('admin_candidates') }}?secret={{ request.args.get('secret','') }}">Candidatos &amp; Prazo</a>
-    <a class="btn" href="{{ url_for('admin_election_meta') }}?secret={{ request.args.get('secret','') }}">Metadados da votação</a>
-    <a class="btn" href="{{ url_for('admin_audit_raw') }}?secret={{ request.args.get('secret','') }}">Auditoria (JSON)</a>
-    <a class="btn" href="{{ url_for('admin_ballots_raw') }}?secret={{ request.args.get('secret','') }}">Cédulas (JSON)</a>
-    <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao site público</a>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul>
+        {% for category, msg in messages %}
+          <li class="{{ category }}">{{ msg }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
 
-    <!-- Sair com PURGE_CACHE: chama função definida no base_admin.html -->
-    <a
-      id="admin-logout"
-      class="btn danger"
-      href="#"
-      onclick="logoutAndClearCache('{{ url_for('admin_bp.logout') }}'); return false;"
-    >Sair</a>
+  <div class="card">
+    <h2>Atalhos</h2>
+    <ul>
+      <li><a href="{{ url_for('admin_bp.candidates') }}?secret={{ secret }}">Gerenciar candidatos e prazo</a></li>
+      <li><a href="{{ url_for('admin_bp.election_meta') }}?secret={{ secret }}">Metadados da votação</a></li>
+      <li><a href="{{ url_for('admin_bp.backup_zip') }}?secret={{ secret }}">Backup completo (ZIP)</a></li>
+      <li><a href="{{ url_for('admin_bp.backup_zip_eid') }}?secret={{ secret }}&eid={{ current_eid }}">Backup de eleição específica</a></li>
+      <li><a href="{{ url_for('admin_bp.audit_raw') }}?secret={{ secret }}&eid={{ current_eid }}">Ver auditoria (JSON cru)</a></li>
+      <li><a href="{{ url_for('admin_bp.ballots_raw') }}?secret={{ secret }}&eid={{ current_eid }}">Ver cédulas (JSON cru)</a></li>
+    </ul>
   </div>
-</div>
+
+  <p style="margin-top:16px">
+    <a href="{{ url_for('index') }}">Voltar ao site público</a>
+  </p>
 {% endblock %}
