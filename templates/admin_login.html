@@ -11,7 +11,7 @@
     Digite sua chave de administrador para acessar o painel.
   </p>
 
-  <form method="GET" action="{{ url_for('admin_home') }}">
+  <form method="POST" action="{{ url_for('admin_login') }}">
     <div class="row" style="flex-direction:column; align-items:flex-start; width:100%; gap:12px">
       <label style="width:100%">
         <span>Chave secreta</span><br>
@@ -22,8 +22,7 @@
   </form>
 
   <p class="muted" style="margin-top:14px">
-    Acesso restrito aos responsáveis pela eleição.  
-    <br>Se você não é administrador, volte para a <a href="{{ url_for('index') }}">página inicial</a>.
+    Se você não é administrador, volte para a <a href="{{ url_for('index') }}">página inicial</a>.
   </p>
 </div>
 {% endblock %}
