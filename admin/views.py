@@ -110,3 +110,7 @@ def logout():
     if secret_encoded:
         return redirect(url_for("admin_bp.login") + f"?secret={secret_encoded}")
     return redirect(url_for("admin_bp.login"))
+
+@admin_bp.route("/_hello")
+def admin_hello():
+    return "admin ok"
