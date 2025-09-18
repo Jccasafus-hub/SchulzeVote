@@ -1,15 +1,12 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <title>{% block title %}SchulzeVote Admin{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- PWA -->
   <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}?v={{ APP_VERSION|default('1') }}">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#000000" />
 
-  <!-- Ícones -->
   <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}?v={{ APP_VERSION|default('1') }}">
   <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}?v={{ APP_VERSION|default('1') }}">
 
@@ -31,18 +28,30 @@
     header{display:flex;justify-content:space-between;align-items:center;margin:0 0 16px}
     header .left, header .right{display:flex;gap:10px;align-items:center}
   </style>
+
   {% block head %}{% endblock %}
 </head>
 <body>
   <div class="wrap">
-    <!-- Header: SEM “Voltar ao início”. Apenas “Voltar ao painel”. -->
     <header>
       <div class="left">
         <div class="pill">SchulzeVote · Admin</div>
       </div>
       <div class="right">
         {% set secret = request.args.get('secret') %}
-        <a class="btn" href="{{ url_for('admin_bp.admin_home') }}{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Voltar ao painel</a>
+        {% if request.endpoint == 'admin_bp.admin_login' %}
+          <!-- Na tela de login, faz sentido voltar ao site público -->
+          <a class="btn" href="/">Voltar ao início</a>
+
+        {% elif request.endpoint == 'admin_bp.admin_home' %}
+          <!-- No painel inicial, não mostramos “voltar”.
+               Se quiser, ative o logout com preservação de secret: -->
+          {# <a class="btn ghost" href="{{ url_for('admin_bp.admin_logout') }}{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Sair</a> #}
+
+        {% else %}
+          <!-- Nas demais telas do admin, mostrar Voltar ao painel -->
+          <a class="btn" href="{{ url_for('admin_bp.admin_home') }}{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Voltar ao painel</a>
+        {% endif %}
       </div>
     </header>
 
