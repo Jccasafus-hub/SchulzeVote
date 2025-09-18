@@ -1,43 +1,35 @@
 {% extends "base_admin.html" %}
-
-{% block title %}Admin · Candidatos & Prazo{% endblock %}
+{% block title %}SchulzeVote Admin · Candidatos & Prazo{% endblock %}
 
 {% block content %}
-  <h1>Admin · Candidatos &amp; Prazo</h1>
-
-  {% if msg %}
-    <div class="card"><p class="muted" style="margin:0"><b>OK:</b> {{ msg }}</p></div>
-  {% endif %}
-  {% if warn %}
-    <div class="card"><p class="muted" style="margin:0"><b>AVISO:</b> {{ warn }}</p></div>
-  {% endif %}
+  <h1>Candidatos &amp; Prazo</h1>
+  {% if msg %}<p style="color:#10b981">{{ msg }}</p>{% endif %}
+  {% if warn %}<p style="color:#eab308">{{ warn }}</p>{% endif %}
 
   <div class="card">
-    <form method="POST">
+    <h3 style="margin:0 0 8px 0">Candidatos</h3>
+    <p class="muted">
+      Um por linha. <i>{{ RESERVED_BLANK }}</i> e <i>{{ RESERVED_NULL }}</i> são fixos no fim da lista.
+    </p>
+    <form method="POST" class="row" style="flex-direction:column; gap:12px; align-items:stretch">
       <input type="hidden" name="action" value="save_candidates">
-      <p><b>Candidatos</b> (um por linha;
-        <i>{{ RESERVED_BLANK }}</i>/<i>{{ RESERVED_NULL }}</i> são fixos no fim):</p>
-
-      <textarea name="lista" class="textarea">{{ core_text }}</textarea>
-
-      <div class="row" style="margin-top:12px">
-        <button class="btn accent">Salvar candidatos</button>
+      <textarea name="lista" style="min-height:220px;background:var(--input);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px">{{ core_text }}</textarea>
+      <div class="row" style="justify-content:flex-start">
+        <button class="btn accent" type="submit">Salvar candidatos</button>
       </div>
     </form>
   </div>
 
   <div class="card">
-    <h2>Prazo de votação</h2>
-    <div class="muted" style="margin:.25rem 0 1rem">
-      {{ deadline_html|safe }}
-    </div>
+    <h3 style="margin:0 0 8px 0">Prazo de votação</h3>
+    <div class="muted" style="margin:8px 0">{{ deadline_html|safe }}</div>
 
-    <form method="POST" class="row">
+    <form method="POST" class="row" style="flex-wrap:wrap; gap:12px; align-items:end">
       <input type="hidden" name="action" value="set_deadline">
       <label>Data<br><input type="date" name="date"></label>
       <label>Hora<br><input type="time" name="time"></label>
       <label>Fuso<br>
-        <select name="tz">
+        <select name="tz" style="background:var(--input);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:10px">
           <option>America/Sao_Paulo</option>
           <option>America/Bahia</option>
           <option>America/Fortaleza</option>
@@ -53,12 +45,17 @@
           <option>UTC</option>
         </select>
       </label>
-      <button class="btn accent" type="submit">Definir prazo</button>
+      <button class="btn" type="submit">Definir prazo</button>
     </form>
 
-    <form method="POST" class="row" style="margin-top:10px">
+    <form method="POST" style="margin-top:8px">
       <input type="hidden" name="action" value="clear_deadline">
-      <button class="btn danger" type="submit">Limpar prazo</button>
+      <button class="btn ghost" type="submit">Limpar prazo</button>
     </form>
+
+    <div class="sep"></div>
+    <div class="row">
+      <a class="btn" href="/admin/election_meta?secret={{ secret_qs|urlencode }}">Metadados da votação</a>
+    </div>
   </div>
 {% endblock %}
