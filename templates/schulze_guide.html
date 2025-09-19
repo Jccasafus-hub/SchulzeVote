@@ -53,6 +53,7 @@
       Intuição: se A não vence B diretamente, talvez A vença C fortemente e C vença B fortemente;
       esse “caminho” A→C→B pode ser tão ou mais forte que o caminho de volta B→…→A. O Schulze compara essas forças.
     </p>
+    <img src="{{ url_for('static', filename='img/visao-geral.png') }}" alt="Fluxo resumido do método de Schulze" style="max-width:100%;margin-top:12px">
   </div>
 
   <!-- Definição formal -->
@@ -71,6 +72,7 @@
     <p class="muted">
       Observação: no Schulze clássico usa-se um algoritmo no estilo Floyd-Warshall para computar rapidamente <code>p[a][b]</code>.
     </p>
+    <img src="{{ url_for('static', filename='img/formal-def.png') }}" alt="Esquema da definição formal do método de Schulze" style="max-width:100%;margin-top:12px">
   </div>
 
   <!-- Exemplo simples -->
@@ -91,6 +93,7 @@
       <li>B×C: B=3, C=2 → força direta B→C=3</li>
     </ul>
     <p><b>Caminhos</b>: A vence B e C diretamente; B vence C. Logo <b>A</b> é vencedor de Schulze.</p>
+    <img src="{{ url_for('static', filename='img/exemplo-simples.png') }}" alt="Exemplo simples ilustrado do método de Schulze" style="max-width:100%;margin-top:12px">
   </div>
 
   <!-- Exemplo com ciclo -->
@@ -112,6 +115,7 @@
       Há um <b>ciclo</b>. O Schulze escolhe o(s) vencedor(es) olhando os <b>melhores caminhos</b> entre cada par;
       quem tiver caminhos sempre tão fortes quanto os do oponente (ou mais) “não perde para ninguém”.
     </p>
+    <img src="{{ url_for('static', filename='img/exemplo-ciclo.png') }}" alt="Exemplo de ciclo no método de Schulze" style="max-width:100%;margin-top:12px">
   </div>
 
   <!-- Empates e critérios -->
@@ -181,6 +185,7 @@
       <li><b>Posso repetir números?</b> Evite; use 1,2,3… sem empates.</li>
       <li><b>E se houver empate final?</b> Pode haver co-vencedores. A comissão define política local.</li>
       <li><b>O que guardar do processo?</b> Resultados, auditoria e o <i>bundle</i> de auditoria ao final.</li>
+      <li><b>Pesos de voto são suportados?</b> Sim no app real; no simulador abaixo usamos contagens por perfil como “peso”.</li>
     </ul>
   </div>
 
@@ -257,7 +262,6 @@
     return e;
   }
   function byId(id){ return document.getElementById(id); }
-  function arrayEq(a,b){ return JSON.stringify(a)===JSON.stringify(b); }
 
   // ===== Estado do simulador =====
   let CANDS = ['A','B','C'];
@@ -269,7 +273,7 @@
     CANDS.forEach((c,idx)=>{
       const pill = el('span',{class:'pill'},c);
       const rm = el('a',{href:'#',style:'margin-left:6px'},'remover');
-      rm.onclick = (ev)=>{ ev.preventDefault(); CANDS.splice(idx,1); // remove também dos perfis
+      rm.onclick = (ev)=>{ ev.preventDefault(); CANDS.splice(idx,1);
         PROFILES.forEach(p=>{ p.order = p.order.filter(x=>x!==c); });
         renderCands(); renderProfiles();
       };
@@ -294,18 +298,16 @@
     if(PROFILES.length===0){
       PROFILES = [
         {order:['A','B','C'], n:3},
-        {order:['B','C','A'], n:2},
-        {order:['C','A','B'], n:0},
+        {order:['A','C','B'], n:2},
+        {order:['B','C','A'], n:0},
       ];
     }
     PROFILES.forEach((p,idx)=>{
-      // linha do perfil
       const row = el('div',{class:'row',style:'gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0'});
       // ordem editável
       const sel = el('input',{type:'text',value:p.order.join('>'),style:'min-width:220px'});
-      sel.onchange = ()=>{ // parse tipo "A>B>C"
+      sel.onchange = ()=>{
         const parts = sel.value.split('>').map(s=>s.trim()).filter(Boolean);
-        // mantém apenas candidatos conhecidos e na ordem dada; adiciona faltantes ao final
         const seen = new Set(); const cleaned=[];
         parts.forEach(x=>{ if(CANDS.includes(x) && !seen.has(x)){ cleaned.push(x); seen.add(x); } });
         CANDS.forEach(x=>{ if(!seen.has(x)) cleaned.push(x); });
@@ -345,19 +347,17 @@
   // ----- Cálculo Schulze
   function runSim(){
     if(CANDS.length<2){ alert('Adicione ao menos 2 candidatos.'); return; }
-    // d[a][b]
-    const d = {}; const s = {};
-    CANDS.forEach(a=>{ d[a]={}; s[a]={}; CANDS.forEach(b=>{ if(a!==b){ d[a][b]=0; s[a][b]=0; } }); });
+    // d[a][b] e p[a][b]
+    const d = {}; const p = {};
+    CANDS.forEach(a=>{ d[a]={}; p[a]={}; CANDS.forEach(b=>{ if(a!==b){ d[a][b]=0; p[a][b]=0; } }); });
 
     // acumula par-a-par
-    PROFILES.forEach(p=>{
-      const pos={}; p.order.forEach((c,i)=>pos[c]=i);
+    PROFILES.forEach(pf=>{
+      const pos={}; pf.order.forEach((c,i)=>pos[c]=i);
       CANDS.forEach(a=>{
         CANDS.forEach(b=>{
           if(a===b) return;
-          // se ambos ausentes de p.order (não deve ocorrer pois garantimos inclusão), não conta
-          // se a antes de b na ordem => a>b
-          if(pos[a] < pos[b]) d[a][b] += (p.n||0);
+          if(pos[a] < pos[b]) d[a][b] += (pf.n||0); // a preferido a b
         });
       });
     });
@@ -366,7 +366,7 @@
     CANDS.forEach(a=>{
       CANDS.forEach(b=>{
         if(a===b) return;
-        s[a][b] = (d[a][b] > d[b][a]) ? d[a][b] : 0;
+        p[a][b] = (d[a][b] > d[b][a]) ? d[a][b] : 0;
       });
     });
 
@@ -376,21 +376,21 @@
         if(i===j) return;
         CANDS.forEach(k=>{
           if(i===k || j===k) return;
-          s[j][k] = Math.max(s[j][k], Math.min(s[j][i], s[i][k]));
+          p[j][k] = Math.max(p[j][k], Math.min(p[j][i], p[i][k]));
         });
       });
     });
 
     // vencedores (não perdem para ninguém)
-    const winners = CANDS.filter(x => CANDS.every(y => y===x || s[x][y] >= s[y][x]));
+    const winners = CANDS.filter(x => CANDS.every(y => y===x || p[x][y] >= p[y][x]));
 
     // score auxiliar (wins/losses) para ordenação ilustrativa
     function score(x){
       let wins=0, losses=0;
       CANDS.forEach(y=>{
         if(y===x) return;
-        if(s[x][y] > s[y][x]) wins++;
-        else if(s[y][x] > s[x][y]) losses++;
+        if(p[x][y] > p[y][x]) wins++;
+        else if(p[y][x] > p[x][y]) losses++;
       });
       return {wins, losses};
     }
@@ -404,7 +404,7 @@
     const out = [];
     out.push('<div class="row" style="flex-wrap:wrap; gap:18px">');
     out.push('<div><b>Par-a-par (d[a][b])</b><br>'+renderMatrix(d)+'</div>');
-    out.push('<div><b>Caminhos mais fortes (p[a][b])</b><br>'+renderMatrix(s)+'</div>');
+    out.push('<div><b>Caminhos mais fortes (p[a][b])</b><br>'+renderMatrix(p)+'</div>');
     out.push('</div>');
     out.push('<p><b>Vencedor(es) de Schulze:</b> '+(winners.length? winners.join(', ') : '(nenhum)')+'</p>');
     out.push('<p class="muted"><b>Ordem ilustrativa</b> (wins, -losses): '+ordered.join(' &gt; ')+'</p>');
