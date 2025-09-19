@@ -1,474 +1,434 @@
 {% extends "base.html" %}
-{% block title %}Como funciona o Método de Schulze · SchulzeVote{% endblock %}
+{% block title %}SchulzeVote · Guia completo do método de Schulze{% endblock %}
 
 {% block content %}
-  <div class="wrap">
-    <h1>Método de Schulze — explicação simples</h1>
-    <p class="muted">Entenda como as preferências viram um ranking final justo e auditável. Abaixo há um simulador interativo.</p>
+<div class="wrap">
+  <h1>Guia do método de Schulze</h1>
+  <p class="muted">
+    Este guia explica o funcionamento do método de Schulze (votação por preferências), com visão rápida,
+    definição formal, exemplos (incluindo ciclo), critérios de desempate, votos parciais, e como tratamos
+    <b>Voto em Branco</b> e <b>Voto Nulo</b>. No fim há um <b>simulador interativo</b>.
+  </p>
 
-    <div class="card">
-      <h2>Ideia geral</h2>
-      <ol>
-        <li>Cada pessoa ordena os candidatos por preferência (1º, 2º, 3º...).</li>
-        <li>Comparamos cada par (A×B, A×C...) e contamos quantos eleitores preferem X a Y: <b>d(X,Y)</b>.</li>
-        <li>Calculamos os <b>caminhos mais fortes</b>: a força de um caminho é o <i>mínimo</i> das vitórias ao longo dele; <b>p(X,Y)</b> é o máximo entre todos os caminhos X→Y.</li>
-        <li>Ranking final: para cada par X,Y, comparamos <b>p(X,Y)</b> vs <b>p(Y,X)</b> (regra de Schulze).</li>
-      </ol>
-    </div>
-
-    <div class="card">
-      <h2>Exemplo pequeno (fixo)</h2>
-      <p>3 candidatos: <b>A</b>, <b>B</b>, <b>C</b>. 7 eleitores:</p>
-      <ul>
-        <li>3: A &gt; B &gt; C</li>
-        <li>2: B &gt; C &gt; A</li>
-        <li>2: C &gt; A &gt; B</li>
-      </ul>
-      <p>Confrontos diretos: A×B (5×2), A×C (3×4), B×C (5×2). O Schulze resulta em <b>A &gt; B &gt; C</b>.</p>
-    </div>
-
-    <div class="card">
-      <h2>Como tratamos “Voto em Branco” e “Voto Nulo”</h2>
-      <p>No SchulzeVote, essas opções são <b>candidatos especiais</b>, sempre presentes ao final da lista:</p>
-      <ul>
-        <li><b>Voto em Branco</b>: a cédula registra preferência por <i>Voto em Branco</i> acima dos demais nomes.</li>
-        <li><b>Voto Nulo</b>: a cédula registra preferência por <i>Voto Nulo</i> acima dos demais nomes.</li>
-      </ul>
-      <p class="muted">Eles participam dos pares. Se muitos escolhem “Branco”, d(Branco,X) cresce — e Branco pode até liderar no ranking se for majoritário.</p>
-    </div>
-
-    <!-- ====== SIMULADOR ====== -->
-    <div class="card">
-      <h2>Simulador interativo (N candidatos)</h2>
-      <p>Edite a matriz <b>d(X,Y)</b> abaixo. O sistema calcula <b>p(X,Y)</b> (caminhos mais fortes) e o <b>ranking Schulze</b> automaticamente.</p>
-
-      <div class="row" style="gap:8px;margin:10px 0">
-        <label class="pill">Candidatos:
-          <select id="preset-select" style="background:var(--input);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 6px;margin-left:6px">
-            <option value="ABC">A,B,C (exemplo)</option>
-            <option value="ABCD">A,B,C,D</option>
-            <option value="ABCDE">A,B,C,D,E</option>
-            <option value="custom">Personalizado…</option>
-          </select>
-        </label>
-        <button class="btn" id="btn-add">+ Adicionar candidato</button>
-        <button class="btn ghost" id="btn-remove">– Remover último</button>
-        <button class="btn" id="btn-reset">Resetar exemplo</button>
-        <button class="btn ghost" id="btn-clear">Zerar matriz</button>
-        <button class="btn" id="btn-share">Gerar link do cenário</button>
-        <button class="btn ghost" id="btn-open-link">Abrir link</button>
-      </div>
-
-      <!-- ===== Branco/Nulo controls ===== -->
-      <div class="card" style="padding:12px;margin-top:10px">
-        <h4 style="margin:0 0 8px 0">Branco/Nulo no simulador</h4>
-        <div class="row" style="gap:8px;align-items:flex-end">
-          <label class="pill">
-            <input id="bn-toggle" type="checkbox" style="vertical-align:middle;margin-right:6px">
-            Incluir <b>Voto em Branco</b> e <b>Voto Nulo</b>
-          </label>
-
-          <div>
-            <label class="pill" style="display:inline-block">Eleitores “Branco”:
-              <input id="bn-branco" type="number" min="0" step="1" value="0"
-                     style="margin-left:6px;width:90px;background:var(--input);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 6px">
-            </label>
-          </div>
-          <div>
-            <label class="pill" style="display:inline-block">Eleitores “Nulo”:
-              <input id="bn-nulo" type="number" min="0" step="1" value="0"
-                     style="margin-left:6px;width:90px;background:var(--input);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 6px">
-            </label>
-          </div>
-
-          <button class="btn" id="bn-apply">Aplicar (preferência acima dos demais)</button>
-          <button class="btn ghost" id="bn-neutral">Modo neutro (sem interferir)</button>
-        </div>
-        <p class="muted" style="margin:.5rem 0 0">
-          Aplicar = incrementa d(Branco,X) e d(Nulo,X) contra todos os demais X, simulando cédulas em que “Branco/Nulo” vêm no topo.
-          Modo neutro = zera pares envolvendo Branco/Nulo (efeito informativo, sem alterar o vencedor entre os demais).
-        </p>
-      </div>
-
-      <div class="card" style="padding:12px">
-        <h4 style="margin:0 0 8px 0">Editar d(X,Y)</h4>
-        <div style="overflow:auto">
-          <table id="table-d-edit" style="border-collapse:collapse;min-width:520px"></table>
-        </div>
-        <p class="muted" style="margin:.5rem 0 0">
-          Dica: preencha apenas o que for relevante. A diagonal é “—”. Valores são não-negativos (0,1,2…).
-        </p>
-      </div>
-
-      <div class="grid" style="margin-top:12px">
-        <div class="card" style="padding:12px">
-          <h4 style="margin:0 0 8px 0">Matriz p(X,Y)</h4>
-          <div style="overflow:auto">
-            <table id="table-p-view" style="border-collapse:collapse;min-width:520px"></table>
-          </div>
-        </div>
-        <div class="card" style="padding:12px">
-          <h4 style="margin:0 0 8px 8px">Comparações e ranking</h4>
-          <div id="pairwise-summary" class="muted" style="margin:8px"></div>
-          <div style="margin:8px 8px 0 8px"><b>Ranking Schulze:</b> <span id="ranking-out">—</span></div>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:12px">
-        <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao início</a>
-      </div>
+  <!-- Sumário -->
+  <div class="card">
+    <h3 style="margin:0 0 10px 0">Sumário</h3>
+    <div class="row" style="flex-wrap:wrap;gap:8px">
+      <a class="btn ghost" href="#visao-geral">Visão geral</a>
+      <a class="btn ghost" href="#definicao-formal">Definição formal</a>
+      <a class="btn ghost" href="#exemplo-simples">Exemplo simples</a>
+      <a class="btn ghost" href="#exemplo-ciclo">Exemplo com ciclo</a>
+      <a class="btn ghost" href="#empates">Empates e critérios</a>
+      <a class="btn ghost" href="#parciais">Votos parciais/ausentes</a>
+      <a class="btn ghost" href="#branco-nulo">Branco e Nulo</a>
+      <a class="btn ghost" href="#auditoria">Auditoria pública</a>
+      <a class="btn ghost" href="#faq">FAQ</a>
+      <a class="btn accent" href="#simulador">Simulador</a>
     </div>
   </div>
 
-  {% block scripts_extra %}
-  <script>
-  (function(){
-    // ===== util =====
-    const cssCell = 'border:1px solid var(--border);padding:6px;text-align:center;';
-    const cssHead = 'border:1px solid var(--border);padding:6px;background:#0f1319;';
-    const cssInp  = 'width:80px;background:var(--input);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 8px;';
-    const BRANCO = 'Voto em Branco';
-    const NULO   = 'Voto Nulo';
+  <!-- Alternador Resumo / Detalhado -->
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div><b>Modo de leitura</b></div>
+      <div class="row">
+        <button class="btn" onclick="setMode('resumo')">Resumo</button>
+        <button class="btn ghost" onclick="setMode('detalhado')">Detalhado</button>
+      </div>
+    </div>
+    <p id="modeTip" class="muted" style="margin-top:8px"></p>
+  </div>
 
-    function clampInt(v){
-      if (v === '' || v === null || v === undefined) return 0;
-      const n = parseInt(v, 10);
-      return isNaN(n) || n < 0 ? 0 : n;
-    }
+  <!-- Visão geral -->
+  <div id="visao-geral" class="card mode-resumo mode-detalhado">
+    <h2 style="margin-top:0">Visão geral (como o eleitor vota e como contamos)</h2>
+    <ul>
+      <li><b>Você ordena candidatos</b> conforme preferência: 1º, 2º, 3º… (ranking). Pode deixar alguns sem número (parcial).</li>
+      <li>Comparamos candidatos <b>par a par</b> para contar quantos eleitores preferem A a B, B a C etc.</li>
+      <li>Calculamos os <i>caminhos mais fortes</i> entre pares usando essas vitórias diretas.</li>
+      <li>O(s) <b>vencedor(es) de Schulze</b> são aqueles que não são “derrotados” por nenhum outro candidato quando
+          consideramos o melhor caminho de vitórias que vai de um ao outro.</li>
+    </ul>
+    <p class="muted">
+      Intuição: se A não vence B diretamente, talvez A vença C fortemente e C vença B fortemente;
+      esse “caminho” A→C→B pode ser tão ou mais forte que o caminho de volta B→…→A. O Schulze compara essas forças.
+    </p>
+  </div>
 
-    // ===== estado =====
-    let names = ['A','B','C'];
-    let d = {};
-    function initD(){
-      d = {};
-      names.forEach(x=>{
-        d[x] = {};
-        names.forEach(y=> d[x][y] = (x===y?0:0));
-      });
-    }
-    function seedExampleABC(){
-      names = ['A','B','C'];
-      d = {
-        'A': {'A':0,'B':5,'C':3},
-        'B': {'A':2,'B':0,'C':5},
-        'C': {'A':4,'B':2,'C':0},
-      };
-    }
+  <!-- Definição formal -->
+  <div id="definicao-formal" class="card mode-detalhado">
+    <h2 style="margin-top:0">Definição formal (resumo técnico)</h2>
+    <ol>
+      <li><b>Preferência par-a-par</b>: para cada par distinto (a,b), defina <code>d[a][b]</code> como
+          o número (ou soma de pesos) de eleitores que preferem a&gt;b.</li>
+      <li><b>Força direta</b>: a força direta de a→b é <code>d[a][b]</code> se <code>d[a][b] &gt; d[b][a]</code>, senão 0.</li>
+      <li><b>Caminho e sua força</b>: a força de um caminho a→…→b é o <b>mínimo</b> das forças diretas ao longo dele
+          (princípio da “garrafa estreita”).</li>
+      <li><b>Melhor caminho</b>: <code>p[a][b]</code> é a <b>máxima</b> força dentre todos os caminhos de a para b.</li>
+      <li><b>Comparação final</b>: dizemos que a “não perde para b” se <code>p[a][b] ≥ p[b][a]</code>.
+          Os vencedores são os candidatos que “não perdem para ninguém”.</li>
+    </ol>
+    <p class="muted">
+      Observação: no Schulze clássico usa-se um algoritmo no estilo Floyd-Warshall para computar rapidamente <code>p[a][b]</code>.
+    </p>
+  </div>
 
-    // ===== Schulze =====
-    function schulzeP(d, names){
-      const n = names.length;
-      const p = {};
-      for (let i=0;i<n;i++){
-        const xi = names[i];
-        p[xi] = {};
-        for (let j=0;j<n;j++){
-          const yj = names[j];
-          p[xi][yj] = (i===j) ? 0 : (d[xi][yj] > d[yj][xi] ? d[xi][yj] : 0);
-        }
-      }
-      for (let i=0;i<n;i++){
-        const vi = names[i];
-        for (let j=0;j<n;j++){
-          if (i===j) continue;
-          const vj = names[j];
-          for (let k=0;k<n;k++){
-            if (i===k || j===k) continue;
-            const vk = names[k];
-            const via = Math.min(p[vj][vi], p[vi][vk]);
-            if (via > p[vj][vk]) p[vj][vk] = via;
-          }
-        }
-      }
-      return p;
-    }
+  <!-- Exemplo simples -->
+  <div id="exemplo-simples" class="card mode-resumo mode-detalhado">
+    <h2 style="margin-top:0">Exemplo simples (3 candidatos)</h2>
+    <p>Suponha os votos (todos peso 1):</p>
+    <ol>
+      <li>A &gt; B &gt; C</li>
+      <li>A &gt; C &gt; B</li>
+      <li>B &gt; C &gt; A</li>
+      <li>C &gt; B &gt; A</li>
+      <li>A &gt; B &gt; C</li>
+    </ol>
+    <p><b>Par-a-par</b> (quantos preferem um ao outro):</p>
+    <ul>
+      <li>A×B: A=3, B=2 → força direta A→B=3</li>
+      <li>A×C: A=3, C=2 → força direta A→C=3</li>
+      <li>B×C: B=3, C=2 → força direta B→C=3</li>
+    </ul>
+    <p><b>Caminhos</b>: A vence B e C diretamente; B vence C. Logo <b>A</b> é vencedor de Schulze.</p>
+  </div>
 
-    function computeRanking(p, names){
-      const n = names.length;
-      const wins = {}, losses = {};
-      names.forEach(nm => { wins[nm]=0; losses[nm]=0; });
-      for (let i=0;i<n;i++){
-        for (let j=i+1;j<n;j++){
-          const a=names[i], b=names[j];
-          const pab=p[a][b], pba=p[b][a];
-          if (pab>pba){ wins[a]++; losses[b]++; }
-          else if (pba>pab){ wins[b]++; losses[a]++; }
-        }
-      }
-      const arr = names.slice().sort((x,y)=>{
-        const sx=[wins[x], -losses[x]]; const sy=[wins[y], -losses[y]];
-        if (sx[0]!==sy[0]) return sy[0]-sx[0];
-        if (sx[1]!==sy[1]) return sy[1]-sx[1];
-        return x.localeCompare(y);
-      });
-      return {order:arr, wins, losses};
-    }
+  <!-- Exemplo com ciclo -->
+  <div id="exemplo-ciclo" class="card mode-detalhado">
+    <h2 style="margin-top:0">Exemplo com ciclo (A &gt; B, B &gt; C, C &gt; A)</h2>
+    <p>Perfis (ilustrativos):</p>
+    <ul>
+      <li>40 eleitores: A &gt; B &gt; C</li>
+      <li>35 eleitores: B &gt; C &gt; A</li>
+      <li>25 eleitores: C &gt; A &gt; B</li>
+    </ul>
+    <p>Temos:</p>
+    <ul>
+      <li>A×B: A ganha (40+25 vs 35) → A→B = 65</li>
+      <li>B×C: B ganha (40+35 vs 25) → B→C = 75</li>
+      <li>C×A: C ganha (35+25 vs 40) → C→A = 60</li>
+    </ul>
+    <p>
+      Há um <b>ciclo</b>. O Schulze escolhe o(s) vencedor(es) olhando os <b>melhores caminhos</b> entre cada par;
+      quem tiver caminhos sempre tão fortes quanto os do oponente (ou mais) “não perde para ninguém”.
+    </p>
+  </div>
 
-    // ===== render =====
-    const tDEdit = document.getElementById('table-d-edit');
-    const tPView = document.getElementById('table-p-view');
-    const pairwiseDiv = document.getElementById('pairwise-summary');
-    const rankOut = document.getElementById('ranking-out');
+  <!-- Empates e critérios -->
+  <div id="empates" class="card mode-detalhado">
+    <h2 style="margin-top:0">Empates e critérios práticos</h2>
+    <ul>
+      <li><b>Empate par-a-par</b> (d[a][b] == d[b][a]): a força direta fica 0 para ambos.</li>
+      <li><b>Vários vencedores</b>: pode ocorrer; a organização pode ter regra local (ex.: nova rodada entre eles).</li>
+      <li><b>Exibição ordenada</b>: no nosso app, quando mostramos um “ranking geral”, usamos um score auxiliar:
+        <i>wins</i> (quantos o candidato “bate” via p[a][b] &gt; p[b][a]) e <i>losses</i>.
+        Ordenamos por (wins, -losses) para dar uma lista estável, mesmo havendo co-vencedores.</li>
+    </ul>
+  </div>
 
-    function renderTableDEdit(){
-      let html = '<thead><tr><th style="'+cssHead+'">d(X,Y)</th>';
-      names.forEach(nm => html += '<th style="'+cssHead+'">'+nm+'</th>');
-      html += '</tr></thead><tbody>';
-      for (let i=0;i<names.length;i++){
-        const X = names[i];
-        html += '<tr><th style="'+cssHead+'">'+X+'</th>';
-        for (let j=0;j<names.length;j++){
-          const Y = names[j];
-          if (i===j){
-            html += '<td style="'+cssCell+'">—</td>';
-          }else{
-            const val = d[X]?.[Y] ?? 0;
-            html += '<td style="'+cssCell+'">'
-                  + '<input data-x="'+X+'" data-y="'+Y+'" type="number" min="0" step="1" value="'+val+'" style="'+cssInp+'">'
-                  + '</td>';
-          }
-        }
-        html += '</tr>';
-      }
-      html += '</tbody>';
-      tDEdit.innerHTML = html;
-      tDEdit.querySelectorAll('input[type=number]').forEach(inp=>{
-        inp.addEventListener('input', ()=>{
-          const X = inp.getAttribute('data-x');
-          const Y = inp.getAttribute('data-y');
-          d[X][Y] = clampInt(inp.value);
-          recalcAndRender();
-        });
-      });
-    }
+  <!-- Parciais / Ausentes -->
+  <div id="parciais" class="card mode-detalhado">
+    <h2 style="margin-top:0">Votos parciais e ausências de ranking</h2>
+    <p>
+      É permitido <b>deixar candidatos sem número</b>. Eles não geram preferências contra os demais
+      (tratamos como “ausente”, não como empate ativo). Isso é útil se você só quer ranquear os que conhece.
+    </p>
+    <ul>
+      <li>Se A está ranqueado e B está ausente, conta como preferência A&gt;B.</li>
+      <li>Se A e B estão ambos ausentes, não contribui para A×B.</li>
+    </ul>
+  </div>
 
-    function renderTableP(p){
-      let html = '<thead><tr><th style="'+cssHead+'">p(X,Y)</th>';
-      names.forEach(nm => html += '<th style="'+cssHead+'">'+nm+'</th>');
-      html += '</tr></thead><tbody>';
-      for (let i=0;i<names.length;i++){
-        const X=names[i];
-        html += '<tr><th style="'+cssHead+'">'+X+'</th>';
-        for (let j=0;j<names.length;j++){
-          const Y=names[j];
-          html += '<td style="'+cssCell+'">'+(i===j?'—':(p[X][Y]??0))+'</td>';
-        }
-        html += '</tr>';
-      }
-      html += '</tbody>';
-      tPView.innerHTML = html;
-    }
+  <!-- Branco / Nulo -->
+  <div id="branco-nulo" class="card mode-resumo mode-detalhado">
+    <h2 style="margin-top:0">Voto em Branco e Voto Nulo (no SchulzeVote)</h2>
+    <p>
+      No formulário sempre existem duas opções especiais ao final: <b>Voto em Branco</b> e <b>Voto Nulo</b>.
+    </p>
+    <ul>
+      <li><b>Branco</b>: registra abstenção consciente. Você não apoia nenhum candidato.</li>
+      <li><b>Nulo</b>: registro de protesto; não deseja que seu voto beneficie candidatos.</li>
+    </ul>
+    <p>
+      Por <b>transparência</b>, essas opções aparecem na contagem como “candidatos especiais”.
+      Se muitos eleitores escolhem exclusivamente Branco ou Nulo, eles podem aparecer no topo do ranking
+      (sinalizando falta de apoio aos demais). Cabe à organização definir previamente o que fazer
+      nesse caso (ex.: reabrir candidaturas, nova votação, quóruns etc.).
+    </p>
+    <p><b>Recomendação:</b> geralmente escolha <i>somente</i> Branco/Nulo <b>ou</b> ranqueie candidatos. Evite misturar.</p>
+  </div>
 
-    function renderSummaryAndRank(p){
-      const n = names.length;
-      const lines = [];
-      for (let i=0;i<n;i++){
-        for (let j=i+1;j<n;j++){
-          const a=names[i], b=names[j];
-          const pab=p[a][b], pba=p[b][a];
-          let line = `${a} vs ${b} → p(${a},${b})=${pab} × p(${b},${a})=${pba} → `;
-          if (pab>pba) line += `${a} > ${b}`;
-          else if (pba>pab) line += `${b} > ${a}`;
-          else line += `empate`;
-          lines.push(line);
-        }
-      }
-      pairwiseDiv.textContent = lines.join(' | ');
-      const {order} = computeRanking(p, names);
-      rankOut.textContent = order.join(' > ');
-    }
+  <!-- Auditoria -->
+  <div id="auditoria" class="card mode-resumo mode-detalhado">
+    <h2 style="margin-top:0">Auditoria pública</h2>
+    <p>
+      Após o encerramento, disponibilizamos:
+    </p>
+    <ul>
+      <li><b>Resultados</b>: <code>/public/&lt;EID&gt;/results</code></li>
+      <li><b>Log textual de auditoria</b>: <code>/public/&lt;EID&gt;/audit</code></li>
+      <li><b>CSV auxiliares</b>: <code>/public/&lt;EID&gt;/results.csv</code> e <code>/public/&lt;EID&gt;/pairwise.csv</code></li>
+      <li><b>Pacote ZIP de auditoria</b> (para admins): contém cédulas anônimas, log e manifest.</li>
+    </ul>
+    <p class="muted">As chaves de votação são “hashadas” no armazenamento de cédulas; não há identificação do eleitor na cédula.</p>
+  </div>
 
-    function recalcAndRender(){
-      const p = schulzeP(d, names);
-      renderTableP(p);
-      renderSummaryAndRank(p);
-    }
+  <!-- FAQ -->
+  <div id="faq" class="card mode-detalhado">
+    <h2 style="margin-top:0">FAQ / Boas práticas</h2>
+    <ul>
+      <li><b>Preciso ordenar todos?</b> Não. Pode ranquear só alguns.</li>
+      <li><b>Posso repetir números?</b> Evite; use 1,2,3… sem empates.</li>
+      <li><b>E se houver empate final?</b> Pode haver co-vencedores. A comissão define política local.</li>
+      <li><b>O que guardar do processo?</b> Resultados, auditoria e o <i>bundle</i> de auditoria ao final.</li>
+    </ul>
+  </div>
 
-    // ===== preset/add/remove =====
-    const presetSel = document.getElementById('preset-select');
-    const btnAdd    = document.getElementById('btn-add');
-    const btnRemove = document.getElementById('btn-remove');
-    const btnReset  = document.getElementById('btn-reset');
-    const btnClear  = document.getElementById('btn-clear');
+  <!-- Simulador -->
+  <div id="simulador" class="card mode-resumo mode-detalhado">
+    <h2 style="margin-top:0">Simulador interativo (no seu navegador)</h2>
+    <p class="muted">
+      Edite candidatos e perfis; clique em <i>Calcular</i>. Nada é enviado ao servidor.
+    </p>
 
-    presetSel.addEventListener('change', ()=>{
-      const v = presetSel.value;
-      if (v==='ABC'){
-        seedExampleABC();
-      } else if (v==='ABCD'){
-        names = ['A','B','C','D']; initD();
-      } else if (v==='ABCDE'){
-        names = ['A','B','C','D','E']; initD();
-      } else {
-        const txt = prompt('Informe os rótulos separados por vírgula:', 'A,B,C,D');
-        if (!txt) return;
-        names = txt.split(',').map(s=>s.trim()).filter(Boolean);
-        if (names.length<2) names = ['A','B'];
-        initD();
-      }
-      ensureBNIfToggled();
-      renderTableDEdit(); recalcAndRender();
+    <!-- Config de candidatos -->
+    <div class="card" style="background:#0f1216">
+      <h3 style="margin:0 0 8px 0">Candidatos</h3>
+      <div class="row" style="gap:8px;flex-wrap:wrap" id="candList"></div>
+      <div class="row" style="margin-top:8px">
+        <input id="newCand" type="text" placeholder="Novo candidato" style="min-width:220px">
+        <a class="btn" href="#" onclick="addCand();return false;">Adicionar</a>
+        <a class="btn ghost" href="#" onclick="resetCands();return false;">Resetar (A,B,C)</a>
+      </div>
+    </div>
+
+    <!-- Perfis de preferência -->
+    <div class="card" style="background:#0f1216">
+      <h3 style="margin:0 0 8px 0">Perfis de preferência</h3>
+      <div id="profiles"></div>
+      <div class="row" style="margin-top:8px">
+        <a class="btn" href="#" onclick="addProfile();return false;">Adicionar perfil</a>
+        <a class="btn ghost" href="#" onclick="preset('simples');return false;">Preset: Simples</a>
+        <a class="btn ghost" href="#" onclick="preset('ciclo');return false;">Preset: Ciclo</a>
+      </div>
+    </div>
+
+    <div class="row" style="gap:8px">
+      <a class="btn" href="#" onclick="runSim();return false;">Calcular</a>
+      <a class="btn ghost" href="#" onclick="clearOutput();return false;">Limpar saída</a>
+    </div>
+
+    <div class="sep"></div>
+    <div id="simOut"></div>
+  </div>
+
+  <div class="row" style="margin-top:10px">
+    <a class="btn" href="{{ url_for('index') }}">Voltar ao início</a>
+  </div>
+</div>
+
+<script>
+  // ===== Alternador de modo =====
+  function setMode(m){
+    document.querySelectorAll('.mode-resumo,.mode-detalhado').forEach(el=>{
+      el.style.display = (m==='resumo') ? (el.classList.contains('mode-resumo') ? '' : 'none')
+                                        : (el.classList.contains('mode-detalhado') ? '' : 'none');
     });
-
-    btnAdd.addEventListener('click', ()=>{
-      function nextLabel(){
-        const base = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        for (let i=0;i<base.length;i++){
-          const L = base[i];
-          if (!names.includes(L)) return L;
-        }
-        let idx=1; while (names.includes('A'+idx)) idx++;
-        return 'A'+idx;
-      }
-      names.push(nextLabel());
-      names.forEach(x=>{ if(!d[x]) d[x]={}; names.forEach(y=>{ if(d[x][y]==null) d[x][y]=(x===y?0:0); }); });
-      ensureBNIfToggled();
-      renderTableDEdit(); recalcAndRender();
-    });
-
-    btnRemove.addEventListener('click', ()=>{
-      let removable = names.filter(nm => nm!==BRANCO && nm!==NULO);
-      if (removable.length<=2) return;
-      const rem = removable[removable.length-1];
-      names = names.filter(nm => nm!==rem);
-      delete d[rem];
-      names.forEach(x=> delete d[x][rem]);
-      renderTableDEdit(); recalcAndRender();
-    });
-
-    btnReset.addEventListener('click', ()=>{
-      seedExampleABC();
-      if (bnToggle.checked) addBNIfMissing();
-      renderTableDEdit(); recalcAndRender();
-      presetSel.value = 'ABC';
-    });
-
-    btnClear.addEventListener('click', ()=>{
-      initD();
-      renderTableDEdit(); recalcAndRender();
-    });
-
-    // ===== Branco/Nulo =====
-    const bnToggle = document.getElementById('bn-toggle');
-    const bnBranco = document.getElementById('bn-branco');
-    const bnNulo   = document.getElementById('bn-nulo');
-    const bnApply  = document.getElementById('bn-apply');
-    const bnNeutral= document.getElementById('bn-neutral');
-
-    function addBNIfMissing(){
-      const haveBranco = names.includes(BRANCO);
-      const haveNulo   = names.includes(NULO);
-      if (!haveBranco) names.push(BRANCO);
-      if (!haveNulo)   names.push(NULO);
-      const old = d;
-      d = {};
-      names.forEach(x=>{
-        d[x] = {};
-        names.forEach(y=>{
-          if (x===y) d[x][y]=0;
-          else if (old[x] && old[x][y] != null) d[x][y]=old[x][y];
-          else d[x][y]=0;
-        });
-      });
-    }
-    function removeBNIfPresent(){
-      [BRANCO,NULO].forEach(tag=>{
-        if (names.includes(tag)){
-          delete d[tag];
-          names.forEach(x=>{ if (d[x]) delete d[x][tag]; });
-          names = names.filter(n=>n!==tag);
-        }
-      });
-    }
-    function ensureBNIfToggled(){
-      if (bnToggle.checked) addBNIfMissing();
-      else removeBNIfPresent();
-    }
-
-    bnToggle.addEventListener('change', ()=>{
-      ensureBNIfToggled();
-      renderTableDEdit(); recalcAndRender();
-    });
-
-    bnApply.addEventListener('click', ()=>{
-      ensureBNIfToggled();
-      const qBranco = clampInt(bnBranco.value);
-      const qNulo   = clampInt(bnNulo.value);
-      names.forEach(X=>{
-        if (X!==BRANCO){ d[BRANCO][X] = clampInt(d[BRANCO][X]) + qBranco; d[X][BRANCO] = clampInt(d[X][BRANCO]); }
-        if (X!==NULO){   d[NULO][X]   = clampInt(d[NULO][X])   + qNulo;   d[X][NULO]   = clampInt(d[X][NULO]); }
-      });
-      renderTableDEdit(); recalcAndRender();
-    });
-
-    bnNeutral.addEventListener('click', ()=>{
-      ensureBNIfToggled();
-      names.forEach(X=>{
-        if (X!==BRANCO){ d[BRANCO][X]=0; d[X][BRANCO]=0; }
-        if (X!==NULO){   d[NULO][X]=0;   d[X][NULO]=0; }
-      });
-      renderTableDEdit(); recalcAndRender();
-    });
-
-    // ===== Compartilhamento via URL =====
-    function encodeState(obj){ return encodeURIComponent(JSON.stringify(obj)); }
-    function decodeState(s){ try{ return JSON.parse(decodeURIComponent(s)); }catch(e){ return null; } }
-    function snapshotState(){ return { names, d }; }
-    function loadState(st){
-      if (!st || !Array.isArray(st.names) || typeof st.d !== 'object') return false;
-      names = st.names.slice();
-      const nd = {};
-      names.forEach(x=>{
-        nd[x] = {};
-        names.forEach(y=>{
-          const v = st.d?.[x]?.[y];
-          nd[x][y] = (x===y?0: (typeof v === 'number' ? Math.max(0, Math.floor(v)) : 0));
-        });
-      });
-      d = nd;
-      const hasBranco = names.includes(BRANCO);
-      const hasNulo   = names.includes(NULO);
-      const bnToggleEl = document.getElementById('bn-toggle');
-      if (bnToggleEl){ bnToggleEl.checked = (hasBranco || hasNulo); }
-      renderTableDEdit(); recalcAndRender();
-      return true;
-    }
-    function currentPageBase(){ return window.location.origin + window.location.pathname; }
-
-    const btnShare = document.getElementById('btn-share');
-    const btnOpen  = document.getElementById('btn-open-link');
-
-    if (btnShare){
-      btnShare.addEventListener('click', ()=>{
-        const qs = 'state=' + encodeState(snapshotState());
-        const url = currentPageBase() + '?' + qs;
-        if (navigator.clipboard?.writeText){
-          navigator.clipboard.writeText(url).then(()=>alert('Link do cenário copiado!'),
-                                                 ()=>prompt('Copie o link do cenário:', url));
-        }else{
-          prompt('Copie o link do cenário:', url);
-        }
-      });
-    }
-    if (btnOpen){
-      btnOpen.addEventListener('click', ()=>{
-        const qs = 'state=' + encodeState(snapshotState());
-        window.location.href = currentPageBase() + '?' + qs;
-      });
-    }
-    (function restoreFromQuery(){
-      const params = new URLSearchParams(window.location.search);
-      const raw = params.get('state');
-      if (!raw) return;
-      const st = decodeState(raw);
-      loadState(st);
-    })();
-
-    // ===== inicialização =====
-    seedExampleABC();
-    renderTableDEdit();
-    recalcAndRender();
+    const tip = document.getElementById('modeTip');
+    tip.textContent = (m==='resumo') ? 'Exibindo a versão resumida.' : 'Exibindo a versão detalhada.';
+    localStorage.setItem('schulzeMode', m);
+  }
+  (function initMode(){
+    const m = localStorage.getItem('schulzeMode') || 'resumo';
+    setMode(m);
   })();
-  </script>
-  {% endblock %}
+
+  // ===== Utilidades =====
+  function el(tag, attrs={}, children=[]){
+    const e = document.createElement(tag);
+    Object.entries(attrs).forEach(([k,v])=>{
+      if(k==='class') e.className=v;
+      else if(k==='style' && typeof v==='object'){ Object.assign(e.style,v); }
+      else e.setAttribute(k,v);
+    });
+    (Array.isArray(children)?children:[children]).forEach(c=>{
+      e.appendChild(typeof c==='string'?document.createTextNode(c):c);
+    });
+    return e;
+  }
+  function byId(id){ return document.getElementById(id); }
+  function arrayEq(a,b){ return JSON.stringify(a)===JSON.stringify(b); }
+
+  // ===== Estado do simulador =====
+  let CANDS = ['A','B','C'];
+  let PROFILES = []; // itens: { order:['A','B','C'], n: 1 }
+
+  // ----- UI candidatos
+  function renderCands(){
+    const cont = byId('candList'); cont.innerHTML='';
+    CANDS.forEach((c,idx)=>{
+      const pill = el('span',{class:'pill'},c);
+      const rm = el('a',{href:'#',style:'margin-left:6px'},'remover');
+      rm.onclick = (ev)=>{ ev.preventDefault(); CANDS.splice(idx,1); // remove também dos perfis
+        PROFILES.forEach(p=>{ p.order = p.order.filter(x=>x!==c); });
+        renderCands(); renderProfiles();
+      };
+      const box = el('div',{class:'row',style:'gap:6px;align-items:center;margin:4px 0'},[pill, rm]);
+      cont.appendChild(box);
+    });
+  }
+  function addCand(){
+    const v = (byId('newCand').value||'').trim();
+    if(!v) return;
+    if(CANDS.includes(v)){ alert('Já existe.'); return; }
+    CANDS.push(v);
+    PROFILES.forEach(p=>{ if(!p.order.includes(v)) p.order.push(v); });
+    byId('newCand').value='';
+    renderCands(); renderProfiles();
+  }
+  function resetCands(){ CANDS=['A','B','C']; PROFILES=[]; renderCands(); renderProfiles(); }
+
+  // ----- UI perfis
+  function renderProfiles(){
+    const cont = byId('profiles'); cont.innerHTML='';
+    if(PROFILES.length===0){
+      PROFILES = [
+        {order:['A','B','C'], n:3},
+        {order:['B','C','A'], n:2},
+        {order:['C','A','B'], n:0},
+      ];
+    }
+    PROFILES.forEach((p,idx)=>{
+      // linha do perfil
+      const row = el('div',{class:'row',style:'gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0'});
+      // ordem editável
+      const sel = el('input',{type:'text',value:p.order.join('>'),style:'min-width:220px'});
+      sel.onchange = ()=>{ // parse tipo "A>B>C"
+        const parts = sel.value.split('>').map(s=>s.trim()).filter(Boolean);
+        // mantém apenas candidatos conhecidos e na ordem dada; adiciona faltantes ao final
+        const seen = new Set(); const cleaned=[];
+        parts.forEach(x=>{ if(CANDS.includes(x) && !seen.has(x)){ cleaned.push(x); seen.add(x); } });
+        CANDS.forEach(x=>{ if(!seen.has(x)) cleaned.push(x); });
+        p.order = cleaned;
+      };
+      // quantidade
+      const qty = el('input',{type:'number',min:'0',value:String(p.n||0),style:'width:110px'});
+      qty.onchange = ()=>{ p.n = Math.max(0, parseInt(qty.value||'0',10)); };
+      // botões
+      const up = el('a',{href:'#',class:'btn ghost'},'↑');
+      const dn = el('a',{href:'#',class:'btn ghost'},'↓');
+      const rm = el('a',{href:'#',class:'btn ghost'},'remover');
+      up.onclick=(ev)=>{ev.preventDefault(); if(idx>0){ const tmp=PROFILES[idx-1]; PROFILES[idx-1]=PROFILES[idx]; PROFILES[idx]=tmp; renderProfiles(); }};
+      dn.onclick=(ev)=>{ev.preventDefault(); if(idx<PROFILES.length-1){ const tmp=PROFILES[idx+1]; PROFILES[idx+1]=PROFILES[idx]; PROFILES[idx]=tmp; renderProfiles(); }};
+      rm.onclick=(ev)=>{ev.preventDefault(); PROFILES.splice(idx,1); renderProfiles(); };
+
+      row.appendChild(el('span',{},'Ordem:')); row.appendChild(sel);
+      row.appendChild(el('span',{},'Eleitores:')); row.appendChild(qty);
+      row.appendChild(up); row.appendChild(dn); row.appendChild(rm);
+      cont.appendChild(row);
+    });
+  }
+  function addProfile(){ PROFILES.push({order:[...CANDS], n:1}); renderProfiles(); }
+
+  // ----- Presets
+  function preset(name){
+    if(name==='simples'){
+      CANDS=['A','B','C'];
+      PROFILES=[ {order:['A','B','C'], n:3}, {order:['A','C','B'], n:2}, {order:['B','C','A'], n:0} ];
+    }else if(name==='ciclo'){
+      CANDS=['A','B','C'];
+      PROFILES=[ {order:['A','B','C'], n:40}, {order:['B','C','A'], n:35}, {order:['C','A','B'], n:25} ];
+    }
+    renderCands(); renderProfiles(); runSim();
+  }
+
+  // ----- Cálculo Schulze
+  function runSim(){
+    if(CANDS.length<2){ alert('Adicione ao menos 2 candidatos.'); return; }
+    // d[a][b]
+    const d = {}; const s = {};
+    CANDS.forEach(a=>{ d[a]={}; s[a]={}; CANDS.forEach(b=>{ if(a!==b){ d[a][b]=0; s[a][b]=0; } }); });
+
+    // acumula par-a-par
+    PROFILES.forEach(p=>{
+      const pos={}; p.order.forEach((c,i)=>pos[c]=i);
+      CANDS.forEach(a=>{
+        CANDS.forEach(b=>{
+          if(a===b) return;
+          // se ambos ausentes de p.order (não deve ocorrer pois garantimos inclusão), não conta
+          // se a antes de b na ordem => a>b
+          if(pos[a] < pos[b]) d[a][b] += (p.n||0);
+        });
+      });
+    });
+
+    // forças diretas
+    CANDS.forEach(a=>{
+      CANDS.forEach(b=>{
+        if(a===b) return;
+        s[a][b] = (d[a][b] > d[b][a]) ? d[a][b] : 0;
+      });
+    });
+
+    // melhor caminho (Floyd-Warshall)
+    CANDS.forEach(i=>{
+      CANDS.forEach(j=>{
+        if(i===j) return;
+        CANDS.forEach(k=>{
+          if(i===k || j===k) return;
+          s[j][k] = Math.max(s[j][k], Math.min(s[j][i], s[i][k]));
+        });
+      });
+    });
+
+    // vencedores (não perdem para ninguém)
+    const winners = CANDS.filter(x => CANDS.every(y => y===x || s[x][y] >= s[y][x]));
+
+    // score auxiliar (wins/losses) para ordenação ilustrativa
+    function score(x){
+      let wins=0, losses=0;
+      CANDS.forEach(y=>{
+        if(y===x) return;
+        if(s[x][y] > s[y][x]) wins++;
+        else if(s[y][x] > s[x][y]) losses++;
+      });
+      return {wins, losses};
+    }
+    const ordered = [...CANDS].sort((a,b)=>{
+      const A=score(a), B=score(b);
+      if(A.wins!==B.wins) return B.wins - A.wins;
+      return A.losses - B.losses;
+    });
+
+    // render
+    const out = [];
+    out.push('<div class="row" style="flex-wrap:wrap; gap:18px">');
+    out.push('<div><b>Par-a-par (d[a][b])</b><br>'+renderMatrix(d)+'</div>');
+    out.push('<div><b>Caminhos mais fortes (p[a][b])</b><br>'+renderMatrix(s)+'</div>');
+    out.push('</div>');
+    out.push('<p><b>Vencedor(es) de Schulze:</b> '+(winners.length? winners.join(', ') : '(nenhum)')+'</p>');
+    out.push('<p class="muted"><b>Ordem ilustrativa</b> (wins, -losses): '+ordered.join(' &gt; ')+'</p>');
+    byId('simOut').innerHTML = out.join('');
+  }
+  function renderMatrix(m){
+    let html = '<table class="table" style="border-collapse:collapse;border:1px solid var(--border)">';
+    html += '<tr><th style="padding:6px;border:1px solid var(--border)"></th>';
+    CANDS.forEach(c=> html+='<th style="padding:6px;border:1px solid var(--border)">'+c+'</th>');
+    html += '</tr>';
+    CANDS.forEach(a=>{
+      html += '<tr><th style="padding:6px;border:1px solid var(--border)">'+a+'</th>';
+      CANDS.forEach(b=>{
+        const v = (a===b) ? '' : (m[a] && typeof m[a][b] !== 'undefined' ? m[a][b] : '');
+        html += '<td style="padding:6px;border:1px solid var(--border);text-align:center">'+v+'</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    return html;
+  }
+  function clearOutput(){ byId('simOut').innerHTML=''; }
+
+  // inicialização
+  renderCands(); renderProfiles(); runSim();
+</script>
 {% endblock %}
