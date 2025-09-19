@@ -1,6 +1,6 @@
 import os
 import traceback
-from flask import render_template, request, redirect, url_for, jsonify, flash, Response
+from flask import render_template, request, redirect, url_for, jsonify, flash, Response, make_response
 
 from . import admin_bp
 
@@ -12,8 +12,11 @@ def _has_secret(req) -> bool:
     return bool(ADMIN_SECRET) and token == ADMIN_SECRET
 
 
-def _secret_qs(req) -> str:
-    return (req.args.get("secret") or "").strip()
+def _no_cache(resp):
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @admin_bp.route("/_hello")
@@ -32,23 +35,26 @@ def admin_login():
     """
     Login do admin via 'secret'.
     - Sucesso: redireciona para /admin/?secret=PROVIDED
-    - Falha: redireciona de volta para /admin/login preservando ?secret (se existir) para não “sumir” da URL
+    - Falha: redireciona para /admin/login preservando secret via campo oculto 'keep_secret'
     """
     if request.method == "POST":
         provided = (request.form.get("secret") or "").strip()
+        keep     = (request.form.get("keep_secret") or request.args.get("secret") or "").strip()
+
         if provided and ADMIN_SECRET and provided == ADMIN_SECRET:
+            # sucesso: leva ao painel com o secret digitado
             return redirect(url_for("admin_bp.admin_home") + f"?secret={provided}")
 
-        # Falhou → preserva ?secret que já estava na URL para não perder o contexto
-        keep = _secret_qs(request)
+        # falha: mantém o secret que estava na URL (ou no hidden) para não perder o contexto
         flash("Chave inválida.", "error")
         if keep:
             return redirect(url_for("admin_bp.admin_login", secret=keep))
         return redirect(url_for("admin_bp.admin_login"))
 
-    # GET: renderiza o template; se houver erro de template, exibe traceback na tela para depurar rápido
+    # GET
     try:
-        return render_template("admin_login.html")
+        resp = make_response(render_template("admin_login.html"))
+        return _no_cache(resp)
     except Exception:
         tb = traceback.format_exc()
         html = (
@@ -59,16 +65,13 @@ def admin_login():
             + tb.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             + "</pre>"
         )
-        return Response(html, status=500, mimetype="text/html")
+        resp = make_response(Response(html, status=500, mimetype="text/html"))
+        return _no_cache(resp)
 
 
 @admin_bp.route("/logout")
 def admin_logout():
-    """
-    Logout “stateless”: só redireciona para o login.
-    Se houver ?secret= na URL, mantém esse parâmetro no destino, para facilitar o retorno rápido.
-    """
-    keep = _secret_qs(request)
+    keep = (request.args.get("secret") or "").strip()
     if keep:
         return redirect(url_for("admin_bp.admin_login", secret=keep))
     return redirect(url_for("admin_bp.admin_login"))
@@ -76,9 +79,7 @@ def admin_logout():
 
 @admin_bp.route("/")
 def admin_home():
-    """
-    Painel inicial do admin. Requer secret via query/header.
-    """
     if not _has_secret(request):
         return redirect(url_for("admin_bp.admin_login"))
-    return render_template("admin_home.html")
+    resp = make_response(render_template("admin_home.html"))
+    return _no_cache(resp)
