@@ -1,85 +1,87 @@
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, Response, current_app
+import json
 import os
-import traceback
-from flask import render_template, request, redirect, url_for, jsonify, flash, Response, make_response
 
-from . import admin_bp
+admin_bp = Blueprint(
+    "admin_bp",
+    __name__,
+    url_prefix="/admin",
+    template_folder="../templates",
+    static_folder="../static",
+)
 
-ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "troque-admin")
+def _require_admin(req):
+    admin_secret = os.environ.get("ADMIN_SECRET", "troque-admin")
+    token = req.args.get("secret") or req.headers.get("X-Admin-Secret")
+    return bool(admin_secret and token == admin_secret)
 
-
-def _has_secret(req) -> bool:
-    token = (req.args.get("secret") or req.headers.get("X-Admin-Secret") or "").strip()
-    return bool(ADMIN_SECRET) and token == ADMIN_SECRET
-
-
-def _no_cache(resp):
-    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    resp.headers["Pragma"] = "no-cache"
-    resp.headers["Expires"] = "0"
-    return resp
-
+def _mask(s):
+    if not s: return ""
+    return f"{s[:2]}***{s[-2:]}"
 
 @admin_bp.route("/_hello")
-def admin_hello():
+def _hello():
     return "admin ok"
 
-
-@admin_bp.route("/ping")
-def admin_ping():
-    ok = _has_secret(request)
-    return jsonify({"ok": ok}), (200 if ok else 403)
-
+@admin_bp.route("/_diag")
+def _diag():
+    """Página de diagnóstico rápida para ver o que está acontecendo."""
+    admin_secret = os.environ.get("ADMIN_SECRET", "troque-admin")
+    data = {
+        "has_SESSION": bool(session),
+        "session_keys": list(session.keys()),
+        "session_admin_auth": bool(session.get("admin_auth")),
+        "query_secret_present": "secret" in request.args,
+        "query_secret_len": len(request.args.get("secret", "")),
+        "require_admin_with_query": _require_admin(request),
+        "ADMIN_SECRET_len": len(admin_secret),
+        "ADMIN_SECRET_masked": _mask(admin_secret),
+        "method": request.method,
+        "path": request.path,
+    }
+    return Response(json.dumps(data, ensure_ascii=False, indent=2), mimetype="application/json")
 
 @admin_bp.route("/login", methods=["GET", "POST"])
-def admin_login():
-    """
-    Login do admin via 'secret'.
-    - Sucesso: redireciona para /admin/?secret=PROVIDED
-    - Falha: redireciona para /admin/login preservando secret via campo oculto 'keep_secret'
-    """
+def login():
     if request.method == "POST":
-        provided = (request.form.get("secret") or "").strip()
-        keep     = (request.form.get("keep_secret") or request.args.get("secret") or "").strip()
+        # LOG do que chegou
+        form_secret = (request.form.get("secret") or "").strip()
+        current_app.logger.info(f"[admin_login] POST secret_len={len(form_secret)} present={'secret' in request.form}")
 
-        if provided and ADMIN_SECRET and provided == ADMIN_SECRET:
-            # sucesso: leva ao painel com o secret digitado
-            return redirect(url_for("admin_bp.admin_home") + f"?secret={provided}")
+        if not form_secret:
+            flash("Informe sua chave de administrador.", "error")
+            return redirect(url_for("admin_bp.login"))
 
-        # falha: mantém o secret que estava na URL (ou no hidden) para não perder o contexto
-        flash("Chave inválida.", "error")
-        if keep:
-            return redirect(url_for("admin_bp.admin_login", secret=keep))
-        return redirect(url_for("admin_bp.admin_login"))
+        admin_secret = os.environ.get("ADMIN_SECRET", "troque-admin")
+        if form_secret != admin_secret:
+            flash("Chave inválida.", "error")
+            return redirect(url_for("admin_bp.login"))
+
+        # Autenticado
+        session["admin_auth"] = True
+        # Redireciona para o painel com o ?secret= na URL para evitar cache e permitir navegação
+        return redirect(url_for("admin_bp.home", secret=form_secret))
 
     # GET
-    try:
-        resp = make_response(render_template("admin_login.html"))
-        return _no_cache(resp)
-    except Exception:
-        tb = traceback.format_exc()
-        html = (
-            "<h1>Erro ao renderizar <code>admin_login.html</code></h1>"
-            "<p>Confira se <code>templates/admin_login.html</code> e <code>templates/base_admin.html</code> existem "
-            "e se não há erros de Jinja.</p>"
-            "<pre style='white-space:pre-wrap; background:#111; color:#eee; padding:12px; border-radius:8px;'>"
-            + tb.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            + "</pre>"
-        )
-        resp = make_response(Response(html, status=500, mimetype="text/html"))
-        return _no_cache(resp)
+    return render_template("admin_login.html")
 
+@admin_bp.route("/home")
+def home():
+    """Painel (somente se tiver admin_auth True E ?secret válido)"""
+    if not session.get("admin_auth"):
+        # Mesmo sem sessão, permitimos se ?secret for válido (útil em iOS c/ cookies restritos).
+        if not _require_admin(request):
+            return redirect(url_for("admin_bp.login"))
+    # Propaga o secret (se veio na query)
+    secret = request.args.get("secret", "")
+    return render_template("admin_home.html", secret=secret)
 
 @admin_bp.route("/logout")
-def admin_logout():
-    keep = (request.args.get("secret") or "").strip()
-    if keep:
-        return redirect(url_for("admin_bp.admin_login", secret=keep))
-    return redirect(url_for("admin_bp.admin_login"))
-
-
-@admin_bp.route("/")
-def admin_home():
-    if not _has_secret(request):
-        return redirect(url_for("admin_bp.admin_login"))
-    resp = make_response(render_template("admin_home.html"))
-    return _no_cache(resp)
+def logout():
+    secret = request.args.get("secret", "")
+    session.pop("admin_auth", None)
+    flash("Você saiu do painel do administrador.", "info")
+    # Deixa a pessoa sair e voltar com o mesmo ?secret se quiser
+    if secret:
+        return redirect(url_for("admin_bp.login") + f"?secret={secret}")
+    return redirect(url_for("admin_bp.login"))
