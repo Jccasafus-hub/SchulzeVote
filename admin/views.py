@@ -1,65 +1,61 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
-import os
-
-admin_bp = Blueprint(
-    "admin_bp",
-    __name__,
-    url_prefix="/admin",
-    template_folder="../templates",
-    static_folder="../static",
+# admin/views.py
+from flask import (
+    Blueprint, render_template, request, redirect, url_for,
+    flash, current_app, make_response
 )
 
-def _get_admin_secret():
-    # prioriza app.config; fallback para env; fallback legado
-    return current_app.config.get("ADMIN_SECRET") or os.environ.get("ADMIN_SECRET") or "troque-admin"
+# Este blueprint é criado em admin/__init__.py (admin_bp). Aqui só definimos as rotas.
 
-def _qparam(name, default=""):
-    v = request.args.get(name)
-    return v if v is not None else default
+@admin_bp.after_request
+def _no_cache(resp):
+    """Garante que páginas do admin não fiquem em cache (evita recarrego estranho)."""
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 @admin_bp.route("/_hello")
-def admin_hello():
+def hello():
     return "admin ok"
 
 @admin_bp.route("/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
-        # onde o secret pode vir:
         form_secret = (request.form.get("secret") or "").strip()
-        keep_secret = (request.form.get("keep_secret") or "").strip()
-        qs_secret   = (_qparam("secret") or "").strip()
+        # fallback: se houver keep_secret (campo oculto), usa se o principal vier vazio
+        if not form_secret:
+            form_secret = (request.form.get("keep_secret") or "").strip()
 
-        token = form_secret or keep_secret or qs_secret
-        if not token:
-            flash("Informe a sua chave de administrador.", "error")
-            return render_template("admin_login.html")
+        admin_secret = current_app.config.get("ADMIN_SECRET", "")
+        if not form_secret:
+            flash("Cole sua chave de administrador.", "error")
+            return redirect(url_for("admin_bp.admin_login"))
 
-        expected = _get_admin_secret()
-        if token != expected:
-            flash("Chave inválida.", "error")
-            # mantém o que o usuário digitou para ele tentar de novo
-            return render_template("admin_login.html")
+        if form_secret == admin_secret:
+            # Redireciona já com ?secret= para as rotas do app principal (que exigem require_admin)
+            return redirect(url_for("admin_bp.admin_home", secret=form_secret))
 
-        # sucesso → redireciona com ?secret= para o painel
-        return redirect(url_for("admin_bp.admin_home", secret=token))
+        flash("Chave inválida.", "error")
+        return redirect(url_for("admin_bp.admin_login"))
 
     # GET
     return render_template("admin_login.html")
 
 @admin_bp.route("/home")
 def admin_home():
-    # exige que venha ?secret= válido
-    token = (_qparam("secret") or "").strip()
-    if token != _get_admin_secret():
-        flash("Acesso negado. Informe sua chave de administrador.", "error")
+    """Painel do administrador. Exige ?secret= válido para que os atalhos funcionem."""
+    secret = (request.args.get("secret") or "").strip()
+    admin_secret = current_app.config.get("ADMIN_SECRET", "")
+    if not secret or secret != admin_secret:
+        # Sem secret válido, volta ao login (não mostramos erro 403 para não confundir).
+        flash("Informe sua chave de administrador para acessar o painel.", "info")
         return redirect(url_for("admin_bp.admin_login"))
     return render_template("admin_home.html")
 
 @admin_bp.route("/logout")
 def admin_logout():
-    # logout “estático”; só redireciona de volta para o login
-    # se vier ?secret=, preserva para facilitar retorno
-    token = (_qparam("secret") or "").strip()
-    if token:
-        return redirect(url_for("admin_bp.admin_login", secret=token))
+    """Sai e redireciona para o login. Se veio com ?secret=, preservamos na URL (fluxo rapidinho)."""
+    secret = (request.args.get("secret") or "").strip()
+    if secret:
+        return redirect(url_for("admin_bp.admin_login", secret=secret))
     return redirect(url_for("admin_bp.admin_login"))
