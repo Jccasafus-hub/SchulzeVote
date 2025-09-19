@@ -5,24 +5,21 @@
   <title>{% block title %}SchulzeVote Admin{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- PWA (admin) -->
-  <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}?v={{ APP_VERSION }}">
-  <meta name="theme-color" content="#000000">
+  <!-- PWA específico do Admin -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}">
+  <meta name="theme-color" content="#111111">
 
-  <!-- Ícones (admin) -->
-  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}?v={{ APP_VERSION }}">
-  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}?v={{ APP_VERSION }}">
-  <!-- Social preview (opcional) -->
-  <meta property="og:title" content="SchulzeVote Admin">
-  <meta property="og:description" content="Painel administrativo do SchulzeVote.">
-  <meta property="og:image" content="{{ url_for('static', filename='admin_icon_512.png') }}?v={{ APP_VERSION }}">
-  <meta property="og:type" content="website">
+  <!-- iOS PWA essentials -->
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-180.png') }}">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="SchulzeVote Admin">
 
-  <!-- Estilos alinhados ao base.html público -->
+  <!-- Estilos base do painel admin -->
   <style>
     :root{
       --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
-      --accent:#f97316; --accent-2:#f59e0b; --ok:#10b981; --danger:#ef4444;
+      --accent:#16a34a; --accent-2:#22c55e; --ok:#10b981; --danger:#ef4444;
       --border:#1f242c; --input:#0f1216;
     }
     *{box-sizing:border-box}
@@ -57,14 +54,12 @@
     {% block content %}{% endblock %}
   </div>
 
-  <!-- Service Worker (mesmo SW do app público; escopo raiz) -->
+  <!-- Service Worker para Admin -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        const v = '{{ APP_VERSION }}';
-        const swUrl = '{{ url_for("static", filename="sw.js") }}?v=' + encodeURIComponent(v);
-        navigator.serviceWorker.register(swUrl, { scope: '/' })
-          .then(() => console.log('[admin] SW registrado', v))
+        navigator.serviceWorker.register('{{ url_for("static", filename="sw_admin.js") }}', { scope: '/admin/' })
+          .then(() => console.log('SW Admin registrado'))
           .catch(console.error);
       });
     }
