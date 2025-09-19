@@ -6,17 +6,15 @@
   <p class="muted">Informe sua chave de administrador para acessar o painel.</p>
 
   <div class="card">
-    <!-- action preserva ?secret= que esteja na URL, para não “sumir” após POST inválido -->
-    <form method="POST"
-          action="{{ url_for('admin_bp.admin_login') }}{% if request.args.get('secret') %}?secret={{ request.args.get('secret')|urlencode }}{% endif %}"
-          class="row" style="gap:12px; align-items:flex-end">
+    <form method="POST" class="row" style="gap:12px; align-items:flex-end">
+      <!-- Campo oculto para preservar o secret mesmo que o proxy remova o querystring -->
+      <input type="hidden" name="keep_secret" value="{{ request.args.get('secret','') }}"/>
+
       <div style="display:flex; flex-direction:column; gap:6px; min-width:260px">
         <label for="secret">Chave de administrador</label>
         <input id="secret" name="secret" type="password" placeholder="Cole sua chave aqui" required>
-
-        <!-- Link discreto “ver chave” (sem .btn) -->
         <a href="#"
-           onclick="const i=document.getElementById('secret'); i.type = (i.type==='password'?'text':'password'); this.blur(); return false;"
+           onclick="const i=document.getElementById('secret'); i.type=(i.type==='password'?'text':'password'); this.blur(); return false;"
            style="font-size:.9rem; color:var(--muted); text-decoration:underline; align-self:flex-start;">
           ver chave
         </a>
@@ -25,8 +23,4 @@
       <button class="btn accent" type="submit">Entrar</button>
     </form>
   </div>
-
-  {# Removemos botões de navegação aqui para evitar duplicidade.
-     O base_admin.html deve controlar se mostra “Voltar ao painel” (quando há ?secret=)
-     ou “Voltar ao início” (sem secret). #}
 {% endblock %}
