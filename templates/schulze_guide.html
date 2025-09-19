@@ -53,7 +53,15 @@
       Intuição: se A não vence B diretamente, talvez A vença C fortemente e C vença B fortemente;
       esse “caminho” A→C→B pode ser tão ou mais forte que o caminho de volta B→…→A. O Schulze compara essas forças.
     </p>
-    <img src="{{ url_for('static', filename='img/visao-geral.png') }}" alt="Fluxo resumido do método de Schulze" style="max-width:100%;margin-top:12px">
+
+    <!-- Figura: Fluxo geral -->
+    <figure class="card" style="text-align:center">
+      <img loading="lazy"
+           src="{{ url_for('static', filename='img/schulze_flow_overview.png') }}?v={{ APP_VERSION }}"
+           alt="Fluxo geral do método de Schulze"
+           style="max-width:100%;height:auto">
+      <figcaption class="muted" style="margin-top:6px">Fluxo geral do método de Schulze.</figcaption>
+    </figure>
   </div>
 
   <!-- Definição formal -->
@@ -72,7 +80,15 @@
     <p class="muted">
       Observação: no Schulze clássico usa-se um algoritmo no estilo Floyd-Warshall para computar rapidamente <code>p[a][b]</code>.
     </p>
-    <img src="{{ url_for('static', filename='img/formal-def.png') }}" alt="Esquema da definição formal do método de Schulze" style="max-width:100%;margin-top:12px">
+
+    <!-- Figura: Definição formal -->
+    <figure class="card" style="text-align:center">
+      <img loading="lazy"
+           src="{{ url_for('static', filename='img/schulze_formal_definition.png') }}?v={{ APP_VERSION }}"
+           alt="Definição formal — Schulze"
+           style="max-width:100%;height:auto">
+      <figcaption class="muted" style="margin-top:6px">Definição formal resumida.</figcaption>
+    </figure>
   </div>
 
   <!-- Exemplo simples -->
@@ -93,7 +109,15 @@
       <li>B×C: B=3, C=2 → força direta B→C=3</li>
     </ul>
     <p><b>Caminhos</b>: A vence B e C diretamente; B vence C. Logo <b>A</b> é vencedor de Schulze.</p>
-    <img src="{{ url_for('static', filename='img/exemplo-simples.png') }}" alt="Exemplo simples ilustrado do método de Schulze" style="max-width:100%;margin-top:12px">
+
+    <!-- Figura: Exemplo simples -->
+    <figure class="card" style="text-align:center">
+      <img loading="lazy"
+           src="{{ url_for('static', filename='img/schulze_example_simple.png') }}?v={{ APP_VERSION }}"
+           alt="Exemplo simples com 3 candidatos"
+           style="max-width:100%;height:auto">
+      <figcaption class="muted" style="margin-top:6px">Exemplo simples (3 candidatos).</figcaption>
+    </figure>
   </div>
 
   <!-- Exemplo com ciclo -->
@@ -115,7 +139,15 @@
       Há um <b>ciclo</b>. O Schulze escolhe o(s) vencedor(es) olhando os <b>melhores caminhos</b> entre cada par;
       quem tiver caminhos sempre tão fortes quanto os do oponente (ou mais) “não perde para ninguém”.
     </p>
-    <img src="{{ url_for('static', filename='img/exemplo-ciclo.png') }}" alt="Exemplo de ciclo no método de Schulze" style="max-width:100%;margin-top:12px">
+
+    <!-- Figura: Ciclo -->
+    <figure class="card" style="text-align:center">
+      <img loading="lazy"
+           src="{{ url_for('static', filename='img/schulze_example_cycle.png') }}?v={{ APP_VERSION }}"
+           alt="Exemplo com ciclo"
+           style="max-width:100%;height:auto">
+      <figcaption class="muted" style="margin-top:6px">Exemplo de ciclo: A&gt;B, B&gt;C, C&gt;A.</figcaption>
+    </figure>
   </div>
 
   <!-- Empates e critérios -->
@@ -128,6 +160,15 @@
         <i>wins</i> (quantos o candidato “bate” via p[a][b] &gt; p[b][a]) e <i>losses</i>.
         Ordenamos por (wins, -losses) para dar uma lista estável, mesmo havendo co-vencedores.</li>
     </ul>
+
+    <!-- Figura: Empates -->
+    <figure class="card" style="text-align:center">
+      <img loading="lazy"
+           src="{{ url_for('static', filename='img/schulze_tie.png') }}?v={{ APP_VERSION }}"
+           alt="Critérios de desempate"
+           style="max-width:100%;height:auto">
+      <figcaption class="muted" style="margin-top:6px">Critérios de desempate no método de Schulze.</figcaption>
+    </figure>
   </div>
 
   <!-- Parciais / Ausentes -->
@@ -160,6 +201,15 @@
       nesse caso (ex.: reabrir candidaturas, nova votação, quóruns etc.).
     </p>
     <p><b>Recomendação:</b> geralmente escolha <i>somente</i> Branco/Nulo <b>ou</b> ranqueie candidatos. Evite misturar.</p>
+
+    <!-- Figura: Branco/Nulo -->
+    <figure class="card" style="text-align:center">
+      <img loading="lazy"
+           src="{{ url_for('static', filename='img/schulze_blank_null.png') }}?v={{ APP_VERSION }}"
+           alt="Tratamento de votos Branco e Nulo"
+           style="max-width:100%;height:auto">
+      <figcaption class="muted" style="margin-top:6px">Como tratamos Branco e Nulo: aparecem como “candidatos especiais”.</figcaption>
+    </figure>
   </div>
 
   <!-- Auditoria -->
@@ -175,6 +225,15 @@
       <li><b>Pacote ZIP de auditoria</b> (para admins): contém cédulas anônimas, log e manifest.</li>
     </ul>
     <p class="muted">As chaves de votação são “hashadas” no armazenamento de cédulas; não há identificação do eleitor na cédula.</p>
+
+    <!-- Figura: Auditoria -->
+    <figure class="card" style="text-align:center">
+      <img loading="lazy"
+           src="{{ url_for('static', filename='img/schulze_audit.png') }}?v={{ APP_VERSION }}"
+           alt="Exemplo de auditoria pública"
+           style="max-width:100%;height:auto">
+      <figcaption class="muted" style="margin-top:6px">Exemplo de auditoria pública no SchulzeVote.</figcaption>
+    </figure>
   </div>
 
   <!-- FAQ -->
@@ -185,7 +244,6 @@
       <li><b>Posso repetir números?</b> Evite; use 1,2,3… sem empates.</li>
       <li><b>E se houver empate final?</b> Pode haver co-vencedores. A comissão define política local.</li>
       <li><b>O que guardar do processo?</b> Resultados, auditoria e o <i>bundle</i> de auditoria ao final.</li>
-      <li><b>Pesos de voto são suportados?</b> Sim no app real; no simulador abaixo usamos contagens por perfil como “peso”.</li>
     </ul>
   </div>
 
@@ -232,6 +290,7 @@
   </div>
 </div>
 
+<!-- ===== Scripts: alternador de modo + simulador Schulze ===== -->
 <script>
   // ===== Alternador de modo =====
   function setMode(m){
@@ -240,11 +299,12 @@
                                         : (el.classList.contains('mode-detalhado') ? '' : 'none');
     });
     const tip = document.getElementById('modeTip');
-    tip.textContent = (m==='resumo') ? 'Exibindo a versão resumida.' : 'Exibindo a versão detalhada.';
-    localStorage.setItem('schulzeMode', m);
+    if(tip) tip.textContent = (m==='resumo') ? 'Exibindo a versão resumida.' : 'Exibindo a versão detalhada.';
+    try{ localStorage.setItem('schulzeMode', m); }catch(e){}
   }
   (function initMode(){
-    const m = localStorage.getItem('schulzeMode') || 'resumo';
+    let m='resumo';
+    try{ m = localStorage.getItem('schulzeMode') || 'resumo'; }catch(e){}
     setMode(m);
   })();
 
@@ -267,13 +327,15 @@
   let CANDS = ['A','B','C'];
   let PROFILES = []; // itens: { order:['A','B','C'], n: 1 }
 
-  // ----- UI candidatos
+  // ----- UI: candidatos
   function renderCands(){
-    const cont = byId('candList'); cont.innerHTML='';
+    const cont = byId('candList'); if(!cont) return; cont.innerHTML='';
     CANDS.forEach((c,idx)=>{
       const pill = el('span',{class:'pill'},c);
       const rm = el('a',{href:'#',style:'margin-left:6px'},'remover');
-      rm.onclick = (ev)=>{ ev.preventDefault(); CANDS.splice(idx,1);
+      rm.onclick = (ev)=>{ ev.preventDefault();
+        CANDS.splice(idx,1);
+        // remove candidato também dos perfis
         PROFILES.forEach(p=>{ p.order = p.order.filter(x=>x!==c); });
         renderCands(); renderProfiles();
       };
@@ -282,40 +344,51 @@
     });
   }
   function addCand(){
-    const v = (byId('newCand').value||'').trim();
+    const inp = byId('newCand');
+    const v = (inp && inp.value || '').trim();
     if(!v) return;
     if(CANDS.includes(v)){ alert('Já existe.'); return; }
     CANDS.push(v);
     PROFILES.forEach(p=>{ if(!p.order.includes(v)) p.order.push(v); });
-    byId('newCand').value='';
+    if(inp) inp.value='';
     renderCands(); renderProfiles();
   }
-  function resetCands(){ CANDS=['A','B','C']; PROFILES=[]; renderCands(); renderProfiles(); }
+  function resetCands(){
+    CANDS=['A','B','C'];
+    PROFILES=[];
+    renderCands(); renderProfiles();
+  }
 
-  // ----- UI perfis
+  // ----- UI: perfis
   function renderProfiles(){
-    const cont = byId('profiles'); cont.innerHTML='';
+    const cont = byId('profiles'); if(!cont) return; cont.innerHTML='';
+    // seed se vazio
     if(PROFILES.length===0){
       PROFILES = [
         {order:['A','B','C'], n:3},
-        {order:['A','C','B'], n:2},
-        {order:['B','C','A'], n:0},
+        {order:['B','C','A'], n:2},
+        {order:['C','A','B'], n:0},
       ];
     }
     PROFILES.forEach((p,idx)=>{
       const row = el('div',{class:'row',style:'gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0'});
-      // ordem editável
+
+      // ordem editável (texto "A>B>C")
       const sel = el('input',{type:'text',value:p.order.join('>'),style:'min-width:220px'});
       sel.onchange = ()=>{
         const parts = sel.value.split('>').map(s=>s.trim()).filter(Boolean);
+        // mantém apenas candidatos válidos e únicos, na ordem dada
         const seen = new Set(); const cleaned=[];
         parts.forEach(x=>{ if(CANDS.includes(x) && !seen.has(x)){ cleaned.push(x); seen.add(x); } });
+        // adiciona faltantes ao final (ordem de CANDS)
         CANDS.forEach(x=>{ if(!seen.has(x)) cleaned.push(x); });
         p.order = cleaned;
       };
-      // quantidade
+
+      // quantidade de eleitores
       const qty = el('input',{type:'number',min:'0',value:String(p.n||0),style:'width:110px'});
       qty.onchange = ()=>{ p.n = Math.max(0, parseInt(qty.value||'0',10)); };
+
       // botões
       const up = el('a',{href:'#',class:'btn ghost'},'↑');
       const dn = el('a',{href:'#',class:'btn ghost'},'↓');
@@ -347,17 +420,17 @@
   // ----- Cálculo Schulze
   function runSim(){
     if(CANDS.length<2){ alert('Adicione ao menos 2 candidatos.'); return; }
-    // d[a][b] e p[a][b]
+    // d[a][b] e p[a][b] (p = força de caminho)
     const d = {}; const p = {};
     CANDS.forEach(a=>{ d[a]={}; p[a]={}; CANDS.forEach(b=>{ if(a!==b){ d[a][b]=0; p[a][b]=0; } }); });
 
-    // acumula par-a-par
+    // acumula preferências par-a-par a partir dos perfis
     PROFILES.forEach(pf=>{
       const pos={}; pf.order.forEach((c,i)=>pos[c]=i);
       CANDS.forEach(a=>{
         CANDS.forEach(b=>{
           if(a===b) return;
-          if(pos[a] < pos[b]) d[a][b] += (pf.n||0); // a preferido a b
+          if(pos[a] < pos[b]) d[a][b] += (pf.n||0);
         });
       });
     });
@@ -408,8 +481,9 @@
     out.push('</div>');
     out.push('<p><b>Vencedor(es) de Schulze:</b> '+(winners.length? winners.join(', ') : '(nenhum)')+'</p>');
     out.push('<p class="muted"><b>Ordem ilustrativa</b> (wins, -losses): '+ordered.join(' &gt; ')+'</p>');
-    byId('simOut').innerHTML = out.join('');
+    const mount = byId('simOut'); if(mount) mount.innerHTML = out.join('');
   }
+
   function renderMatrix(m){
     let html = '<table class="table" style="border-collapse:collapse;border:1px solid var(--border)">';
     html += '<tr><th style="padding:6px;border:1px solid var(--border)"></th>';
@@ -426,9 +500,14 @@
     html += '</table>';
     return html;
   }
-  function clearOutput(){ byId('simOut').innerHTML=''; }
+
+  function clearOutput(){
+    const m = byId('simOut'); if(m) m.innerHTML='';
+  }
 
   // inicialização
-  renderCands(); renderProfiles(); runSim();
+  renderCands();
+  renderProfiles();
+  runSim();
 </script>
 {% endblock %}
