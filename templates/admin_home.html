@@ -2,80 +2,69 @@
 {% block title %}SchulzeVote Admin · Painel{% endblock %}
 
 {% block content %}
+  {% set secret_qs = request.args.get('secret','') %}
   <h1>Painel do Administrador</h1>
-  <p class="muted">Atalhos rápidos de administração.</p>
+  <p class="muted">Atalhos rápidos de administração, downloads e dados brutos.</p>
 
   <div class="card">
+    <h3 style="margin:0 0 8px 0">Configuração</h3>
     <div class="row admin-links">
-      {% set secret = request.args.get('secret','') %}
-      <a class="btn" href="/admin/candidates{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Candidatos &amp; prazo</a>
-      <a class="btn" href="/admin/election_meta{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Metadados da votação</a>
-      <a class="btn" href="/admin/assign_ui{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Atribuir chaves (UI)</a>
-      <a class="btn" href="/admin/audit_preview{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Auditoria (preview)</a>
+      <a class="btn" href="/admin/candidates{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Candidatos &amp; prazo</a>
+      <a class="btn" href="/admin/election_meta{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Metadados da votação</a>
+      <a class="btn" href="/admin/assign_ui{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Atribuir chaves (UI)</a>
+      <a class="btn" href="/admin/audit_preview{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Auditoria (preview)</a>
     </div>
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 8px 0">Downloads rápidos</h3>
-    <p class="muted">Arquivos úteis para conferência e backup.</p>
+    <h3 style="margin:0 0 8px 0">Downloads (ZIP)</h3>
+    <div class="row" style="gap:10px; align-items:flex-end">
+      <a class="btn" href="/admin/backup_zip{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Backup completo (ZIP)</a>
 
-    <div class="row" style="margin-bottom:10px">
-      <!-- Estes dois NÃO precisam de EID -->
-      <a class="btn ghost" href="/admin/export_audit_bundle{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Pacote de auditoria (ZIP, EID atual)</a>
-      <a class="btn ghost" href="/admin/backup_zip{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Backup completo (ZIP)</a>
+      <form class="row" action="/admin/backup_zip_eid" method="get" style="gap:8px; align-items:flex-end">
+        {% if secret_qs %}<input type="hidden" name="secret" value="{{ secret_qs }}">{% endif %}
+        <label>EID<br><input type="text" name="eid" placeholder="ex.: teste-2025-01" required></label>
+        <button class="btn" type="submit">Backup por EID (ZIP)</button>
+      </form>
+
+      <form class="row" action="/admin/export_audit_bundle" method="get" style="gap:8px; align-items:flex-end">
+        {% if secret_qs %}<input type="hidden" name="secret" value="{{ secret_qs }}">{% endif %}
+        <label>EID (opcional)<br><input type="text" name="eid" placeholder="em branco = atual"></label>
+        <button class="btn" type="submit">Pacote de auditoria (ZIP)</button>
+      </form>
     </div>
-
-    <div class="sep"></div>
-
-    <div class="row">
-      <label>EID manual
-        <input id="eidInput" type="text" placeholder="ex.: teste-2025-01" style="min-width:220px">
-      </label>
-
-      <a class="btn" href="#" onclick="openCsv('results');return false;">Resultados (CSV)</a>
-      <a class="btn" href="#" onclick="openCsv('pairwise');return false;">Pairwise (CSV)</a>
-      <a class="btn" href="#" onclick="openBackupEid();return false;">Backup por EID (ZIP)</a>
-    </div>
-    <p class="muted" style="margin-top:8px">Dica: se quiser apenas ver os resultados em HTML do EID atual, use <code>/results</code>.</p>
+    <p class="muted" style="margin-top:8px">Os downloads incluem cédulas, log de auditoria e arquivos de configuração conforme disponível.</p>
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 8px 0">Saída</h3>
-    <p class="muted">Você pode sair e manter o secret na URL para voltar rápido depois.</p>
+    <h3 style="margin:0 0 8px 0">Dados brutos (JSON)</h3>
+    <div class="row" style="gap:10px; flex-wrap:wrap">
+      <a class="btn" href="/admin/keys_list{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Chaves (JSON)</a>
+      <a class="btn" href="/admin/pool_list{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Pool (JSON)</a>
+      <a class="btn" href="/admin/users_list{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Usuários (JSON)</a>
+      <a class="btn" href="/admin/trash_list{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Lixeira (JSON)</a>
+      <a class="btn" href="/admin/audit_raw{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}" title="Linhas de auditoria da eleição atual">Auditoria (raw)</a>
+      <a class="btn" href="/admin/ballots_raw{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}" title="Cédulas da eleição atual">Cédulas (raw)</a>
+    </div>
+    <p class="muted" style="margin-top:8px">Dica: use os JSONs para inspeções rápidas e exportações sob medida.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px 0">Público</h3>
     <div class="row">
-      <a class="btn ghost" href="/admin/logout{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Sair</a>
-      <a class="btn" href="/{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Ir para o site público</a>
+      <a class="btn" href="/public/elections" target="_blank" rel="noopener">Lista de votações (JSON)</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px 0">Sessão</h3>
+    <div class="row">
+      <a class="btn ghost" href="/admin/logout{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Sair</a>
+      <a class="btn" href="/{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Ir para o site público</a>
     </div>
   </div>
 
   <div class="row" style="margin-top:14px">
     <a class="btn ghost" href="/">Voltar ao início público</a>
   </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  function qSecret(){
-    try { return new URLSearchParams(location.search).get('secret') || ''; }
-    catch(e){ return ''; }
-  }
-  function eidValue(){
-    const v = (document.getElementById('eidInput')?.value || '').trim();
-    if (!v){ alert('Informe um EID.'); }
-    return v;
-  }
-  function openCsv(kind){
-    const eid = eidValue(); if (!eid) return;
-    const url = (kind === 'results')
-      ? `/public/${encodeURIComponent(eid)}/results.csv`
-      : `/public/${encodeURIComponent(eid)}/pairwise.csv`;
-    window.open(url, '_blank');
-  }
-  function openBackupEid(){
-    const eid = eidValue(); if (!eid) return;
-    const s = qSecret();
-    const url = `/admin/backup_zip_eid?eid=${encodeURIComponent(eid)}${s ? '&secret='+encodeURIComponent(s) : ''}`;
-    window.location.href = url;
-  }
-</script>
 {% endblock %}
