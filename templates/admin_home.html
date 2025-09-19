@@ -8,23 +8,19 @@
   <div class="card">
     <div class="row admin-links">
       {% set secret = request.args.get('secret','') %}
-      <a class="btn" href="/admin/candidates{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Candidatos &amp; prazo</a>
+      <a class="btn" href="/admin/candidates{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Candidatos & prazo</a>
       <a class="btn" href="/admin/election_meta{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Metadados da votação</a>
       <a class="btn" href="/admin/assign_ui{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Atribuir chaves (UI)</a>
       <a class="btn" href="/admin/audit_preview{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Auditoria (preview)</a>
     </div>
+    <p class="admin-note">Dica: o parâmetro <code>?secret=...</code> é propagado automaticamente nos atalhos acima.</p>
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 8px 0">Saída</h3>
-    <p class="muted">Você pode sair e manter o secret na URL para voltar rápido depois.</p>
+    <h3 style="margin:0 0 8px 0">Navegação</h3>
     <div class="row">
-      <a class="btn ghost" href="/admin/logout{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Sair</a>
       <a class="btn" href="/{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Ir para o site público</a>
+      <a class="btn ghost" href="{{ url_for('admin_bp.admin_logout', secret=secret) }}">Sair</a>
     </div>
-  </div>
-
-  <div class="row" style="margin-top:14px">
-    <a class="btn ghost" href="/">Voltar ao início público</a>
   </div>
 {% endblock %}
