@@ -6,7 +6,7 @@
     <h1>SchulzeVote</h1>
     <p class="muted">Sistema de votação com método de Schulze, auditoria pública e anonimato de cédulas.</p>
 
-    <!-- Acesso rápido (EID atual) -->
+    <!-- Acesso rápido -->
     <div class="card">
       {% set eid_atual = get_current_election_id() %}
       <div class="row" style="justify-content:space-between;gap:8px">
@@ -15,7 +15,6 @@
           <div style="margin-top:8px" class="row">
             <a class="btn accent" href="/public/{{ eid_atual }}/results">Ver resultados (EID atual)</a>
             <a class="btn" href="/public/{{ eid_atual }}/audit">Ver auditoria (EID atual)</a>
-            <a class="btn ghost" href="{{ url_for('schulze') }}">Entender o Método de Schulze</a>
           </div>
         </div>
         <div class="row">
@@ -32,58 +31,24 @@
 
     <!-- Abrir por EID -->
     <div class="card">
-      <h3 style="margin:0 0 8px 0">Abrir por EID</h3>
+      <h3>Abrir por EID</h3>
       <p class="muted">Digite o identificador da votação para acessar os resultados e a auditoria.</p>
       <div class="row">
         <input id="eid" type="text" placeholder="ex.: teste-2025-01" style="min-width:260px">
         <a class="btn" href="#" onclick="openRes();return false;">Resultados</a>
         <a class="btn" href="#" onclick="openAudit();return false;">Auditoria</a>
       </div>
-      <small class="code">Dica: os EIDs disponíveis podem ser consultados em <code>/public/elections</code>.</small>
     </div>
 
-    <!-- Painel Admin (aparece somente se houver ?secret=...) -->
-    <div id="adminPanel" class="card" style="display:none">
-      <h3 style="margin:0 0 8px 0">⚙️ Área do administrador</h3>
-      <p class="muted">Atalhos rápidos para configuração e gestão.</p>
-      <div class="admin-links row">
-        <a id="lnkCandidates" class="btn" href="#">Candidatos & prazo</a>
-        <a id="lnkMeta" class="btn" href="#">Metadados da votação</a>
-        <a id="lnkAssign" class="btn" href="#">Atribuir chaves (UI)</a>
-        <a id="lnkAuditPrev" class="btn" href="#">Auditoria (preview)</a>
-      </div>
-      <p class="admin-note">Observação: o parâmetro <code>?secret=...</code> é propagado nos links acima. Evite compartilhá-lo.</p>
+    <!-- Guia Schulze -->
+    <div class="card">
+      <h3>📘 Como funciona o método de Schulze</h3>
+      <p>Veja uma explicação simplificada com exemplos de votação, incluindo votos em branco e nulos.</p>
+      <a class="btn accent" href="{{ url_for('schulze_guide') }}">Abrir guia</a>
     </div>
-
-    <!-- Dicas rápidas -->
-    <div class="grid">
-      <div class="card">
-        <h3 style="margin:0 0 8px 0">Como votar</h3>
-        <ul>
-          <li>Faça <b>login</b> com seu usuário e senha.</li>
-          <li>Na tela de votação, insira sua <b>chave de votação</b>.</li>
-          <li>Informe sua preferência entre os candidatos e confirme.</li>
-          <li>Guarde o <b>recibo</b> exibido ao final.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3 style="margin:0 0 8px 0">Transparência</h3>
-        <ul>
-          <li>Resultados: <code>/public/&lt;EID&gt;/results</code></li>
-          <li>Auditoria: <code>/public/&lt;EID&gt;/audit</code></li>
-          <li>Lista de eleições: <code>/public/elections</code></li>
-        </ul>
-      </div>
-    </div>
-
-    <p class="muted" style="margin-top:12px">Se você é administrador, pode abrir esta página com <code>?secret=SEU_ADMIN_SECRET</code> para ver atalhos de gestão.</p>
   </div>
 
   <script>
-    function qparam(name){
-      const m = new URLSearchParams(window.location.search).get(name);
-      return m ? m : "";
-    }
     function sanitize(s){ return (s||"").trim(); }
     function openRes(){
       const eid = sanitize(document.getElementById('eid').value);
@@ -95,18 +60,5 @@
       if(!eid){ alert("Informe um EID."); return; }
       window.location.href = "/public/" + encodeURIComponent(eid) + "/audit";
     }
-
-    // --- Painel Admin dinâmico ---
-    (function(){
-      const secret = qparam("secret");
-      if(!secret) return;
-
-      document.getElementById("adminPanel").style.display = "";
-      const enc = encodeURIComponent(secret);
-      document.getElementById("lnkCandidates").href = "/admin/candidates?secret=" + enc;
-      document.getElementById("lnkMeta").href       = "/admin/election_meta?secret=" + enc;
-      document.getElementById("lnkAssign").href     = "/admin/assign_ui?secret=" + enc;
-      document.getElementById("lnkAuditPrev").href  = "/admin/audit_preview?secret=" + enc;
-    })();
   </script>
 {% endblock %}
