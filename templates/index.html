@@ -6,19 +6,6 @@
     <h1>SchulzeVote</h1>
     <p class="muted">Sistema de votação com método de Schulze, auditoria pública e anonimato de cédulas.</p>
 
-    <!-- Destaque: Guia do método -->
-    <div class="card" style="border:1px solid #2a323d">
-      <div class="row" style="justify-content:space-between;gap:8px">
-        <div>
-          <h3 style="margin:0 0 8px 0">Novo: Guia do método de Schulze</h3>
-          <p class="muted" style="margin:0">Entenda, com exemplos e simulador interativo, como o método define o vencedor.</p>
-        </div>
-        <div class="row">
-          <a class="btn accent" href="{{ url_for('schulze_guide') }}">Abrir guia</a>
-        </div>
-      </div>
-    </div>
-
     <!-- Acesso rápido (EID atual) -->
     <div class="card">
       {% set eid_atual = get_current_election_id() %}
@@ -37,8 +24,9 @@
       </div>
       <div class="sep"></div>
       <div class="row">
+        <a class="btn" href="{{ url_for('schulze_guide') }}">Como funciona (Guia de Schulze)</a>
         <a class="btn ghost" href="/public/elections" target="_blank" rel="noopener">Lista de votações (todas)</a>
-        <span class="muted">Abre um JSON com todos os EIDs já existentes.</span>
+        <span class="muted">A lista abre em JSON.</span>
       </div>
     </div>
 
@@ -50,9 +38,8 @@
         <input id="eid" type="text" placeholder="ex.: teste-2025-01" style="min-width:260px">
         <a class="btn" href="#" onclick="openRes();return false;">Resultados</a>
         <a class="btn" href="#" onclick="openAudit();return false;">Auditoria</a>
-        <a class="btn ghost" href="{{ url_for('schulze_guide') }}">Como funciona?</a>
       </div>
-      <small class="code">Dica: os EIDs disponíveis podem ser consultados em <code>/public/elections</code>.</small>
+      <small class="muted">Dica: os EIDs disponíveis podem ser consultados em <code>/public/elections</code>.</small>
     </div>
 
     <!-- Painel Admin (aparece somente se houver ?secret=...) -->
@@ -65,7 +52,7 @@
         <a id="lnkAssign" class="btn" href="#">Atribuir chaves (UI)</a>
         <a id="lnkAuditPrev" class="btn" href="#">Auditoria (preview)</a>
       </div>
-      <p class="admin-note">Observação: o parâmetro <code>?secret=...</code> é propagado nos links acima. Evite compartilhá-lo.</p>
+      <p class="muted" style="margin-top:8px">O parâmetro <code>?secret=...</code> será propagado pelos links acima.</p>
     </div>
 
     <!-- Dicas rápidas -->
@@ -78,7 +65,6 @@
           <li>Informe sua preferência entre os candidatos e confirme.</li>
           <li>Guarde o <b>recibo</b> exibido ao final.</li>
         </ul>
-        <a class="btn ghost" href="{{ url_for('schulze_guide') }}">Entenda o método</a>
       </div>
       <div class="card">
         <h3 style="margin:0 0 8px 0">Transparência</h3>
@@ -95,6 +81,7 @@
     </p>
   </div>
 
+  {% block scripts_extra %}
   <script>
     function qparam(name){
       const m = new URLSearchParams(window.location.search).get(name);
@@ -124,4 +111,5 @@
       document.getElementById("lnkAuditPrev").href  = "/admin/audit_preview?secret=" + enc;
     })();
   </script>
+  {% endblock %}
 {% endblock %}
