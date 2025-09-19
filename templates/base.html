@@ -21,7 +21,7 @@
   <meta property="og:image" content="{{ url_for('static', filename='icon-512.png') }}">
   <meta property="og:type" content="website">
 
-  <!-- Estilos base -->
+  <!-- Estilos base do app -->
   <style>
     :root{
       --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
@@ -30,22 +30,31 @@
     }
     *{box-sizing:border-box}
     body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text)}
+
+    /* Topbar */
+    .topbar{position:sticky; top:0; z-index:10; background:#0c0f13; border-bottom:1px solid var(--border)}
+    .topbar .inner{max-width:1000px;margin:0 auto;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:12px 16px}
+    .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);font-weight:700}
+    .brand img{width:24px;height:24px;border-radius:6px}
+    .nav-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{display:inline-block; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#1b1f27; color:var(--text); text-decoration:none; cursor:pointer}
+    .btn:hover{filter:brightness(1.1)}
+    .btn.sm{padding:8px 10px; border-radius:10px}
+    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#111}
+    .btn.ghost{background:transparent; border:1px dashed #2a323d; color:var(--text)}
+    .btn.ok{background:#113226; border-color:#164e3a}
+
     .wrap{max-width:900px;margin:0 auto;padding:28px}
     h1{margin:0 0 12px 0}
     p.muted{color:var(--muted)}
     .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px; margin:14px 0}
     .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
-    .btn{display:inline-block; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#1b1f27; color:var(--text); text-decoration:none; cursor:pointer}
-    .btn:hover{filter:brightness(1.1)}
-    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#111}
-    .btn.ghost{background:transparent; border:1px dashed #2a323d; color:var(--text)}
-    .btn.ok{background:#113226; border-color:#164e3a}
     input[type=text], input[type=password], input[type=number]{
       background:var(--input); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:10px; outline:none
     }
     .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
     @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
-    small.code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; color:var(--muted)}
+    small.code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color:var(--muted)}
     .sep{height:1px;background:var(--border);margin:16px 0}
     .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
     .admin-note{font-size:.9rem;color:#eab308;margin-top:8px}
@@ -56,9 +65,24 @@
 </head>
 <body>
 
+  <!-- Topbar com acesso rápido ao guia -->
+  <header class="topbar">
+    <div class="inner">
+      <a class="brand" href="{{ url_for('index') }}" aria-label="Início">
+        <img src="{{ url_for('static', filename='icon-192.png') }}" alt="Logo">
+        <span>SchulzeVote</span>
+      </a>
+      <nav class="nav-actions">
+        <a class="btn sm" href="{{ url_for('schulze_guide') }}">Guia do método</a>
+        <!-- Link opcional de resultados gerais por EID atual -->
+        <a class="btn sm ghost" href="/public/{{ get_current_election_id() }}/results">Resultados (EID atual)</a>
+      </nav>
+    </div>
+  </header>
+
   {% block content %}{% endblock %}
 
-  <!-- Service Worker -->
+  <!-- Registro do Service Worker (escopo raiz) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
