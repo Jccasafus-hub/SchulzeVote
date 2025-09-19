@@ -1,299 +1,204 @@
-{% extends "base_admin.html" %}
-{% block title %}Admin · Atribuir chaves (UI){% endblock %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Admin · Atribuição de chaves</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{--bg:#0b1020;--card:#11162b;--muted:#97a0b8;--txt:#e6ecff}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto}
+    .wrap{max-width:980px;margin:0 auto;padding:18px 16px 28px}
+    h1{font-size:20px;margin:0 0 10px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .btn{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#12183a;color:#e6ecff;text-decoration:none;cursor:pointer}
+    .btn:hover{filter:brightness(1.06)}
+    .card{background:linear-gradient(180deg,rgba(95,109,255,.06),rgba(110,54,137,.07)),linear-gradient(180deg,rgba(85,96,225,.08),rgba(224,162,255,.03)),#11162b;border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:14px;margin-top:12px}
+    label{display:block;margin:.5rem 0 .25rem}
+    input, textarea, select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#0e1330;color:#e6ecff}
+    textarea{min-height:110px}
+    .muted{color:var(--muted)}
+    pre{background:#0e1330;border:1px solid rgba(255,255,255,.12);padding:10px;border-radius:10px;overflow:auto;max-height:320px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:860px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between">
+      <h1>Admin · Atribuição de chaves</h1>
+      <div class="row">
+        <a class="btn" href="/admin/home?secret={{ secret|e }}">Voltar ao painel</a>
+        <a class="btn" href="/">Início</a>
+      </div>
+    </div>
 
-{% block content %}
-<h1>Atribuir chaves (lote)</h1>
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div class="muted">EID atual</div>
+          <div><b>{{ current_eid }}</b></div>
+        </div>
+        <div class="row">
+          <a class="btn" target="_blank" href="/admin/keys_list?secret={{ secret|e }}">keys_list</a>
+          <a class="btn" target="_blank" href="/admin/pool_list?secret={{ secret|e }}">pool_list</a>
+          <a class="btn" target="_blank" href="/admin/users_list?secret={{ secret|e }}">users_list</a>
+          <a class="btn" target="_blank" href="/admin/trash_list?secret={{ secret|e }}">trash_list</a>
+        </div>
+      </div>
+    </div>
 
-<div class="card">
-  <p>Cole aqui os <b>usuários</b> (um por linha). Ex.:</p>
-  <pre>usuario01
-usuario02
-usuario03</pre>
-  <textarea id="usersBox" placeholder="usuario01&#10;usuario02&#10;usuario03" style="width:100%;min-height:120px"></textarea>
+    <div class="grid">
+      <!-- Gerar chaves e atribuir -->
+      <div class="card">
+        <h3 style="margin:0 0 8px">Gerar chaves e atribuir (lote)</h3>
+        <p class="muted">Informe usuários separados por vírgula. Opcionalmente defina o <b>peso</b> das chaves/usuários.</p>
+        <label for="gen_users">RAs / usuários (user1,user2,...)</label>
+        <input id="gen_users" placeholder="ex.: ra001,ra002,ra003">
+        <label for="gen_peso">Peso</label>
+        <input id="gen_peso" type="number" min="1" value="1">
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="btnGenerate">Gerar e atribuir</button>
+        </div>
+        <p class="muted" style="margin-top:8px">Resposta:</p>
+        <pre id="gen_out">(aguardando)</pre>
+      </div>
 
-  <div class="row">
-    <label>Peso padrão:
-      <input type="number" id="peso" value="1" min="1" class="wsmall" style="width:90px">
-    </label>
-    <button class="btn accent" onclick="genAssign()">Gerar e atribuir</button>
-    <button class="btn" onclick="poolAssign()">Atribuir do pool</button>
-    <button class="btn" onclick="exportCSVAll()">Exportar CSV (todos)</button>
-    <button class="btn" onclick="exportCSVFromTextarea()">Exportar CSV (somente colados)</button>
+      <!-- Usar pool e atribuir -->
+      <div class="card">
+        <h3 style="margin:0 0 8px">Atribuir usando pool existente</h3>
+        <p class="muted">Consome chaves de <code>voter_keys.json → pool</code> na ordem.</p>
+        <label for="pool_users">RAs / usuários (user1,user2,...)</label>
+        <input id="pool_users" placeholder="ex.: ra004,ra005">
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="btnPool">Atribuir do pool</button>
+        </div>
+        <p class="muted" style="margin-top:8px">Resposta:</p>
+        <pre id="pool_out">(aguardando)</pre>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Peso de um usuário -->
+      <div class="card">
+        <h3 style="margin:0 0 8px">Definir peso de um usuário</h3>
+        <label for="w_user">Usuário</label>
+        <input id="w_user" placeholder="ex.: ra001">
+        <label for="w_peso">Peso</label>
+        <input id="w_peso" type="number" min="1" value="1">
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="btnSetWeight">Salvar peso</button>
+        </div>
+        <pre id="w_out">(aguardando)</pre>
+      </div>
+
+      <!-- Excluir / restaurar -->
+      <div class="card">
+        <h3 style="margin:0 0 8px">Excluir / Restaurar usuários</h3>
+        <label for="del_user">Excluir 1 usuário</label>
+        <input id="del_user" placeholder="ex.: ra001">
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="btnDeleteOne">Excluir</button>
+        </div>
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,.1);margin:12px 0">
+        <label for="del_batch">Excluir em lote (user1,user2,...)</label>
+        <input id="del_batch" placeholder="ex.: ra010,ra011">
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="btnDeleteBatch">Excluir em lote</button>
+        </div>
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,.1);margin:12px 0">
+        <label for="res_user">Restaurar usuário</label>
+        <input id="res_user" placeholder="ex.: ra001">
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="btnRestore">Restaurar</button>
+          <button class="btn" id="btnEmptyTrash" title="Limpa definitivamente a lixeira" style="background:#2a0f12">Esvaziar lixeira</button>
+        </div>
+        <pre id="del_out">(aguardando)</pre>
+      </div>
+    </div>
+
+    <p class="muted" style="margin-top:14px">SchulzeVote · v{{ APP_VERSION }}</p>
   </div>
 
-  <div class="row">
-    <b>Resultado:</b>
-    <pre id="resultBox" style="flex:1;max-width:100%">(aguardando)</pre>
-  </div>
+  <script>
+    const secret = encodeURIComponent("{{ secret }}");
 
-  <div class="row">
-    <label>Aplicar peso em lote:
-      <input type="number" id="pesoLote" value="1" min="1" class="wsmall" style="width:90px">
-    </label>
-    <button class="btn" onclick="applyBatchWeight()">Aplicar peso (lote)</button>
-    <span id="batchStatus" class="pill">—</span>
-  </div>
+    async function hit(url, textOutElem, opts={}) {
+      try{
+        const res = await fetch(url, opts);
+        const txt = await res.text();
+        textOutElem.textContent = txt;
+      }catch(e){
+        textOutElem.textContent = "Erro: " + e;
+      }
+    }
 
-  <div class="row" style="margin-top:6px">
-    <button class="btn" style="background:#7f1d1d;border-color:#7f1d1d" onclick="deleteBatch()">Excluir usuários (lote)</button>
-    <span class="muted">Soft delete: vão para a lixeira (recuperável).</span>
-  </div>
-</div>
+    // Gerar e atribuir
+    document.getElementById('btnGenerate').onclick = () => {
+      const users = document.getElementById('gen_users').value.trim();
+      const peso  = document.getElementById('gen_peso').value || "1";
+      const out   = document.getElementById('gen_out');
+      if(!users){ out.textContent="Informe usuários."; return; }
+      const url = `/admin/assign_batch_generate?secret=${secret}&ras=${encodeURIComponent(users)}&peso=${encodeURIComponent(peso)}`;
+      hit(url, out);
+    };
 
-<div class="grid">
-  <div class="card">
-    <h3>Chaves (voter_keys.json)</h3>
-    <div id="keysTable">carregando...</div>
-  </div>
-  <div class="card">
-    <h3>Pool (livres e não atribuídas)</h3>
-    <div id="poolTable">carregando...</div>
-  </div>
-</div>
+    // Usar pool
+    document.getElementById('btnPool').onclick = () => {
+      const users = document.getElementById('pool_users').value.trim();
+      const out   = document.getElementById('pool_out');
+      if(!users){ out.textContent="Informe usuários."; return; }
+      const url = `/admin/assign_batch_use_pool?secret=${secret}&ras=${encodeURIComponent(users)}`;
+      hit(url, out);
+    };
 
-<div class="card">
-  <h3>Usuários (user_registry.json)</h3>
-  <div class="row">
-    <input type="text" id="filtroUser" placeholder="Filtrar por usuário..." oninput="renderUsers()">
-    <span class="pill">EID atual: <b id="eidNow"></b></span>
-  </div>
-  <div id="usersTable">carregando...</div>
-</div>
+    // Peso user
+    document.getElementById('btnSetWeight').onclick = () => {
+      const user = document.getElementById('w_user').value.trim();
+      const peso = document.getElementById('w_peso').value || "1";
+      const out  = document.getElementById('w_out');
+      if(!user){ out.textContent="Informe o usuário."; return; }
+      const url = `/admin/set_user_weight?secret=${secret}&user=${encodeURIComponent(user)}&peso=${encodeURIComponent(peso)}`;
+      hit(url, out);
+    };
 
-<div class="card">
-  <h3>Lixeira (soft delete)</h3>
-  <p class="muted">Usuários excluídos ficam aqui e podem ser restaurados.</p>
-  <div id="trashTable">carregando...</div>
-  <div class="row">
-    <button class="btn" onclick="emptyTrash()">Esvaziar lixeira</button>
-    <span class="muted">Atenção: esvaziar remove definitivamente os cadastros daqui.</span>
-  </div>
-</div>
-{% endblock %}
+    // Excluir um
+    document.getElementById('btnDeleteOne').onclick = () => {
+      const user = document.getElementById('del_user').value.trim();
+      const out  = document.getElementById('del_out');
+      if(!user){ out.textContent="Informe o usuário."; return; }
+      const url = `/admin/delete_user?secret=${secret}&user=${encodeURIComponent(user)}`;
+      hit(url, out);
+    };
 
-{% block scripts %}
-<script>
-const secret = {{ secret|tojson }};
-const currentEid = {{ current_eid|tojson }};
-document.addEventListener('DOMContentLoaded', ()=>{ document.getElementById('eidNow').textContent = currentEid; });
+    // Excluir batch
+    document.getElementById('btnDeleteBatch').onclick = () => {
+      const users = document.getElementById('del_batch').value.trim();
+      const out   = document.getElementById('del_out');
+      if(!users){ out.textContent="Informe a lista."; return; }
+      const url = `/admin/delete_users_batch?secret=${secret}&users=${encodeURIComponent(users)}`;
+      hit(url, out);
+    };
 
-let USERS_CACHE = {};
-let TRASH_CACHE = {};
+    // Restaurar
+    document.getElementById('btnRestore').onclick = () => {
+      const user = document.getElementById('res_user').value.trim();
+      const out  = document.getElementById('del_out');
+      if(!user){ out.textContent="Informe o usuário."; return; }
+      const url = `/admin/restore_user?secret=${secret}&user=${encodeURIComponent(user)}`;
+      hit(url, out);
+    };
 
-function parseUsersFromTextarea() {
-  const t = document.getElementById('usersBox').value.trim();
-  return t ? t.split(/\r?\n/).map(s=>s.trim()).filter(Boolean) : [];
-}
-
-async function genAssign() {
-  const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários.'); return; }
-  const peso = document.getElementById('peso').value || '1';
-  const url = `/admin/assign_batch_generate?secret=${encodeURIComponent(secret)}&peso=${encodeURIComponent(peso)}&ras=${encodeURIComponent(users.join(','))}`;
-  const r = await fetch(url);
-  document.getElementById('resultBox').textContent = await r.text();
-  await refreshAll();
-}
-
-async function poolAssign() {
-  const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários.'); return; }
-  const url = `/admin/assign_batch_use_pool?secret=${encodeURIComponent(secret)}&ras=${encodeURIComponent(users.join(','))}`;
-  const r = await fetch(url);
-  document.getElementById('resultBox').textContent = await r.text();
-  await refreshAll();
-}
-
-async function applyBatchWeight() {
-  const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários.'); return; }
-  const peso = parseInt(document.getElementById('pesoLote').value || '1', 10);
-  const status = document.getElementById('batchStatus');
-  status.textContent = 'Aplicando...';
-  let ok = 0, fail = 0;
-
-  for (const u of users) {
-    const url = `/admin/set_user_weight?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}&peso=${encodeURIComponent(peso)}`;
-    try {
-      const r = await fetch(url);
-      if (r.ok) ok++; else fail++;
-    } catch(e) { fail++; }
-  }
-  status.textContent = `Concluído: ok=${ok}, falhas=${fail}`;
-  await refreshUsers();
-}
-
-async function deleteBatch() {
-  const users = parseUsersFromTextarea(); if (!users.length) { alert('Cole usuários para excluir.'); return; }
-  if (!confirm('Excluir (soft delete) os usuários colados?')) return;
-  const url = `/admin/delete_users_batch?secret=${encodeURIComponent(secret)}&users=${encodeURIComponent(users.join(','))}`;
-  const r = await fetch(url);
-  const txt = await r.text();
-  document.getElementById('resultBox').textContent = txt;
-  await refreshUsers(); await refreshTrash();
-}
-
-async function deleteOne(encUser) {
-  const u = decodeURIComponent(encUser);
-  if (!confirm('Excluir o usuário "'+u+'"?')) return;
-  const url = `/admin/delete_user?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}`;
-  const r = await fetch(url);
-  const txt = await r.text();
-  document.getElementById('resultBox').textContent = txt;
-  await refreshUsers(); await refreshTrash();
-}
-
-async function restoreOne(encUser) {
-  const u = decodeURIComponent(encUser);
-  const url = `/admin/restore_user?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}`;
-  const r = await fetch(url);
-  const txt = await r.text();
-  document.getElementById('resultBox').textContent = txt;
-  await refreshUsers(); await refreshTrash();
-}
-
-async function emptyTrash() {
-  if (!confirm('Esvaziar a lixeira?')) return;
-  const r = await fetch(`/admin/empty_trash?secret=${encodeURIComponent(secret)}`, {method:'POST'});
-  const txt = await r.text();
-  document.getElementById('resultBox').textContent = txt;
-  await refreshTrash();
-}
-
-// ----- CSV -----
-function buildCSV(rows) {
-  const header = ['usuario','key','used','peso','attempts_'+currentEid];
-  const esc = v => {
-    if (v===undefined || v===null) return '';
-    const s = String(v);
-    return /[",\n]/.test(s) ? '"'+ s.replace(/"/g,'""') +'"' : s;
-  };
-  const out = [header.join(',')].concat(
-    rows.map(r => [r.usuario, r.key, r.used, r.peso, r.attempts].map(esc).join(','))
-  );
-  return out.join('\n');
-}
-function downloadCSV(filename, csvText) {
-  const blob = new Blob([csvText], {type: 'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
-}
-function exportCSVAll() {
-  const entries = Object.entries(USERS_CACHE);
-  const rows = entries.map(([u,v]) => ({
-    usuario: u, key: v.key || '', used: !!v.used, peso: v.peso || 1,
-    attempts: (v.attempts && v.attempts[currentEid]) || 0
-  }));
-  const csv = buildCSV(rows);
-  const ts = new Date().toISOString().replace(/[:.]/g,'-');
-  downloadCSV(`usuarios_chaves_pesos_${currentEid}_${ts}.csv`, csv);
-}
-function exportCSVFromTextarea() {
-  const filterSet = new Set(parseUsersFromTextarea());
-  if (!filterSet.size) { alert('Cole usuários para exportar apenas esse conjunto.'); return; }
-  const rows = Object.entries(USERS_CACHE)
-    .filter(([u]) => filterSet.has(u))
-    .map(([u,v]) => ({
-      usuario: u, key: v.key || '', used: !!v.used, peso: v.peso || 1,
-      attempts: (v.attempts && v.attempts[currentEid]) || 0
-    }));
-  const csv = buildCSV(rows);
-  const ts = new Date().toISOString().replace(/[:.]/g,'-');
-  downloadCSV(`usuarios_chaves_pesos_FILTRADO_${currentEid}_${ts}.csv`, csv);
-}
-
-// ----- Tabelas -----
-async function refreshKeys() {
-  const r = await fetch(`/admin/keys_list?secret=${encodeURIComponent(secret)}`);
-  const j = await r.json();
-  const rows = Object.entries(j.keys||{}).map(([k,v]) =>
-    `<tr><td>${k}</td><td>${v.used?'✔️':'—'}</td><td>${v.used_at||'—'}</td><td>${v.peso||1}</td></tr>`
-  ).join('');
-  document.getElementById('keysTable').innerHTML =
-    `<table><thead><tr><th>Chave</th><th>Usada</th><th>Quando</th><th>Peso</th></tr></thead><tbody>${rows}</tbody></table>`;
-}
-async function refreshPool() {
-  const r = await fetch(`/admin/pool_list?secret=${encodeURIComponent(secret)}`);
-  const j = await r.json();
-  const rows = (j.pool||[]).map(k => `<tr><td>${k}</td></tr>`).join('');
-  document.getElementById('poolTable').innerHTML =
-    `<table><thead><tr><th>Chave livre</th></tr></thead><tbody>${rows}</tbody></table>`;
-}
-async function refreshUsers() {
-  const r = await fetch(`/admin/users_list?secret=${encodeURIComponent(secret)}`);
-  const j = await r.json();
-  USERS_CACHE = j.users || {};
-  renderUsers();
-}
-async function refreshTrash() {
-  const r = await fetch(`/admin/trash_list?secret=${encodeURIComponent(secret)}`);
-  const j = await r.json();
-  TRASH_CACHE = j.users || {};
-  renderTrash();
-}
-function renderUsers() {
-  const filtro = (document.getElementById('filtroUser').value || '').toLowerCase();
-  const entries = Object.entries(USERS_CACHE);
-  const rows = entries
-    .filter(([u]) => !filtro || u.toLowerCase().includes(filtro))
-    .map(([u,v]) => {
-      const tent = (v.attempts && v.attempts[currentEid]) || 0;
-      const peso = v.peso || 1;
-      const key  = v.key || '—';
-      const used = v.used ? '✔️' : '—';
-      return `<tr>
-        <td><code>${u}</code></td>
-        <td>${key}</td>
-        <td style="text-align:center">${used}</td>
-        <td style="text-align:center">
-          <input id="w-${encodeURIComponent(u)}" type="number" min="1" value="${peso}" style="width:90px" />
-          <button class="btn" onclick="saveWeight('${encodeURIComponent(u)}')">Salvar</button>
-          <button class="btn" style="background:#7f1d1d;border-color:#7f1d1d" onclick="deleteOne('${encodeURIComponent(u)}')">Excluir</button>
-        </td>
-        <td style="text-align:center">${tent}</td>
-      </tr>`;
-    }).join('');
-  document.getElementById('usersTable').innerHTML =
-    `<table>
-      <thead><tr><th>Usuário</th><th>Chave</th><th>Usou</th><th>Peso / Ações</th><th>Tentativas (EID atual)</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-function renderTrash() {
-  const entries = Object.entries(TRASH_CACHE);
-  if (!entries.length) {
-    document.getElementById('trashTable').innerHTML = '<p class="muted">Lixeira vazia.</p>'; return;
-  }
-  const rows = entries.map(([u,v]) => {
-    const delAt = v.deleted_at || '—';
-    const key   = v.key || '—';
-    const used  = v.used ? '✔️' : '—';
-    const peso  = v.peso || 1;
-    return `<tr>
-      <td><code>${u}</code></td>
-      <td>${key}</td>
-      <td style="text-align:center">${used}</td>
-      <td style="text-align:center">${peso}</td>
-      <td>${delAt}</td>
-      <td style="text-align:center"><button class="btn" onclick="restoreOne('${encodeURIComponent(u)}')">Restaurar</button></td>
-    </tr>`;
-  }).join('');
-  document.getElementById('trashTable').innerHTML =
-    `<table>
-      <thead><tr><th>Usuário</th><th>Chave</th><th>Usou</th><th>Peso</th><th>Excluído em</th><th>Ação</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-async function saveWeight(encUser) {
-  const u = decodeURIComponent(encUser);
-  const inp = document.getElementById('w-' + encUser);
-  const val = parseInt((inp.value||'1'),10);
-  if (!Number.isFinite(val) || val < 1) { alert('Peso inválido.'); return; }
-  const url = `/admin/set_user_weight?secret=${encodeURIComponent(secret)}&user=${encodeURIComponent(u)}&peso=${encodeURIComponent(val)}`;
-  const r = await fetch(url);
-  if (r.ok) { await refreshUsers(); }
-  else { alert('Falha ao salvar peso para ' + u); }
-}
-async function refreshAll() { await Promise.all([refreshKeys(), refreshPool(), refreshUsers(), refreshTrash()]); }
-refreshAll();
-</script>
-{% endblock %}
+    // Esvaziar lixeira (POST)
+    document.getElementById('btnEmptyTrash').onclick = async () => {
+      const out  = document.getElementById('del_out');
+      try{
+        const res = await fetch(`/admin/empty_trash?secret=${secret}`, {method:"POST"});
+        const txt = await res.text();
+        out.textContent = txt;
+      }catch(e){
+        out.textContent = "Erro: " + e;
+      }
+    };
+  </script>
+</body>
+</html>
