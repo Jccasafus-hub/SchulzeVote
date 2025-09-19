@@ -5,15 +5,12 @@
   <h1>Entrar no Painel do Administrador</h1>
   <p class="muted">Informe sua chave de administrador para acessar o painel.</p>
 
-  {% if error %}
-    <div class="card" role="alert" aria-live="polite" style="border-color:#7f1d1d;background:#1b0f10">
-      <b style="color:#ef4444">Erro:</b> {{ error }}
-    </div>
-  {% endif %}
-
   <div class="card">
     <form method="POST" class="row" style="gap:12px; align-items:flex-end">
-      <div style="display:flex; flex-direction:column; gap:6px; min-width:260px; flex:1">
+      <!-- Campo oculto para preservar o secret se vier na URL -->
+      <input type="hidden" name="keep_secret" value="{{ request.args.get('secret','') }}"/>
+
+      <div style="display:flex; flex-direction:column; gap:6px; min-width:260px">
         <label for="secret">Chave de administrador</label>
         <input id="secret" name="secret" type="password" placeholder="Cole sua chave aqui" required>
         <a href="#"
@@ -27,8 +24,7 @@
     </form>
   </div>
 
-  <div class="row" style="margin-top:10px">
-    <!-- Intencionalmente NÃO mostramos 'voltar ao painel' aqui -->
-    <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao site público</a>
+  <div class="row" style="margin-top:14px">
+    <a class="btn ghost" href="/">Voltar ao início público</a>
   </div>
 {% endblock %}
