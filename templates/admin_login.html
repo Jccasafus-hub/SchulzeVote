@@ -6,8 +6,8 @@
   <p class="muted">Informe sua chave de administrador para acessar o painel.</p>
 
   <div class="card">
-    <form method="POST" class="row" style="gap:12px; align-items:flex-end">
-      <!-- Campo oculto para preservar o secret se vier na URL -->
+    <form method="POST" class="row" style="gap:12px; align-items:flex-end" autocomplete="off">
+      <!-- Campo oculto: se o proxy remover querystring, ainda preserva ao enviar -->
       <input type="hidden" name="keep_secret" value="{{ request.args.get('secret','') }}"/>
 
       <div style="display:flex; flex-direction:column; gap:6px; min-width:260px">
@@ -22,9 +22,5 @@
 
       <button class="btn accent" type="submit">Entrar</button>
     </form>
-  </div>
-
-  <div class="row" style="margin-top:14px">
-    <a class="btn ghost" href="/">Voltar ao início público</a>
   </div>
 {% endblock %}
