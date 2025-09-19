@@ -6,13 +6,22 @@
   <p class="muted">Informe sua chave de administrador para acessar o painel.</p>
 
   <div class="card">
-    <form method="POST" class="row" style="gap:12px; align-items:flex-end">
-      <!-- Campo oculto para preservar o secret mesmo que o proxy remova o querystring -->
+    <form method="POST"
+          action="{{ url_for('admin_bp.login') }}{% if request.args.get('secret') %}?secret={{ request.args.get('secret')|urlencode }}{% endif %}"
+          class="row" style="gap:12px; align-items:flex-end">
+
+      <!-- Preserva o secret também no corpo do POST (defesa dupla) -->
       <input type="hidden" name="keep_secret" value="{{ request.args.get('secret','') }}"/>
 
       <div style="display:flex; flex-direction:column; gap:6px; min-width:260px">
         <label for="secret">Chave de administrador</label>
-        <input id="secret" name="secret" type="password" placeholder="Cole sua chave aqui" required>
+        <input id="secret"
+               name="secret"
+               type="password"
+               placeholder="Cole sua chave aqui"
+               inputmode="text"
+               autocomplete="one-time-code"
+               required>
         <a href="#"
            onclick="const i=document.getElementById('secret'); i.type=(i.type==='password'?'text':'password'); this.blur(); return false;"
            style="font-size:.9rem; color:var(--muted); text-decoration:underline; align-self:flex-start;">
