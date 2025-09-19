@@ -45,6 +45,15 @@ try:
 except Exception as e:
     print(f"[warn] Admin blueprint não registrado: {e}")
 
+@app.route("/_template_check")
+def _template_check():
+    try:
+        # tenta renderizar o index normalmente
+        return render_template("index.html", get_current_election_id=get_current_election_id)
+    except Exception as e:
+        # mostra o erro pra facilitar debug
+        return Response(f"TEMPLATE ERROR: {e}", status=500, mimetype="text/plain")
+
 # =============================================================================
 # Arquivos & Pastas
 # =============================================================================
