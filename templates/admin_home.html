@@ -7,45 +7,24 @@
 
   <div class="card">
     <div class="row admin-links">
-      {# Propaga o ?secret= via Jinja; se não vier na URL, os links funcionam sem secret #}
-      {% set s = secret or request.args.get('secret','') %}
-      <a class="btn" href="/admin/candidates{% if s %}?secret={{ s|urlencode }}{% endif %}">Candidatos &amp; prazo</a>
-      <a class="btn" href="/admin/election_meta{% if s %}?secret={{ s|urlencode }}{% endif %}">Metadados da eleição</a>
-      <a class="btn" href="/admin/assign_ui{% if s %}?secret={{ s|urlencode }}{% endif %}">Atribuir chaves (UI)</a>
-      <a class="btn" href="/admin/audit_preview{% if s %}?secret={{ s|urlencode }}{% endif %}">Auditoria (preview)</a>
-    </div>
-  </div>
-
-  <div class="grid">
-    <div class="card">
-      <h3 style="margin:0 0 8px 0">Exportações</h3>
-      <div class="row">
-        <a class="btn" href="/admin/backup_zip{% if s %}?secret={{ s|urlencode }}{% endif %}">Backup ZIP (tudo)</a>
-        <a class="btn" href="/admin/export_audit_bundle{% if s %}?secret={{ s|urlencode }}{% endif %}">Bundle Auditoria (EID atual)</a>
-      </div>
-      <p class="muted" style="margin-top:8px">
-        O bundle inclui cédulas anônimas, log textual e manifesto de integridade.
-      </p>
-    </div>
-
-    <div class="card">
-      <h3 style="margin:0 0 8px 0">Dados “crus” (debug)</h3>
-      <div class="row">
-        <a class="btn ghost" href="/admin/audit_raw{% if s %}?secret={{ s|urlencode }}{% endif %}" target="_blank" rel="noopener">Auditoria (JSON)</a>
-        <a class="btn ghost" href="/admin/ballots_raw{% if s %}?secret={{ s|urlencode }}{% endif %}" target="_blank" rel="noopener">Cédulas (JSON)</a>
-      </div>
-      <p class="muted" style="margin-top:8px">Abrem em nova aba como JSON.</p>
+      {% set secret = request.args.get('secret','') %}
+      <a class="btn" href="/admin/candidates{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Candidatos &amp; prazo</a>
+      <a class="btn" href="/admin/election_meta{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Metadados da votação</a>
+      <a class="btn" href="/admin/assign_ui{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Atribuir chaves (UI)</a>
+      <a class="btn" href="/admin/audit_preview{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Auditoria (preview)</a>
     </div>
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 8px 0">Sessão</h3>
+    <h3 style="margin:0 0 8px 0">Saída</h3>
+    <p class="muted">Você pode sair e manter o secret na URL para voltar rápido depois.</p>
     <div class="row">
-      <a class="btn ghost" href="/admin/logout{% if s %}?secret={{ s|urlencode }}{% endif %}">Sair</a>
-      <a class="btn" href="/{% if s %}?secret={{ s|urlencode }}{% endif %}">Ir para o site público</a>
+      <a class="btn ghost" href="/admin/logout{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Sair</a>
+      <a class="btn" href="/{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Ir para o site público</a>
     </div>
-    <p class="muted" style="margin-top:6px">
-      O parâmetro <code>?secret=...</code> é propagado para facilitar reabertura de telas administrativas.
-    </p>
+  </div>
+
+  <div class="row" style="margin-top:14px">
+    <a class="btn ghost" href="/">Voltar ao início público</a>
   </div>
 {% endblock %}
