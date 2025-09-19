@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="SchulzeVote">
 
-  <!-- Open Graph (opcional) -->
+  <!-- (Opcional) Open Graph -->
   <meta property="og:title" content="SchulzeVote">
   <meta property="og:description" content="Sistema de votação com método de Schulze, auditoria pública e anonimato de cédulas.">
   <meta property="og:image" content="{{ url_for('static', filename='icon-512.png') }}">
@@ -35,61 +35,30 @@
     p.muted{color:var(--muted)}
     .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px; margin:14px 0}
     .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
-
-    .btn{
-      display:inline-block; padding:12px 14px; border-radius:12px;
-      border:1px solid var(--border); background:#1b1f27; color:var(--text);
-      text-decoration:none; cursor:pointer; font-size:.95rem
-    }
+    .btn{display:inline-block; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#1b1f27; color:var(--text); text-decoration:none; cursor:pointer}
     .btn:hover{filter:brightness(1.1)}
-    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#111; font-weight:600}
-    .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--muted)}
-    .btn.ghost:hover{background:#1b1f27; color:var(--text)}
+    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#111}
+    .btn.ghost{background:transparent; border:1px dashed #2a323d; color:var(--text)}
     .btn.ok{background:#113226; border-color:#164e3a}
-
     input[type=text], input[type=password], input[type=number]{
-      background:var(--input); border:1px solid var(--border); color:var(--text);
-      padding:10px 12px; border-radius:10px; outline:none
+      background:var(--input); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:10px; outline:none
     }
-    textarea, .textarea{
-      background:var(--input); border:1px solid var(--border); color:var(--text);
-      padding:10px 12px; border-radius:10px; outline:none; width:100%; min-height:220px;
-      font-family:inherit; font-size:1rem;
-    }
-
     .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
     @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
-    small.code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color:var(--muted)}
+    small.code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; color:var(--muted)}
     .sep{height:1px;background:var(--border);margin:16px 0}
     .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
+    .admin-note{font-size:.9rem;color:#eab308;margin-top:8px}
+    .admin-links a{display:inline-block;margin:6px 8px 0 0}
   </style>
 
   {% block head_extra %}{% endblock %}
 </head>
 <body>
-  <div class="wrap">
 
-    {# Botão de voltar só em páginas internas (não aparece na home) #}
-    {% if request.endpoint not in ["index"] %}
-      <div class="row" style="justify-content:flex-end; margin-bottom:8px">
-        <a class="btn ghost" href="{{ url_for('index') }}">Voltar ao início</a>
-      </div>
-    {% endif %}
+  {% block content %}{% endblock %}
 
-    {% with msgs = get_flashed_messages(with_categories=true) %}
-      {% if msgs %}
-        <div class="card">
-          {% for cat, msg in msgs %}
-            <p class="muted" style="margin:0"><b>{{ cat|upper }}:</b> {{ msg }}</p>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
-
-    {% block content %}{% endblock %}
-  </div>
-
-  <!-- Service Worker (escopo raiz) -->
+  <!-- Service Worker -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
