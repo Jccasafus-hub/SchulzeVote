@@ -2,20 +2,22 @@
 {% block title %}SchulzeVote Admin · Candidatos & Prazo{% endblock %}
 
 {% block content %}
+  {% set secret_qs = request.args.get('secret','') %}
   <h1>Candidatos &amp; Prazo</h1>
-  {% if msg %}<p style="color:#10b981">{{ msg }}</p>{% endif %}
-  {% if warn %}<p style="color:#eab308">{{ warn }}</p>{% endif %}
+  {% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
+  {% if warn %}<p class="alert warn">{{ warn }}</p>{% endif %}
 
   <div class="card">
     <h3 style="margin:0 0 8px 0">Candidatos</h3>
-    <p class="muted">
-      Um por linha. <i>{{ RESERVED_BLANK }}</i> e <i>{{ RESERVED_NULL }}</i> são fixos no fim da lista.
-    </p>
+    <p class="muted">Um por linha. <i>{{ RESERVED_BLANK }}</i> e <i>{{ RESERVED_NULL }}</i> são fixos no fim da lista.</p>
+
     <form method="POST" class="row" style="flex-direction:column; gap:12px; align-items:stretch">
+      {% if secret_qs %}<input type="hidden" name="secret" value="{{ secret_qs }}">{% endif %}
       <input type="hidden" name="action" value="save_candidates">
       <textarea name="lista" style="min-height:220px;background:var(--input);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px">{{ core_text }}</textarea>
       <div class="row" style="justify-content:flex-start">
         <button class="btn accent" type="submit">Salvar candidatos</button>
+        <a class="btn" href="/admin/home{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Voltar ao painel</a>
       </div>
     </form>
   </div>
@@ -25,6 +27,7 @@
     <div class="muted" style="margin:8px 0">{{ deadline_html|safe }}</div>
 
     <form method="POST" class="row" style="flex-wrap:wrap; gap:12px; align-items:end">
+      {% if secret_qs %}<input type="hidden" name="secret" value="{{ secret_qs }}">{% endif %}
       <input type="hidden" name="action" value="set_deadline">
       <label>Data<br><input type="date" name="date"></label>
       <label>Hora<br><input type="time" name="time"></label>
@@ -49,13 +52,15 @@
     </form>
 
     <form method="POST" style="margin-top:8px">
+      {% if secret_qs %}<input type="hidden" name="secret" value="{{ secret_qs }}">{% endif %}
       <input type="hidden" name="action" value="clear_deadline">
       <button class="btn ghost" type="submit">Limpar prazo</button>
     </form>
 
     <div class="sep"></div>
     <div class="row">
-      <a class="btn" href="/admin/election_meta?secret={{ secret_qs|urlencode }}">Metadados da votação</a>
+      <a class="btn" href="/admin/election_meta{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Metadados da votação</a>
+      <a class="btn" href="/admin/home{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Voltar ao painel</a>
     </div>
   </div>
 {% endblock %}
