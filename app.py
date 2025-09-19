@@ -19,6 +19,7 @@ app.jinja_env.globals['APP_VERSION'] = APP_VERSION
 
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "troque-admin")
 ID_SALT      = os.environ.get("ID_SALT", "mude-este-salt")
+app.config["ADMIN_SECRET"] = ADMIN_SECRET
 
 # ===== Blueprint do Admin =====
 try:
