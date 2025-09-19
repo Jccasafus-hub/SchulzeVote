@@ -3,38 +3,51 @@ from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from flask import (
-    Flask, render_template, request, redirect, url_for,
-    flash, Response, abort, session
+    Flask, render_template, render_template_string, request, redirect, url_for,
+    flash, Response, abort, session, jsonify
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# =============== App & Secrets ===============
+# =============================================================================
+# App & Versão (cache busting)
+# =============================================================================
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mude-isto")
 
-# Versão para cache busting (manifest/ícones/SW)
-APP_VERSION = os.environ.get("APP_VERSION", datetime.utcnow().strftime("%Y%m%d%H%M%S"))
-# Expõe para os templates Jinja (usado no base_admin.html)
-app.jinja_env.globals['APP_VERSION'] = APP_VERSION
+# --- OPÇÃO A) Versão fixa manual (troque a string a cada deploy) -------------
+# APP_VERSION = "2025091901"
 
+# --- OPÇÃO B) Automática por commit do Render (cai para timestamp se não houver)
+APP_VERSION = os.environ.get("RENDER_GIT_COMMIT", datetime.utcnow().strftime("%Y%m%d%H%M%S"))
+
+# Expor para Jinja
+app.jinja_env.globals["APP_VERSION"] = APP_VERSION
+
+# Helper asset() para versionar estáticos: {{ asset('icon-512.png') }}
+from flask import url_for
+@app.context_processor
+def inject_asset_helper():
+    def asset(path: str) -> str:
+        return url_for("static", filename=path, v=APP_VERSION)
+    return {"asset": asset}
+
+# =============================================================================
+# Segredos e Admin Blueprint
+# =============================================================================
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "troque-admin")
 ID_SALT      = os.environ.get("ID_SALT", "mude-este-salt")
 
-# ===== Blueprint do Admin =====
-# Requer a estrutura:
-# /admin/__init__.py   (define admin_bp)
-# /admin/views.py      (registra rotas no admin_bp)
+# Tenta registrar o blueprint do Admin (em admin/__init__.py e admin/views.py)
 try:
     from admin import admin_bp
     app.register_blueprint(admin_bp)
     print("[info] Admin blueprint registrado em /admin")
 except Exception as e:
-    import traceback
-    print(f"[ERROR] Falha ao registrar admin blueprint: {e}")
-    traceback.print_exc()
-    raise  # não esconda o erro; ajuda a ver no log do Render
+    print(f"[warn] Admin blueprint não registrado: {e}")
 
-# =============== Arquivos & Pastas ===============
+# =============================================================================
+# Arquivos & Pastas
+# =============================================================================
 CAND_FILE       = "candidates.json"
 VOTER_KEYS_FILE = "voter_keys.json"
 ELECTION_FILE   = "election.json"
@@ -51,7 +64,9 @@ AUDIT_DIR.mkdir(parents=True, exist_ok=True)
 RESERVED_BLANK = "Voto em Branco"
 RESERVED_NULL  = "Voto Nulo"
 
-# =============== Utils ===============
+# =============================================================================
+# Utils
+# =============================================================================
 def norm(s: str) -> str:
     return (s or "").strip().upper()
 
@@ -79,7 +94,9 @@ def _write_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-# =============== Election (id, prazo, meta) ===============
+# =============================================================================
+# Election (id, prazo, meta)
+# =============================================================================
 def load_election_doc():
     d = _read_json(ELECTION_FILE, {})
     d.setdefault("election_id", "default")
@@ -133,7 +150,9 @@ def is_voting_open():
         return True
     return datetime.now(timezone.utc) < dl
 
-# =============== Auditoria & Cédulas ===============
+# =============================================================================
+# Auditoria & Cédulas
+# =============================================================================
 def ballots_path(eid: str) -> Path:
     return BAL_DIR / f"{eid}.json"
 
@@ -160,7 +179,9 @@ def audit_admin(eid: str, action: str, detail: str, ip: str = "-"):
     ts = datetime.utcnow().isoformat() + "Z"
     audit_line(eid, f"ADMIN {action} {ts} {detail} by_ip={ip}")
 
-# =============== Candidatos ===============
+# =============================================================================
+# Candidatos
+# =============================================================================
 def _default_candidates():
     return ["Alice", "Bob", "Charlie", RESERVED_BLANK, RESERVED_NULL]
 
@@ -196,7 +217,9 @@ def save_candidates(lst):
     _write_json(CAND_FILE, {"candidates": normalize_candidates(lst)})
     return load_candidates()
 
-# =============== Chaves & Registro ===============
+# =============================================================================
+# Chaves & Registro
+# =============================================================================
 def load_keys():
     d = _read_json(VOTER_KEYS_FILE, {"keys": {}})
     for k, v in list(d.get("keys", {}).items()):
@@ -220,7 +243,9 @@ def load_registry():
 def save_registry(d):
     _write_json(REGISTRY_FILE, d)
 
-# =============== Lixeira (soft delete) ===============
+# =============================================================================
+# Lixeira (soft delete)
+# =============================================================================
 def load_trash():
     return _read_json(TRASH_FILE, {"users": {}})
 
@@ -255,7 +280,9 @@ def restore_user_from_trash(uid: str):
 def empty_trash():
     save_trash({"users": {}})
 
-# =============== Schulze (parcial + empates) ===============
+# =============================================================================
+# Schulze (parcial + empates)
+# =============================================================================
 def ballot_to_ranks(ballot):
     peso = int(ballot.get("peso", 1))
     if "ranks" in ballot and isinstance(ballot["ranks"], dict):
@@ -330,33 +357,105 @@ def schulze_ranking_from_ballots(ballots, candidates):
     ranking = sorted(candidates, key=score, reverse=True)
     return ranking, P, S
 
-# =============== Helpers de chaves ===============
-def _mk_key():
-    alphabet = string.ascii_uppercase + string.digits
-    part = lambda: "".join(secrets.choice(alphabet) for _ in range(4))
-    return f"{part()}-{part()}-{part()}"
-
-def _assigned_keys_set():
-    reg = load_registry()
-    out = set()
-    for uid, entry in reg.get("users", {}).items():
-        k = (entry or {}).get("key")
-        if k:
-            out.add(k)
-    return out
-
-def _free_keys_from_pool():
-    keys = load_keys()["keys"]
-    assigned = _assigned_keys_set()
-    return [k for k, info in keys.items() if not info.get("used") and k not in assigned]
-
-# =============== Rotas Públicas ===============
-
+# =============================================================================
+# Rotas Públicas
+# =============================================================================
 @app.route("/")
 def index():
-    return render_template("index.html", get_current_election_id=get_current_election_id)
+    return render_template("index.html")
 
-@app.route("/register", methods=["GET","POST"])
+@app.route("/schulze_guide")
+def schulze_guide():
+    return render_template("schulze_guide.html")
+
+# -----------------------------------------------------------------------------
+# Manifests Dinâmicos (versão avançada com ?v=APP_VERSION nos ícones)
+# -----------------------------------------------------------------------------
+@app.route("/manifest.json")
+def manifest_public():
+    manifest = {
+        "name": "SchulzeVote",
+        "short_name": "SchulzeVote",
+        "start_url": "/?source=pwa",
+        "display": "standalone",
+        "background_color": "#000000",
+        "theme_color": "#000000",
+        "icons": [
+            {
+                "src": url_for("static", filename="icon-180.png", v=APP_VERSION),
+                "sizes": "180x180",
+                "type": "image/png"
+            },
+            {
+                "src": url_for("static", filename="icon-192.png", v=APP_VERSION),
+                "sizes": "192x192",
+                "type": "image/png"
+            },
+            {
+                "src": url_for("static", filename="icon-512.png", v=APP_VERSION),
+                "sizes": "512x512",
+                "type": "image/png"
+            },
+            {
+                "src": url_for("static", filename="icon-maskable-512.png", v=APP_VERSION),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable"
+            }
+        ]
+    }
+    return jsonify(manifest)
+
+@app.route("/manifest_admin.json")
+def manifest_admin():
+    manifest = {
+        "name": "SchulzeVote Admin",
+        "short_name": "SV Admin",
+        "start_url": "/admin/login?source=pwa",
+        "display": "standalone",
+        "background_color": "#000000",
+        "theme_color": "#000000",
+        "icons": [
+            {
+                "src": url_for("static", filename="admin_icon_180.png", v=APP_VERSION),
+                "sizes": "180x180",
+                "type": "image/png"
+            },
+            {
+                "src": url_for("static", filename="admin_icon_192.png", v=APP_VERSION),
+                "sizes": "192x192",
+                "type": "image/png"
+            },
+            {
+                "src": url_for("static", filename="admin_icon_512.png", v=APP_VERSION),
+                "sizes": "512x512",
+                "type": "image/png"
+            },
+            {
+                "src": url_for("static", filename="admin_icon_maskable_512.png", v=APP_VERSION),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable"
+            }
+        ]
+    }
+    return jsonify(manifest)
+
+# =============================================================================
+# Healthchecks & Debug
+# =============================================================================
+@app.route("/ping")
+def ping():
+    return jsonify({"ok": True, "version": APP_VERSION})
+
+@app.route("/admin/_hello")
+def admin_hello():
+    return "admin ok"
+
+# =============================================================================
+# Rotas de Eleitor (Cadastro/Login/Voto)
+# =============================================================================
+@app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
         user_id = (request.form.get("user_id") or "").strip()
@@ -368,6 +467,7 @@ def register():
         if pw != pw2:
             flash("As senhas não conferem.", "error")
             return redirect(url_for("register"))
+
         reg = load_registry()
         users = reg.get("users", {})
         entry = users.get(user_id, {"used": False, "peso": 1, "attempts": {}})
@@ -380,7 +480,7 @@ def register():
         return redirect(url_for("vote"))
     return render_template("register.html")
 
-@app.route("/login", methods=["GET","POST"])
+@app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         user_id = (request.form.get("user_id") or "").strip()
@@ -549,7 +649,9 @@ def vote():
     # GET
     return render_template("vote.html", candidates=candidates)
 
-# =============== Resultados & Auditoria pública ===============
+# =============================================================================
+# Resultados & Auditoria pública
+# =============================================================================
 @app.route("/results")
 def results_current():
     return redirect(url_for("public_results", eid=get_current_election_id()))
@@ -600,12 +702,14 @@ def public_audit(eid):
         lines = f.readlines()
     return Response(head + "<pre>" + "".join(lines) + "</pre>", mimetype="text/html")
 
-# =============== /public/elections (metadados + filtros + CSV) ===============
+# =============================================================================
+# /public/elections (metadados + filtros) e CSV
+# =============================================================================
 @app.route("/public/elections")
 def public_elections():
     """
     Retorna lista de eleições com metadados (inclui category).
-    Filtros opcionais: ?category=...&start=YYYY-MM-DD&end=YYYY-MM-DD
+    Filtros: ?category=...&start=YYYY-MM-DD&end=YYYY-MM-DD
     Compat: ?flat=1 -> retorna apenas lista de eids (sem metadados)
     """
     q = request.args
@@ -677,27 +781,6 @@ def public_elections_csv():
     resp.headers["Content-Disposition"] = 'attachment; filename="elections.csv"'
     return resp
 
-# =============== Relatórios extras CSV ===============
-def make_csv_ranking(ranking, total_weight):
-    out = io.StringIO()
-    w = csv.writer(out)
-    w.writerow(["posicao", "candidato"])
-    for i, c in enumerate(ranking, start=1):
-        w.writerow([i, c])
-    w.writerow([])
-    w.writerow(["total_peso", total_weight])
-    return out.getvalue()
-
-def make_csv_pairwise(P, candidates):
-    out = io.StringIO()
-    w = csv.writer(out)
-    header = ["candidate"] + candidates
-    w.writerow(header)
-    for a in candidates:
-        row = [a] + [P[a].get(b, 0) if a != b else "" for b in candidates]
-        w.writerow(row)
-    return out.getvalue()
-
 @app.route("/public/<eid>/results.csv")
 def public_results_csv(eid):
     ballots = load_ballots(eid)
@@ -707,8 +790,14 @@ def public_results_csv(eid):
     candidates = load_candidates()
     ranking, pairwise, strength = schulze_ranking_from_ballots(ballots, candidates)
     total_weight = sum(int(b.get("peso", 1)) for b in ballots)
-    csv_text = make_csv_ranking(ranking, total_weight)
-    resp = Response(csv_text, mimetype="text/csv")
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["posicao", "candidato"])
+    for i, c in enumerate(ranking, start=1):
+        w.writerow([i, c])
+    w.writerow([])
+    w.writerow(["total_peso", total_weight])
+    resp = Response(out.getvalue(), mimetype="text/csv")
     resp.headers["Content-Disposition"] = f'attachment; filename="results_{eid}.csv"'
     return resp
 
@@ -719,36 +808,21 @@ def public_pairwise_csv(eid):
     if not ballots:
         header = "candidate," + ",".join(candidates)
         return Response(header + "\n", mimetype="text/csv")
-    ranking, pairwise, strength = schulze_ranking_from_ballots(ballots, candidates)
-    csv_text = make_csv_pairwise(pairwise, candidates)
-    resp = Response(csv_text, mimetype="text/csv")
+    P, _S = compute_pairwise_weak(ballots, candidates), None
+    out = io.StringIO()
+    w = csv.writer(out)
+    header = ["candidate"] + candidates
+    w.writerow(header)
+    for a in candidates:
+        row = [a] + [P[a].get(b, 0) if a != b else "" for b in candidates]
+        w.writerow(row)
+    resp = Response(out.getvalue(), mimetype="text/csv")
     resp.headers["Content-Disposition"] = f'attachment; filename="pairwise_{eid}.csv"'
     return resp
 
-@app.route("/como-funciona")
-def schulze_guide():
-    return render_template("schulze_guide.html")
-
-# --- ABA: Guia do Método de Schulze -----------------------------------------
-from flask import request  # (no topo do arquivo você já importa request; ok)
-
-@app.route("/schulze")
-def schulze():
-    # Renderiza o guia/simulador
-    # Template: templates/schulze_guide.html
-    return render_template("schulze_guide.html")
-
-# (Opcional, mas recomendado) Redireciona o caminho antigo para o novo,
-# preservando qualquer query string (?state=...)
-@app.route("/schulze_guide")
-def schulze_guide_legacy():
-    qs = request.query_string.decode("utf-8")
-    target = url_for("schulze")
-    if qs:
-        target = f"{target}?{qs}"
-    return redirect(target, code=301)
-
-# =============== Pacote de Auditoria (ZIP) ===============
+# =============================================================================
+# Pacotes ZIP (Auditoria/Backups)
+# =============================================================================
 def _sha256_file(path: Path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -817,117 +891,6 @@ def admin_export_audit_bundle():
     resp.headers["Content-Disposition"] = f'attachment; filename="audit_bundle_{eid}.zip"'
     return resp
 
-# =============== Admin: Candidatos & Prazo (usa template admin_candidates.html) ===============
-@app.route("/admin/candidates", methods=["GET","POST"])
-def admin_candidates():
-    if not require_admin(request):
-        abort(403)
-    msg = warn = None
-    if request.method == "POST":
-        action = request.form.get("action", "")
-        if action == "save_candidates":
-            raw = request.form.get("lista", "")
-            lines = [_squash_spaces(ln) for ln in raw.splitlines()]
-            save_candidates(lines)
-            msg = "Candidatos salvos."
-            audit_admin(
-                get_current_election_id(),
-                "SAVE_CAND",
-                f"count={len([l for l in lines if l])}",
-                request.remote_addr or "-"
-            )
-        elif action == "set_deadline":
-            date_s = (request.form.get("date") or "").strip()
-            time_s = (request.form.get("time") or "").strip()
-            tz_s   = (request.form.get("tz") or "America/Sao_Paulo").strip()
-            if not date_s or not time_s:
-                warn = "Informe data e hora."
-            else:
-                try:
-                    local_tz = ZoneInfo(tz_s)
-                    y, m, d = [int(x) for x in date_s.split("-")]
-                    hh, mm  = [int(x) for x in time_s.split(":")]
-                    local_dt = datetime(y, m, d, hh, mm, tzinfo=local_tz)
-                    save_deadline(local_dt.astimezone(timezone.utc))
-                    msg = "Prazo definido."
-                    audit_admin(
-                        get_current_election_id(),
-                        "SET_DEADLINE",
-                        f"{date_s} {time_s} {tz_s}",
-                        request.remote_addr or "-"
-                    )
-                except Exception as e:
-                    warn = f"Erro: {e}"
-        elif action == "clear_deadline":
-            save_deadline(None)
-            msg = "Prazo removido."
-            audit_admin(get_current_election_id(), "CLEAR_DEADLINE", "ok", request.remote_addr or "-")
-
-    current = load_candidates()
-    core = [c for c in current if c not in (RESERVED_BLANK, RESERVED_NULL)]
-    dl_utc = load_deadline()
-    tz_default = "America/Sao_Paulo"
-    if dl_utc:
-        local = dl_utc.astimezone(ZoneInfo(tz_default))
-        deadline_html = "<p><b>Prazo atual:</b> %s %s</p>" % (local.strftime('%d/%m/%Y %H:%M'), tz_default)
-    else:
-        deadline_html = "<p><i>Nenhum prazo definido.</i></p>"
-
-    return render_template(
-        "admin_candidates.html",
-        msg=msg, warn=warn,
-        RESERVED_BLANK=RESERVED_BLANK,
-        RESERVED_NULL=RESERVED_NULL,
-        core_text="\n".join(core),
-        deadline_html=deadline_html,
-        secret_qs=request.args.get("secret", "")
-    )
-
-# =============== Admin: Election Meta (template com categoria) ===============
-@app.route("/admin/election_meta", methods=["GET","POST"])
-def admin_election_meta():
-    if not require_admin(request):
-        abort(403)
-    d = load_election_doc()
-    msg = warn = None
-    if request.method == "POST":
-        eid   = (request.form.get("eid") or d.get("election_id","default")).strip()
-        title = (request.form.get("title") or "").strip()
-        date  = (request.form.get("date") or "").strip()
-        time  = (request.form.get("time") or "").strip()
-        tz    = (request.form.get("tz") or "America/Sao_Paulo").strip()
-        category = (request.form.get("category") or "").strip()
-        if not eid or not title or not date or not time:
-            warn = "Preencha EID, título, data e hora."
-        else:
-            set_election_meta(eid, title, date, time, tz, category)
-            d["election_id"] = eid
-            save_election_doc(d)
-            msg = "Metadados salvos."
-            audit_admin(
-                eid,
-                "SAVE_META",
-                f"title='{title}' date={date} time={time} tz={tz} category='{category}'",
-                request.remote_addr or "-"
-            )
-
-    meta = get_election_meta(d.get("election_id"))
-    tz_opts_list = [
-        "America/Sao_Paulo","America/Bahia","America/Fortaleza","America/Recife","America/Maceio",
-        "America/Manaus","America/Belem","America/Boa_Vista","America/Porto_Velho",
-        "America/Cuiaba","America/Campo_Grande","America/Noronha","UTC"
-    ]
-
-    return render_template(
-        "admin_election_meta.html",
-        msg=msg, warn=warn,
-        election_id=d.get("election_id","default"),
-        meta=meta,
-        tz_options=tz_opts_list,
-        secret_qs=request.args.get('secret','')
-    )
-
-# =============== Admin: Backups ZIP (global e por EID) ===============
 @app.route("/admin/backup_zip")
 def admin_backup_zip():
     if not require_admin(request): abort(403)
@@ -936,18 +899,15 @@ def admin_backup_zip():
     buf = io.BytesIO()
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        # Ajuda local
         def add_if_exists(path, arcname=None):
             if os.path.exists(path):
                 z.write(path, arcname or path)
 
-        # 1) JSONs “raiz”
         for fname in [CAND_FILE, ELECTION_FILE, VOTER_KEYS_FILE, REGISTRY_FILE, TRASH_FILE]:
             add_if_exists(fname, fname)
 
-        # 2) Tudo de data/ (ballots e audit)
-        base_dir = str(DATA_DIR)   # normalmente "data" ou "/var/data"
-        base_prefix = "data"       # como fica dentro do ZIP
+        base_dir = str(DATA_DIR)
+        base_prefix = "data"
         if os.path.exists(base_dir):
             for root, _, files in os.walk(base_dir):
                 for f in files:
@@ -1003,7 +963,6 @@ def admin_backup_zip_eid():
     resp.headers["Content-Disposition"] = f'attachment; filename="schulzevote_eid_{eid}_{ts}.zip"'
     return resp
 
-# =============== Admin: Dados crus para auditoria ===============
 @app.route("/admin/audit_raw")
 def admin_audit_raw():
     if not require_admin(request): abort(403)
@@ -1032,7 +991,18 @@ def admin_ping():
         mimetype="application/json"
     )
 
-# =============== Debug local ===============
+# =============================================================================
+# Helpers para Templates (disponibiliza get_current_election_id)
+# =============================================================================
+@app.context_processor
+def inject_helpers_to_templates():
+    return {
+        "get_current_election_id": get_current_election_id
+    }
+
+# =============================================================================
+# Debug local
+# =============================================================================
 if __name__ == "__main__":
     # Em produção (Render), o servidor do container web já chama sua app.
     # Este bloco é útil apenas para rodar localmente: python app.py
