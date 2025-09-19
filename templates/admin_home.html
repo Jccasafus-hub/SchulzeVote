@@ -17,7 +17,7 @@
 
   <div class="card">
     <h3 style="margin:0 0 8px 0">Saída</h3>
-    <p class="muted">Você pode sair e manter o secret na URL para voltar rápido depois.</p>
+    <p class="muted">Você pode sair e manter o <code>?secret=...</code> na URL para voltar rápido depois.</p>
     <div class="row">
       <a class="btn ghost" href="/admin/logout{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Sair</a>
       <a class="btn" href="/{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Ir para o site público</a>
