@@ -1,13 +1,16 @@
 {% extends "base_admin.html" %}
-{% block title %}SchulzeVote Admin · Metadados da eleição{% endblock %}
+{% block title %}SchulzeVote Admin · Metadados da votação{% endblock %}
 
 {% block content %}
+  {% set secret_qs = request.args.get('secret','') %}
   <h1>Metadados da votação</h1>
-  {% if msg %}<p style="color:#10b981">{{ msg }}</p>{% endif %}
-  {% if warn %}<p style="color:#eab308">{{ warn }}</p>{% endif %}
+  {% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
+  {% if warn %}<p class="alert warn">{{ warn }}</p>{% endif %}
 
   <div class="card">
     <form method="POST" class="row" style="flex-direction:column; gap:12px; align-items:stretch">
+      {% if secret_qs %}<input type="hidden" name="secret" value="{{ secret_qs }}">{% endif %}
+
       <div class="grid" style="grid-template-columns:1fr 1fr">
         <label>EID<br>
           <input type="text" name="eid" value="{{ election_id }}">
@@ -39,7 +42,8 @@
 
       <div class="row">
         <button class="btn accent" type="submit">Salvar metadados</button>
-        <a class="btn" href="/admin/candidates?secret={{ request.args.get('secret','')|urlencode }}">Candidatos & prazo</a>
+        <a class="btn" href="/admin/candidates{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Candidatos &amp; prazo</a>
+        <a class="btn" href="/admin/home{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Voltar ao painel</a>
       </div>
     </form>
   </div>
