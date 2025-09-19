@@ -7,7 +7,6 @@
 
   <div class="card">
     <div class="row admin-links">
-      {# Propaga o ?secret= via Jinja; se não vier na URL, os links funcionam sem secret #}
       {% set secret = request.args.get('secret','') %}
       <a class="btn" href="/admin/candidates{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Candidatos & prazo</a>
       <a class="btn" href="/admin/election_meta{% if secret %}?secret={{ secret|urlencode }}{% endif %}">Metadados da votação</a>
