@@ -1,58 +1,98 @@
-{% extends "base_admin.html" %}
-{% block title %}SchulzeVote Admin · Metadados da votação{% endblock %}
-
-{% block content %}
-  {% set secret_qs = request.args.get('secret','') %}
-  <h1>Metadados da votação</h1>
-  {% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
-  {% if warn %}<p class="alert warn">{{ warn }}</p>{% endif %}
-
-  <div class="card">
-    <form method="POST" class="row" style="flex-direction:column; gap:12px; align-items:stretch">
-      {% if secret_qs %}<input type="hidden" name="secret" value="{{ secret_qs }}">{% endif %}
-
-      <div class="grid" style="grid-template-columns:1fr 1fr">
-        <label>EID<br>
-          <input type="text" name="eid" value="{{ election_id }}">
-        </label>
-        <label>Título<br>
-          <input type="text" name="title" value="{{ (meta.title if meta else '') }}">
-        </label>
-      </div>
-
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
-        <label>Data<br>
-          <input type="date" name="date" value="{{ (meta.date if meta else '') }}">
-        </label>
-        <label>Hora<br>
-          <input type="time" name="time" value="{{ (meta.time if meta else '') }}">
-        </label>
-        <label>Fuso<br>
-          <select name="tz" style="background:var(--input);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:10px">
-            {% for tz in tz_options %}
-              <option {% if meta and meta.tz==tz %}selected{% endif %}>{{ tz }}</option>
-            {% endfor %}
-          </select>
-        </label>
-      </div>
-
-      <label>Categoria (texto livre)<br>
-        <input type="text" name="category" value="{{ (meta.category if meta else '') }}">
-      </label>
-
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Admin · Metadados da votação</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{--bg:#0b1020;--card:#11162b;--muted:#97a0b8;--txt:#e6ecff;--accent:#7aa2ff}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Helvetica,Arial}
+    .wrap{max-width:860px;margin:0 auto;padding:18px 16px 26px}
+    h1{font-size:20px;margin:0 0 8px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .btn{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#12183a;color:var(--txt);text-decoration:none}
+    .btn:hover{filter:brightness(1.06)}
+    .card{background:linear-gradient(180deg,rgba(95,109,255,.06),rgba(110,54,137,.07)),linear-gradient(180deg,rgba(85,96,225,.08),rgba(224,162,255,.03)),var(--card);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:16px;margin-top:12px}
+    label{display:block;margin:.6rem 0 .25rem}
+    input[type="text"],input[type="date"],input[type="time"],select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#0e1330;color:var(--txt)}
+    .muted{color:var(--muted)}
+    .msg{color:#7ee787;margin:.4rem 0} .warn{color:#ffb86b;margin:.4rem 0}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:760px){.grid2{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row" style="justify-content:space-between">
+      <h1>Admin · Metadados da votação</h1>
       <div class="row">
-        <button class="btn accent" type="submit">Salvar metadados</button>
-        <a class="btn" href="/admin/candidates{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Candidatos &amp; prazo</a>
-        <a class="btn" href="/admin/home{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Voltar ao painel</a>
+        <a class="btn" href="/admin/home?secret={{ secret_qs|e }}">Voltar ao painel</a>
+        <a class="btn" href="/">Início</a>
       </div>
-    </form>
-  </div>
-
-  <div class="card">
-    <h3 style="margin:0 0 8px 0">Visualização pública</h3>
-    <div class="row">
-      <a class="btn" href="/public/{{ election_id }}/results" target="_blank" rel="noopener">Resultados (público)</a>
-      <a class="btn" href="/public/{{ election_id }}/audit" target="_blank" rel="noopener">Auditoria (público)</a>
     </div>
+
+    {% if msg %}<p class="msg">{{ msg }}</p>{% endif %}
+    {% if warn %}<p class="warn">{{ warn }}</p>{% endif %}
+
+    <div class="card">
+      <form method="POST">
+        <div class="grid2">
+          <div>
+            <label for="eid">EID</label>
+            <input id="eid" name="eid" type="text" value="{{ election_id }}">
+          </div>
+          <div>
+            <label for="title">Título</label>
+            <input id="title" name="title" type="text" value="{{ (meta.title if meta else '') }}">
+          </div>
+          <div>
+            <label for="date">Data</label>
+            <input id="date" name="date" type="date" value="{{ (meta.date if meta else '') }}">
+          </div>
+          <div>
+            <label for="time">Hora</label>
+            <input id="time" name="time" type="time" value="{{ (meta.time if meta else '') }}">
+          </div>
+          <div>
+            <label for="tz">Fuso horário</label>
+            <select id="tz" name="tz">
+              {% for tz in tz_options %}
+                <option value="{{ tz }}" {% if meta and meta.tz==tz %}selected{% endif %}>{{ tz }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="category">Categoria</label>
+            <input id="category" name="category" type="text" placeholder="ex.: assembleia, eleição-geral" value="{{ (meta.category if meta else '') }}">
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn" type="submit">Salvar metadados</button>
+          <a class="btn" href="/public/elections?flat=1" target="_blank">Listar EIDs públicos</a>
+        </div>
+        <p class="muted" style="margin-top:8px">Salvar também define o <b>EID atual</b> para o informado acima.</p>
+      </form>
+    </div>
+
+    {% if meta %}
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div class="muted">Prévia atual</div>
+          <div><b>{{ meta.title }}</b></div>
+          <div>{{ meta.date }} {{ meta.time }} {{ meta.tz }} · {{ meta.category or 'sem categoria' }}</div>
+        </div>
+        <div class="row">
+          <a class="btn" href="/public/{{ election_id }}/results" target="_blank">Resultados (html)</a>
+          <a class="btn" href="/public/{{ election_id }}/results.csv" target="_blank">results.csv</a>
+          <a class="btn" href="/public/{{ election_id }}/pairwise.csv" target="_blank">pairwise.csv</a>
+          <a class="btn" href="/public/{{ election_id }}/audit" target="_blank">auditoria</a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <p class="muted" style="margin-top:14px">SchulzeVote · v{{ APP_VERSION }}</p>
   </div>
-{% endblock %}
+</body>
+</html>
