@@ -1,76 +1,61 @@
-{% extends "base.html" %}
-{% block title %}SchulzeVote · Votar{% endblock %}
-
-{% block content %}
-<div class="wrap">
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Votar</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body{font-family:system-ui,Arial,sans-serif;max-width:860px;margin:40px auto;padding:0 16px}
+    input,button{padding:8px;border:1px solid #ddd;border-radius:8px}
+    table{border-collapse:collapse} td,th{border:1px solid #ddd;padding:6px 8px}
+  </style>
+</head>
+<body>
   <h1>Votar</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul>
+        {% for cat,msg in messages %}
+          <li><b>{{ cat }}</b>: {{ msg }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
 
-  <div class="card" style="max-width:720px">
-    <form method="POST" action="/vote" onsubmit="return confirm('Confirmar envio do voto?');">
-      <div style="display:grid;gap:12px">
-        <!-- Chave de votação -->
-        <div>
-          <label>Minha chave de votação
-            <input id="vkey" type="password" name="voter_id" required inputmode="latin-prose" placeholder="ex.: ABCD-1234-EFGH">
-          </label>
-          <label style="display:inline-flex;align-items:center;gap:8px;margin-left:8px;user-select:none">
-            <input type="checkbox" onclick="toggleKey()"> Mostrar chave
-          </label>
-        </div>
+  <form method="POST">
+    <p>
+      <label>Chave de votação:
+        <input name="voter_id" placeholder="SUA-CHAVE-EX: ABCD-EFGH-IJKL" required>
+      </label>
+    </p>
 
-        <div class="sep"></div>
+    <p><b>Informe a ordem de preferência</b> (1 = mais preferido). Deixe em branco para não ranquear.</p>
+    <table>
+      <tr><th>Candidato</th><th>Rank</th></tr>
+      {% for c in candidates %}
+        <tr>
+          <td>{{ c }}</td>
+          <td>
+            {% if "Branco" in c or "Nulo" in c %}
+              <small>Use “Voto em Branco/Nulo” abaixo</small>
+            {% else %}
+              <input name="rank_{{ loop.index0 }}" style="width:80px" pattern="\d*">
+              <input type="hidden" name="cand_{{ loop.index0 }}" value="{{ c }}">
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
 
-        <!-- Opções especiais -->
-        <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
-          <label style="display:flex;align-items:center;gap:8px;user-select:none">
-            <input type="radio" name="special_vote" value="" checked onchange="toggleSpecial(false)"> Ranking normal
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;user-select:none">
-            <input type="radio" name="special_vote" value="BLANK" onchange="toggleSpecial(true)"> <span style="padding:2px 8px;border-radius:10px;border:1px dashed #f59e0b;color:#f59e0b">Voto em Branco</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;user-select:none">
-            <input type="radio" name="special_vote" value="NULL" onchange="toggleSpecial(true)"> <span style="padding:2px 8px;border-radius:10px;border:1px dashed #ef4444;color:#ef4444">Voto Nulo</span>
-          </label>
-        </div>
+    <p>Ou escolha voto especial:
+      <label><input type="radio" name="special_vote" value=""> (nenhum)</label>
+      <label><input type="radio" name="special_vote" value="BLANK"> Branco</label>
+      <label><input type="radio" name="special_vote" value="NULL"> Nulo</label>
+    </p>
 
-        <!-- Ranking numérico -->
-        <div id="rankBox">
-          <p class="muted" style="margin:0">Digite o <b>número da preferência</b> para cada candidato que você quiser ordenar (1 = melhor). Deixe em branco se não quiser ranquear aquele candidato.</p>
-          <div style="margin-top:10px;display:grid;gap:8px">
-            {% for c in candidates %}
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                <input type="hidden" name="cand_{{ loop.index0 }}" value="{{ c }}">
-                <label style="min-width:240px"><b>{{ c }}</b></label>
-                <input class="rankInput" type="number" min="1" name="rank_{{ loop.index0 }}" placeholder="nº da preferência">
-              </div>
-            {% endfor %}
-          </div>
-        </div>
+    <button type="submit">Enviar voto</button>
+  </form>
 
-        <div class="sep"></div>
-
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn accent" type="submit">Enviar voto</button>
-          <a class="btn" href="/">Início</a>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
-{% endblock %}
-
-{% block scripts_extra %}
-<script>
-function toggleKey(){
-  const el = document.getElementById('vkey');
-  el.type = (el.type === 'password') ? 'text' : 'password';
-}
-function toggleSpecial(disableRanks){
-  const inputs = document.querySelectorAll('.rankInput');
-  inputs.forEach(i => {
-    i.disabled = disableRanks;
-    if (disableRanks) i.value = '';
-  });
-}
-</script>
-{% endblock %}
+  <p><a href="/">Início</a></p>
+</body>
+</html>
