@@ -2,132 +2,52 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Admin · Painel</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel do Administrador</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    :root{--bg:#0b1020;--panel:#101737;--muted:#97a0b8;--txt:#e6ecff;--accent:#7aa2ff}
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji"}
-    header{display:flex;justify-content:space-between;align-items:center;padding:18px 16px}
-    h1{font-size:20px;margin:0}
-    .wrap{max-width:980px;margin:0 auto;padding:0 16px 28px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-    .card{background:linear-gradient(180deg,rgba(95,109,255,.06),rgba(110,54,137,.07)),linear-gradient(180deg,rgba(85,96,225,.08),rgba(224,162,255,.03)),var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:16px}
-    .title{font-weight:600;margin:2px 0 8px}
-    .muted{color:var(--muted)} .row{display:flex;gap:10px;flex-wrap:wrap}
-    .btn{display:inline-block;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#12183a;color:var(--txt);text-decoration:none}
-    .btn:hover{filter:brightness(1.06)}
-    code{background:rgba(255,255,255,.08);padding:0 6px;border-radius:6px}
-    .footer{margin:16px 0;color:#8f98b5}
-    .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;font-size:14px}
-    .kv div{padding:0 4px}
-    .pill{font-size:12px;padding:2px 8px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:#0f1540;color:#cbd6ff}
-    .input{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:#0e1330;color:var(--txt);width:100%}
-    form{margin:0}
+    body{font-family:system-ui,Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 16px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+    a.card{display:block;border:1px solid #ddd;border-radius:10px;padding:14px;text-decoration:none;color:#111}
+    a.card:hover{background:#fafafa}
+    code{background:#f5f5f5;padding:2px 6px;border-radius:6px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
   </style>
 </head>
 <body>
-  <header class="wrap">
-    <h1>Admin · Painel</h1>
-    <div class="row">
-      <a class="btn" href="/">Início</a>
-      <span class="pill">v{{ APP_VERSION }}</span>
+  <div class="top">
+    <h1 style="margin:0">Admin · SchulzeVote</h1>
+    <div>
+      {% if secret %}
+        <small>secret passado ✔</small>
+      {% else %}
+        <small style="color:#b00">sem secret na URL</small>
+      {% endif %}
     </div>
-  </header>
-
-  <div class="wrap">
-    <div class="card">
-      <div class="kv">
-        <div><b>EID atual</b></div><div>{{ current_eid }}</div>
-        {% if meta %}
-          <div><b>Título</b></div><div>{{ meta.title }}</div>
-          <div><b>Data/Hora</b></div><div>{{ meta.date }} {{ meta.time }} {{ meta.tz }}</div>
-          <div><b>Categoria</b></div><div>{{ meta.category or "-" }}</div>
-          <div><b>Atualizado</b></div><div>{{ meta.updated_at }}</div>
-        {% else %}
-          <div class="muted">Sem metadados definidos para este EID.</div>
-        {% endif %}
-      </div>
-    </div>
-
-    <div class="grid" style="margin-top:12px">
-
-      <!-- Configurar candidatos & prazos -->
-      <div class="card">
-        <div class="title">Candidatos & Prazos</div>
-        <p class="muted">Edite a lista de candidatos e defina o prazo de votação.</p>
-        <a class="btn" href="/admin/candidates?secret={{ secret_qs|e }}">Abrir</a>
-      </div>
-
-      <!-- Metadados da votação -->
-      <div class="card">
-        <div class="title">Metadados da votação</div>
-        <p class="muted">Defina EID, título, data/hora, fuso e categoria. Também alterna o EID atual.</p>
-        <a class="btn" href="/admin/election_meta?secret={{ secret_qs|e }}">Abrir</a>
-      </div>
-
-      <!-- Atribuição de chaves -->
-      <div class="card">
-        <div class="title">Atribuição de chaves</div>
-        <p class="muted">Gerar chaves, usar pool e atribuir a usuários em lote.</p>
-        <a class="btn" href="/admin/assign_ui?secret={{ secret_qs|e }}">Abrir</a>
-      </div>
-
-      <!-- Pré-visualização de auditoria -->
-      <div class="card">
-        <div class="title">Auditoria (Preview)</div>
-        <p class="muted">Visualizar logs e cédulas (JSON) da votação atual.</p>
-        <a class="btn" href="/admin/audit_preview?secret={{ secret_qs|e }}">Abrir</a>
-      </div>
-
-      <!-- Downloads públicos úteis -->
-      <div class="card">
-        <div class="title">Relatórios públicos (EID atual)</div>
-        <div class="row" style="margin-top:8px">
-          <a class="btn" href="/public/{{ current_eid }}/results">Resultados (html)</a>
-          <a class="btn" href="/public/{{ current_eid }}/results.csv">results.csv</a>
-          <a class="btn" href="/public/{{ current_eid }}/pairwise.csv">pairwise.csv</a>
-          <a class="btn" href="/public/{{ current_eid }}/audit">auditoria</a>
-        </div>
-      </div>
-
-      <!-- Dados JSON brutos -->
-      <div class="card">
-        <div class="title">Dados brutos (JSON)</div>
-        <div class="row">
-          <a class="btn" href="/admin/keys_list?secret={{ secret_qs|e }}">/admin/keys_list</a>
-          <a class="btn" href="/admin/pool_list?secret={{ secret_qs|e }}">/admin/pool_list</a>
-          <a class="btn" href="/admin/users_list?secret={{ secret_qs|e }}">/admin/users_list</a>
-          <a class="btn" href="/admin/trash_list?secret={{ secret_qs|e }}">/admin/trash_list</a>
-        </div>
-      </div>
-
-      <!-- Backups e bundle -->
-      <div class="card">
-        <div class="title">Backups & Pacotes</div>
-        <p class="muted">Baixe um snapshot completo ou focado em um EID.</p>
-        <div class="row">
-          <a class="btn" href="/admin/export_audit_bundle?secret={{ secret_qs|e }}&eid={{ current_eid }}">Audit bundle (zip)</a>
-          <a class="btn" href="/admin/backup_zip?secret={{ secret_qs|e }}">Backup global (zip)</a>
-        </div>
-        <form class="row" action="/admin/backup_zip_eid" method="get" style="margin-top:10px">
-          <input type="hidden" name="secret" value="{{ secret_qs|e }}">
-          <input class="input" name="eid" placeholder="Outro EID (opcional)" value="{{ current_eid }}">
-          <button class="btn" type="submit">Backup por EID</button>
-        </form>
-      </div>
-
-      <!-- Ping -->
-      <div class="card">
-        <div class="title">Diagnóstico</div>
-        <p class="muted">Teste de autenticação do painel admin.</p>
-        <div class="row">
-          <a class="btn" href="/admin/ping?secret={{ secret_qs|e }}">/admin/ping</a>
-        </div>
-      </div>
-
-    </div>
-
-    <p class="footer">Autenticado com <code>?secret={{ secret_qs }}</code></p>
   </div>
+
+  <p>Você está no painel. Se algum link pedir acesso, o <code>?secret=...</code> já está incluído.</p>
+
+  <div class="grid">
+    <a class="card" href="/admin/candidates?secret={{ secret|urlencode }}">Candidatos &amp; Prazos</a>
+    <a class="card" href="/admin/election_meta?secret={{ secret|urlencode }}">Metadados da votação</a>
+    <a class="card" href="/admin/assign_ui?secret={{ secret|urlencode }}">Atribuir chaves</a>
+    <a class="card" href="/admin/audit_preview?secret={{ secret|urlencode }}">Prévia de auditoria</a>
+
+    <a class="card" href="/admin/keys_list?secret={{ secret|urlencode }}">Exportar keys (JSON)</a>
+    <a class="card" href="/admin/pool_list?secret={{ secret|urlencode }}">Pool de chaves (JSON)</a>
+    <a class="card" href="/admin/users_list?secret={{ secret|urlencode }}">Usuários (JSON)</a>
+    <a class="card" href="/admin/trash_list?secret={{ secret|urlencode }}">Lixeira (JSON)</a>
+
+    <a class="card" href="/admin/export_audit_bundle?secret={{ secret|urlencode }}">Baixar Pacote de Auditoria (ZIP)</a>
+    <a class="card" href="/admin/backup_zip?secret={{ secret|urlencode }}">Backup Completo (ZIP)</a>
+    <a class="card" href="/admin/backup_zip_eid?eid={{ current_eid }}&secret={{ secret|urlencode }}">Backup por EID (ZIP)</a>
+  </div>
+
+  <p style="margin-top:16px">
+    <a href="/admin/logout?secret={{ secret|urlencode }}">Sair</a> •
+    <a href="/">Início</a> •
+    <a href="/__routes">Rotas</a> •
+    <a href="/__health">Health</a>
+  </p>
 </body>
 </html>
