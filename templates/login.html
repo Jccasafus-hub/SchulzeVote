@@ -1,37 +1,13 @@
-{% extends "base.html" %}
-{% block title %}SchulzeVote · Login{% endblock %}
-
-{% block content %}
-<div class="wrap">
-  <h1>Entrar</h1>
-  <div class="card">
-    <form method="POST" action="/login" onsubmit="return true;">
-      <div style="display:grid;gap:10px;max-width:420px">
-        <label>Usuário
-          <input type="text" name="user_id" required placeholder="seu usuário">
-        </label>
-
-        <label>Senha
-          <input id="login_pwd" type="password" name="password" required placeholder="sua senha">
-        </label>
-
-        <label style="display:flex;align-items:center;gap:8px;user-select:none">
-          <input type="checkbox" onclick="togglePwd('login_pwd')"> Mostrar senha
-        </label>
-
-        <button class="btn accent" type="submit">Entrar</button>
-        <a class="btn ghost" href="/register">Não tem cadastro? Criar agora</a>
-      </div>
-    </form>
-  </div>
-</div>
-{% endblock %}
-
-{% block scripts_extra %}
-<script>
-function togglePwd(id){
-  const el = document.getElementById(id);
-  el.type = (el.type === 'password') ? 'text' : 'password';
-}
-</script>
-{% endblock %}
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Login</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:system-ui,Arial,sans-serif;max-width:720px;margin:40px auto;padding:0 16px">
+  <h1>Login</h1>
+  <form method="POST">
+    <p><label>Usuário: <input name="user_id" required></label></p>
+    <p><label>Senha: <input type="password" name="password" required></label></p>
+    <button>Entrar</button>
+  </form>
+  <p><a href="/">Início</a></p>
+</body>
+</html>
