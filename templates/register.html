@@ -1,44 +1,14 @@
-{% extends "base.html" %}
-{% block title %}SchulzeVote · Cadastro{% endblock %}
-
-{% block content %}
-<div class="wrap">
-  <h1>Criar cadastro</h1>
-  <div class="card">
-    <form method="POST" action="/register" onsubmit="return true;">
-      <div style="display:grid;gap:10px;max-width:480px">
-        <label>Usuário
-          <input type="text" name="user_id" required placeholder="defina seu usuário">
-        </label>
-
-        <label>Senha
-          <input id="reg_pwd1" type="password" name="password" required minlength="6" placeholder="crie uma senha">
-        </label>
-
-        <label>Confirmar senha
-          <input id="reg_pwd2" type="password" name="password2" required minlength="6" placeholder="repita a senha">
-        </label>
-
-        <label style="display:flex;align-items:center;gap:8px;user-select:none">
-          <input type="checkbox" onclick="toggleBoth()"> Mostrar senhas
-        </label>
-
-        <button class="btn accent" type="submit">Criar cadastro</button>
-        <a class="btn ghost" href="/login">Já tenho cadastro</a>
-      </div>
-    </form>
-  </div>
-</div>
-{% endblock %}
-
-{% block scripts_extra %}
-<script>
-function toggleBoth(){
-  const ids = ['reg_pwd1','reg_pwd2'];
-  ids.forEach(id => {
-    const el = document.getElementById(id);
-    el.type = (el.type === 'password') ? 'text' : 'password';
-  });
-}
-</script>
-{% endblock %}
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Cadastro</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:system-ui,Arial,sans-serif;max-width:720px;margin:40px auto;padding:0 16px">
+  <h1>Cadastro</h1>
+  <form method="POST">
+    <p><label>Usuário: <input name="user_id" required></label></p>
+    <p><label>Senha: <input type="password" name="password" required></label></p>
+    <p><label>Repita a senha: <input type="password" name="password2" required></label></p>
+    <button>Cadastrar</button>
+  </form>
+  <p><a href="/">Início</a></p>
+</body>
+</html>
