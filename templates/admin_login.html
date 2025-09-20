@@ -2,39 +2,28 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Admin · Login</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login do Administrador</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    :root{--bg:#0b1020;--card:#11162b;--muted:#97a0b8;--txt:#e6ecff;--accent:#7aa2ff}
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"}
-    .wrap{max-width:460px;margin:8vh auto;padding:0 16px}
-    .card{background:linear-gradient(180deg,rgba(95,109,255,.06),rgba(110,54,137,.07)),linear-gradient(180deg,rgba(85,96,225,.08),rgba(224,162,255,.03)),var(--card);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:22px 18px}
-    h1{font-size:22px;margin:0 0 14px} p{margin:.4rem 0;color:var(--muted)}
-    label{display:block;margin:.8rem 0 .3rem}
-    input[type="password"],input[type="text"]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:#0e1330;color:var(--txt)}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .btn{padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#12183a;color:var(--txt);text-decoration:none;cursor:pointer}
-    .btn:hover{filter:brightness(1.06)}
-    .hint{font-size:12px;color:#aab3cc}
-    .footer{margin-top:14px;color:#8f98b5}
+    body{font-family:system-ui,Arial,sans-serif;max-width:720px;margin:40px auto;padding:0 16px}
+    form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    input,button{padding:10px;border:1px solid #ddd;border-radius:8px}
+    button{background:#111;color:#fff;cursor:pointer}
+    .tip{color:#555;margin-top:12px}
+    a.btn{display:inline-block;margin-top:16px;padding:10px 12px;border:1px solid #ddd;border-radius:8px;text-decoration:none;color:#111}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>Admin · Login</h1>
-      <p>Insira o <b>segredo do administrador</b> para acessar o painel.</p>
-      <form method="GET" action="/admin/home">
-        <label for="secret">Admin secret</label>
-        <input id="secret" name="secret" type="password" placeholder="ex.: troque-admin" required>
-        <div class="row" style="margin-top:12px">
-          <button class="btn" type="submit">Entrar</button>
-          <a class="btn" href="/">Início</a>
-        </div>
-        <p class="hint" style="margin-top:10px">Dica: defina a variável de ambiente <code>ADMIN_SECRET</code> em produção.</p>
-      </form>
-    </div>
-    <p class="footer">SchulzeVote · v{{ APP_VERSION }}</p>
-  </div>
+  <h1>Login · Admin</h1>
+  <form method="POST" action="/admin/login">
+    <label>Chave de administrador:
+      <input type="password" name="secret" placeholder="ADMIN_SECRET" required>
+    </label>
+    <button type="submit">Entrar</button>
+  </form>
+  <p class="tip">Dica: você também pode acessar diretamente:
+    <code>/admin/home?secret=&lt;ADMIN_SECRET&gt;</code>
+  </p>
+  <a class="btn" href="/">Voltar ao início</a>
 </body>
 </html>
