@@ -1,110 +1,39 @@
-{% extends "base.html" %}
-{% block title %}Resultados · SchulzeVote{% endblock %}
-
-{% block content %}
-<div class="wrap">
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Resultados</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>body{font-family:system-ui,Arial,sans-serif;max-width:860px;margin:40px auto;padding:0 16px} table{border-collapse:collapse} td,th{border:1px solid #ddd;padding:6px 8px}</style>
+</head>
+<body>
   <h1>Resultados</h1>
-
-  <div class="card">
-    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
-      <div>
-        <p style="margin:0">EID: <b>{{ election_id }}</b></p>
-        {% if election_meta %}
-          <p style="margin:4px 0 0 0">
-            <b>{{ election_meta.title }}</b><br>
-            {% if election_meta.date and election_meta.time %}
-              {{ election_meta.date }} {{ election_meta.time }} ({{ election_meta.tz or 'America/Sao_Paulo' }})
-            {% endif %}
-          </p>
-        {% endif %}
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a class="btn" href="/public/{{ election_id }}/audit">Abrir auditoria</a>
-        <a class="btn ghost" href="/">Início</a>
-      </div>
-    </div>
-  </div>
-
   {% if empty %}
-    <div class="card">
-      <p class="muted">Nenhum voto registrado ainda para esta votação.</p>
-    </div>
+    <p><i>Nenhuma cédula para esta votação.</i></p>
   {% else %}
-    <div class="card">
-      <p style="margin:0 0 8px 0">Total de votos (ponderados): <b>{{ total_votos }}</b></p>
-      <ol style="margin-top:8px">
-        {% for c in ranking %}
-          <li>{{ c }}</li>
-        {% endfor %}
-      </ol>
-    </div>
-  {% endif %}
-
-  {% if candidates and pairwise and strength %}
-    <div class="card">
-      <h3 style="margin-top:0">Diagnóstico (debug)</h3>
-      <details open>
-        <summary><b>Confrontos par-a-par (P)</b></summary>
-        <div style="overflow:auto;margin-top:8px">
-          <table style="border-collapse:collapse;border:1px solid #1f242c">
-            <thead>
-              <tr>
-                <th style="padding:6px 10px;border:1px solid #1f242c">A \ B</th>
-                {% for b in candidates %}
-                  <th style="padding:6px 10px;border:1px solid #1f242c">{{ b }}</th>
-                {% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for a in candidates %}
-                <tr>
-                  <th style="padding:6px 10px;border:1px solid #1f242c;text-align:left">{{ a }}</th>
-                  {% for b in candidates %}
-                    {% if a == b %}
-                      <td style="padding:6px 10px;border:1px solid #1f242c;text-align:center;opacity:.6">—</td>
-                    {% else %}
-                      <td style="padding:6px 10px;border:1px solid #1f242c;text-align:center">{{ pairwise[a][b] }}</td>
-                    {% endif %}
-                  {% endfor %}
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+    <p>Total de votos (peso): <b>{{ total_votos }}</b></p>
+    <h3>Ranking</h3>
+    <ol>
+      {% for c in ranking %}
+        <li>{{ c }}</li>
+      {% endfor %}
+    </ol>
+    {% if candidates %}
+      <details>
+        <summary>Debug: Candidatos, Pairwise e Strength</summary>
+        <pre>{{ candidates|tojson(indent=2) }}</pre>
+        <pre>{{ pairwise|tojson(indent=2) }}</pre>
+        <pre>{{ strength|tojson(indent=2) }}</pre>
       </details>
-
-      <details style="margin-top:12px">
-        <summary><b>Forças de caminho (S)</b></summary>
-        <div style="overflow:auto;margin-top:8px">
-          <table style="border-collapse:collapse;border:1px solid #1f242c">
-            <thead>
-              <tr>
-                <th style="padding:6px 10px;border:1px solid #1f242c">A \ B</th>
-                {% for b in candidates %}
-                  <th style="padding:6px 10px;border:1px solid #1f242c">{{ b }}</th>
-                {% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for a in candidates %}
-                <tr>
-                  <th style="padding:6px 10px;border:1px solid #1f242c;text-align:left">{{ a }}</th>
-                  {% for b in candidates %}
-                    {% if a == b %}
-                      <td style="padding:6px 10px;border:1px solid #1f242c;text-align:center;opacity:.6">—</td>
-                    {% else %}
-                      <td style="padding:6px 10px;border:1px solid #1f242c;text-align:center">{{ strength[a][b] }}</td>
-                    {% endif %}
-                  {% endfor %}
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </details>
-
-      <p class="muted" style="margin-top:10px">Para exibir esta seção, abra com <code>?debug=1</code>.</p>
-    </div>
+    {% endif %}
+    <p>
+      <a href="/public/{{ election_id }}/results.csv">Baixar CSV (ranking)</a> •
+      <a href="/public/{{ election_id }}/pairwise.csv">Baixar CSV (pairwise)</a>
+    </p>
   {% endif %}
-</div>
-{% endblock %}
+  {% if election_meta %}
+    <p><small><b>{{ election_meta.title }}</b> — {{ election_meta.date }} {{ election_meta.time }} {{ election_meta.tz }}</small></p>
+  {% endif %}
+  <p><a href="/">Início</a></p>
+</body>
+</html>
