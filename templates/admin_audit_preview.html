@@ -1,121 +1,13 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <title>Admin · Auditoria (Preview)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    :root{--bg:#0b1020;--card:#11162b;--muted:#97a0b8;--txt:#e6ecff}
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto}
-    .wrap{max-width:1100px;margin:0 auto;padding:18px 16px 28px}
-    h1{font-size:20px;margin:0 0 10px}
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .btn{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#12183a;color:#e6ecff;text-decoration:none;cursor:pointer}
-    .btn:hover{filter:brightness(1.06)}
-    .card{background:linear-gradient(180deg,rgba(95,109,255,.06),rgba(110,54,137,.07)),linear-gradient(180deg,rgba(85,96,225,.08),rgba(224,162,255,.03)),#11162b;border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:14px;margin-top:12px}
-    label{display:block;margin:.5rem 0 .25rem}
-    input, select{padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#0e1330;color:#e6ecff}
-    input[type="text"]{width:280px}
-    .muted{color:var(--muted)}
-    pre{background:#0e1330;border:1px solid rgba(255,255,255,.12);padding:10px;border-radius:10px;overflow:auto;max-height:420px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    @media (max-width:980px){.grid{grid-template-columns:1fr}}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="row" style="justify-content:space-between">
-      <h1>Admin · Auditoria (Preview)</h1>
-      <div class="row">
-        <a class="btn" href="/admin/home?secret={{ secret|e }}">Voltar ao painel</a>
-        <a class="btn" href="/">Início</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <div>
-          <div class="muted">EID atual</div>
-          <div><b id="eidLabel">{{ current_eid }}</b></div>
-        </div>
-        <div class="row" style="margin-left:auto">
-          <label style="margin:0 .5rem 0 0" for="eidInput">Outro EID</label>
-          <input id="eidInput" type="text" placeholder="ex.: 2024-assembleia" value="{{ current_eid }}">
-          <button class="btn" id="btnLoad">Carregar</button>
-        </div>
-      </div>
-      <p class="muted" style="margin:8px 0 0">Dica: os arquivos completos ficam disponíveis em
-        <a class="btn" style="padding:4px 8px" target="_blank" href="/admin/export_audit_bundle?secret={{ secret|e }}&eid={{ current_eid }}">Audit bundle (zip)</a>
-      </p>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <h3 style="margin:0 0 8px">audit_raw</h3>
-        <pre id="audit">(vazio)</pre>
-      </div>
-      <div class="card">
-        <h3 style="margin:0 0 8px">ballots_raw</h3>
-        <pre id="ballots">(vazio)</pre>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3 style="margin:0 0 8px">Links públicos rápidos (EID atual)</h3>
-      <div class="row">
-        <a class="btn" target="_blank" href="/public/{{ current_eid }}/results">Resultados (html)</a>
-        <a class="btn" target="_blank" href="/public/{{ current_eid }}/results.csv">results.csv</a>
-        <a class="btn" target="_blank" href="/public/{{ current_eid }}/pairwise.csv">pairwise.csv</a>
-        <a class="btn" target="_blank" href="/public/{{ current_eid }}/audit">auditoria</a>
-      </div>
-    </div>
-
-    <p class="muted" style="margin-top:14px">SchulzeVote · v{{ APP_VERSION }}</p>
-  </div>
-
-  <script>
-    const secret = encodeURIComponent("{{ secret }}");
-    const eidInput = document.getElementById('eidInput');
-    const eidLabel = document.getElementById('eidLabel');
-    const preAudit = document.getElementById('audit');
-    const preBallots = document.getElementById('ballots');
-
-    async function loadAll(eid){
-      eidLabel.textContent = eid;
-      preAudit.textContent = "(carregando...)";
-      preBallots.textContent = "(carregando...)";
-      try{
-        const [aRes, bRes] = await Promise.all([
-          fetch(`/admin/audit_raw?secret=${secret}&eid=${encodeURIComponent(eid)}`),
-          fetch(`/admin/ballots_raw?secret=${secret}&eid=${encodeURIComponent(eid)}`)
-        ]);
-        const aTxt = await aRes.text();
-        const bTxt = await bRes.text();
-        // Tenta pretty-print se for JSON
-        preAudit.textContent = tryPretty(aTxt);
-        preBallots.textContent = tryPretty(bTxt);
-      }catch(e){
-        preAudit.textContent = "Erro: " + e;
-      }
-    }
-
-    function tryPretty(txt){
-      try{
-        const obj = JSON.parse(txt);
-        return JSON.stringify(obj, null, 2);
-      }catch(_){
-        return txt;
-      }
-    }
-
-    document.getElementById('btnLoad').onclick = () => {
-      const eid = eidInput.value.trim();
-      if(!eid){ alert("Informe um EID."); return; }
-      loadAll(eid);
-    };
-
-    // Inicial
-    loadAll(eidInput.value.trim());
-  </script>
+<head><meta charset="utf-8"><title>Admin · Prévia de auditoria</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:system-ui,Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 16px">
+  <h1>Prévia de auditoria</h1>
+  <p>Dados crus:</p>
+  <ul>
+    <li><a href="/admin/audit_raw?secret={{ request.args.get('secret','')|urlencode }}" target="_blank">/admin/audit_raw</a></li>
+    <li><a href="/admin/ballots_raw?secret={{ request.args.get('secret','')|urlencode }}" target="_blank">/admin/ballots_raw</a></li>
+  </ul>
+  <p><a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
 </body>
 </html>
