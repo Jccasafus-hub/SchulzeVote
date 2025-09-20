@@ -1,66 +1,17 @@
-{% extends "base_admin.html" %}
-{% block title %}SchulzeVote Admin · Candidatos & Prazo{% endblock %}
-
-{% block content %}
-  {% set secret_qs = request.args.get('secret','') %}
-  <h1>Candidatos &amp; Prazo</h1>
-  {% if msg %}<p class="alert ok">{{ msg }}</p>{% endif %}
-  {% if warn %}<p class="alert warn">{{ warn }}</p>{% endif %}
-
-  <div class="card">
-    <h3 style="margin:0 0 8px 0">Candidatos</h3>
-    <p class="muted">Um por linha. <i>{{ RESERVED_BLANK }}</i> e <i>{{ RESERVED_NULL }}</i> são fixos no fim da lista.</p>
-
-    <form method="POST" class="row" style="flex-direction:column; gap:12px; align-items:stretch">
-      {% if secret_qs %}<input type="hidden" name="secret" value="{{ secret_qs }}">{% endif %}
-      <input type="hidden" name="action" value="save_candidates">
-      <textarea name="lista" style="min-height:220px;background:var(--input);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px">{{ core_text }}</textarea>
-      <div class="row" style="justify-content:flex-start">
-        <button class="btn accent" type="submit">Salvar candidatos</button>
-        <a class="btn" href="/admin/home{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Voltar ao painel</a>
-      </div>
-    </form>
-  </div>
-
-  <div class="card">
-    <h3 style="margin:0 0 8px 0">Prazo de votação</h3>
-    <div class="muted" style="margin:8px 0">{{ deadline_html|safe }}</div>
-
-    <form method="POST" class="row" style="flex-wrap:wrap; gap:12px; align-items:end">
-      {% if secret_qs %}<input type="hidden" name="secret" value="{{ secret_qs }}">{% endif %}
-      <input type="hidden" name="action" value="set_deadline">
-      <label>Data<br><input type="date" name="date"></label>
-      <label>Hora<br><input type="time" name="time"></label>
-      <label>Fuso<br>
-        <select name="tz" style="background:var(--input);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:10px">
-          <option>America/Sao_Paulo</option>
-          <option>America/Bahia</option>
-          <option>America/Fortaleza</option>
-          <option>America/Recife</option>
-          <option>America/Maceio</option>
-          <option>America/Manaus</option>
-          <option>America/Belem</option>
-          <option>America/Boa_Vista</option>
-          <option>America/Porto_Velho</option>
-          <option>America/Cuiaba</option>
-          <option>America/Campo_Grande</option>
-          <option>America/Noronha</option>
-          <option>UTC</option>
-        </select>
-      </label>
-      <button class="btn" type="submit">Definir prazo</button>
-    </form>
-
-    <form method="POST" style="margin-top:8px">
-      {% if secret_qs %}<input type="hidden" name="secret" value="{{ secret_qs }}">{% endif %}
-      <input type="hidden" name="action" value="clear_deadline">
-      <button class="btn ghost" type="submit">Limpar prazo</button>
-    </form>
-
-    <div class="sep"></div>
-    <div class="row">
-      <a class="btn" href="/admin/election_meta{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Metadados da votação</a>
-      <a class="btn" href="/admin/home{% if secret_qs %}?secret={{ secret_qs|urlencode }}{% endif %}">Voltar ao painel</a>
-    </div>
-  </div>
-{% endblock %}
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Admin · Candidatos & Prazos</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:system-ui,Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 16px">
+  <h1>Candidatos &amp; Prazos (somente leitura neste mínimo)</h1>
+  <p><b>EID atual:</b> {{ current_eid }}</p>
+  <h3>Candidatos</h3>
+  <ul>{% for c in candidates %}<li>{{ c }}</li>{% endfor %}</ul>
+  <h3>Prazo</h3>
+  {% if deadline %}
+    <p>UTC: {{ deadline.isoformat() }}</p>
+  {% else %}
+    <p><i>Nenhum prazo definido.</i></p>
+  {% endif %}
+  <p><a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
+</body>
+</html>
