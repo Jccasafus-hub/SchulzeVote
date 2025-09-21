@@ -2,62 +2,19 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>{% block title %}Admin · SchulzeVote{% endblock %}</title>
+  <title>SchulzeVote Admin</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="manifest" href="/manifest_admin.json">
   <meta name="theme-color" content="#000000">
-  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
-
-  <!-- Manifest e ícones (APP Admin) — garante o ícone correto na instalação -->
-  <link rel="manifest" href="/manifest_admin.json?v={{ APP_VERSION }}">
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/admin_icon_192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/static/admin_icon_512.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/admin_icon_180.png">
   <link rel="apple-touch-icon" href="/static/admin_icon_180.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-
-  {% block head_extra %}{% endblock %}
+  <style>
+    :root { color-scheme: dark light }
+    html, body { background: #0b0b0c; color: #e6e6e6 }
+    body { font-family: system-ui, Arial, sans-serif; max-width: 960px; margin: 40px auto; padding: 0 16px }
+    a { color: #7cc7ff }
+  </style>
 </head>
 <body>
-  <div class="container">
-    {% block content %}{% endblock %}
-  </div>
-
-  <!-- Botão e script para instalar o PWA Admin usando o manifest acima -->
-  <script>
-    (function(){
-      let deferredPrompt = null;
-      const id = 'install-admin-btn';
-      function ensureBtn(){
-        let b = document.getElementById(id);
-        if(!b){
-          b = document.createElement('button');
-          b.id = id;
-          b.textContent = 'Instalar Admin (PWA)';
-          b.className = 'tag'; // estilinho discreto
-          b.style.marginTop = '12px';
-          const host = document.querySelector('[data-install-host]') || document.body;
-          host.appendChild(b);
-        }
-        return b;
-      }
-
-      window.addEventListener('beforeinstallprompt', (e) => {
-        // Usa o manifest_admin.json desta página (por causa do <link rel="manifest"> no <head>)
-        e.preventDefault();
-        deferredPrompt = e;
-        const btn = ensureBtn();
-        btn.className = 'tag'; // fica visível
-        btn.onclick = async () => {
-          if(!deferredPrompt) return;
-          deferredPrompt.prompt();
-          try{ await deferredPrompt.userChoice; }catch(_){}
-          deferredPrompt = null;
-          btn.remove();
-        };
-      });
-    })();
-  </script>
-  {% block scripts %}{% endblock %}
+  {% block content %}{% endblock %}
 </body>
 </html>
