@@ -8,19 +8,20 @@ import string
 import hashlib
 import zipfile
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import List, Dict, Tuple
+
+try:
+    # Para conversão correta de fuso horário ao salvar o prazo
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None  # fallback
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
     flash, Response, abort, session
 )
 from werkzeug.security import generate_password_hash, check_password_hash
-
-try:
-    from zoneinfo import ZoneInfo  # Python 3.9+
-except Exception:  # pragma: no cover
-    ZoneInfo = None
 
 # ===================== App & Config =====================
 app = Flask(__name__)
@@ -77,41 +78,6 @@ def _read_json(path, default):
 def _write_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
-def _parse_tz_offset_to_minutes(tz_str: str) -> int:
-    """
-    Converte strings como '+00:00', '-03:00', '+0000', '-0300' em minutos de offset.
-    Retorna 0 se vazio/invalid.
-    """
-    s = (tz_str or "").strip()
-    if not s:
-        return 0
-    try:
-        sign = -1 if s.startswith("-") else 1
-        s = s.replace("+", "").replace("-", "")
-        if ":" in s:
-            hh, mm = s.split(":", 1)
-        else:
-            hh, mm = s[:2], s[2:4] if len(s) >= 4 else "00"
-        return sign * (int(hh) * 60 + int(mm))
-    except Exception:
-        return 0
-
-def _to_utc_iso_from_local(date_local: str, time_local: str, tz_offset_str: str) -> str:
-    """
-    Recebe data 'YYYY-MM-DD', hora 'HH:MM' (ambas sem timezone) e offset '+HH:MM'/'-HH:MM'.
-    Retorna ISO UTC com sufixo 'Z'.
-    """
-    date_local = (date_local or "").strip()
-    time_local = (time_local or "").strip()
-    if not date_local or not time_local:
-        return None
-    # monta datetime naive
-    dt = datetime.fromisoformat(f"{date_local}T{time_local}")
-    # aplica offset (local -> UTC): UTC = local - offset
-    off_min = _parse_tz_offset_to_minutes(tz_offset_str)
-    dt_utc = dt - timedelta(minutes=off_min)
-    return dt_utc.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
 
 # ===================== Persistência de Domínio =====================
 def _ensure_keys_doc():
@@ -196,14 +162,9 @@ def load_election_doc():
       "election_id": "default",
       "deadline_utc": "2025-01-31T23:59:59+00:00" | null,
       "meta": {
-        "<eid>": {
-          "title": "...",
-          "date": "YYYY-MM-DD",
-          "time": "HH:MM",
-          "tz": "America/Sao_Paulo",
-          "category": "string",
-          "updated_at": "ISO"
-        }
+        "<eid>": { "title": "...", "date": "YYYY-MM-DD", "time": "HH:MM",
+                   "tz": "America/Sao_Paulo", "category": "string",
+                   "updated_at": "ISO" }
       }
     }
     """
@@ -305,9 +266,11 @@ if not app.logger.handlers:
 
 @app.errorhandler(404)
 def handle_404(e):
-    app.logger.warning("404 on %s?%s",
-                       request.path,
-                       request.query_string.decode("utf-8", errors="ignore"))
+    app.logger.warning(
+        "404 on %s?%s",
+        request.path,
+        request.query_string.decode("utf-8", errors="ignore")
+    )
     return Response(
         "<h3>404 • Página não encontrada</h3>"
         "<p>Para o painel admin, use <code>/admin/home?secret=SEU_ADMIN_SECRET</code>.</p>",
@@ -364,6 +327,9 @@ def register():
             return redirect(url_for("register"))
         reg = load_registry()
         users = reg.get("users", {})
+        if user_id in users and users[user_id].get("pwd_hash"):
+            flash("Usuário já existe.", "error")
+            return redirect(url_for("register"))
         entry = users.get(user_id, {"used": False, "peso": 1, "attempts": {}})
         entry["pwd_hash"] = generate_password_hash(pw)
         users[user_id] = entry
@@ -409,6 +375,39 @@ def _inc_attempt(user_id, eid):
     reg["users"][user_id] = entry
     save_registry(reg)
     return attempts[eid]
+
+def parse_numeric_form_to_ranks(form, candidates):
+    """Lê campos cand_{i} e rank_{i} OU special_vote (BLANK/NULL) e devolve dict {cand: rank|None}."""
+    special = (form.get("special_vote") or "").strip().upper()
+    if special in ("BLANK", "NULL"):
+        pick = RESERVED_BLANK if special == "BLANK" else RESERVED_NULL
+        ranks = {c: None for c in candidates}
+        if pick in candidates:
+            ranks[pick] = 1
+        return ranks
+
+    ranks = {c: None for c in candidates}
+    idx = 0
+    while True:
+        c = form.get(f"cand_{idx}")
+        r = form.get(f"rank_{idx}")
+        if c is None and r is None:
+            break
+        idx += 1
+        if c is None:
+            continue
+        c = _squash_spaces(c)
+        if c not in candidates:
+            continue
+        if not r or str(r).strip() == "":
+            ranks[c] = None
+        else:
+            try:
+                n = int(str(r).strip())
+                ranks[c] = n if n >= 1 else None
+            except Exception:
+                ranks[c] = None
+    return ranks
 
 # ===================== Votação: ETAPA 1 (validar chave) =====================
 @app.route("/vote", methods=["GET", "POST"])
@@ -479,41 +478,6 @@ def vote():
     # GET: tela somente de chave
     return render_template("vote_key.html")
 
-# ===================== Votação: helpers =====================
-def parse_numeric_form_to_ranks(form, candidates):
-    """Lê campos cand_{i} e rank_{i} OU special_vote (BLANK/NULL) e devolve dict {cand: rank|None}."""
-    special = (form.get("special_vote") or "").strip().upper()
-    if special in ("BLANK", "NULL"):
-        pick = RESERVED_BLANK if special == "BLANK" else RESERVED_NULL
-        ranks = {c: None for c in candidates}
-        if pick in candidates:
-            ranks[pick] = 1
-        return ranks
-
-    ranks = {c: None for c in candidates}
-    idx = 0
-    while True:
-        c = form.get(f"cand_{idx}")
-        r = form.get(f"rank_{idx}")
-        if c is None and r is None:
-            break
-        idx += 1
-        if c is None:
-            continue
-        c = _squash_spaces(c)
-        if c not in candidates:
-            continue
-        if not r or str(r).strip() == "":
-            ranks[c] = None
-        else:
-            try:
-                n = int(str(r).strip())
-                ranks[c] = n if n >= 1 else None
-            except Exception:
-                ranks[c] = None
-    return ranks
-
-
 # ===================== Votação: ETAPA 2 (painel e registro) =====================
 @app.route("/vote/panel", methods=["GET", "POST"])
 def vote_panel():
@@ -555,7 +519,7 @@ def vote_panel():
             flash("Usuário não habilitado.", "error")
             return redirect(url_for("login"))
 
-        posted_ranking = request.form.getlist("ranking")  # opcional (drag&drop)
+        posted_ranking = request.form.getlist("ranking")  # opcional (drag&drop futuro)
         if posted_ranking:
             ranks = {c: None for c in candidates}
             r = 1
@@ -611,7 +575,6 @@ def vote_panel():
         eid=eid,
         session_vkey=bool(voter_key),
     )
-
 
 # ===================== Método de Schulze =====================
 def _pairwise_from_ballots(ballots: List[dict], candidates: List[str]) -> Dict[str, Dict[str, int]]:
@@ -677,7 +640,7 @@ def schulze_ranking_from_ballots(
             return -1
         if S[a][b] < S[b][a]:
             return 1
-        # Empate: fallback lexicográfico estável
+        # Empate: fallback lexicográfico estável (para tornar determinístico)
         al, bl = a.lower(), b.lower()
         if al < bl:
             return -1
@@ -718,6 +681,23 @@ def public_results(eid):
         )
     except Exception as e:
         return Response(f"Erro ao calcular resultados: {e}", status=500)
+
+@app.route("/public/<eid>/audit")
+def public_audit(eid):
+    p = audit_path(eid)
+    meta = get_election_meta(eid)
+    if meta:
+        extra = ""
+        if meta.get("date") and meta.get("time"):
+            extra = f" • <b>Data/Hora:</b> {meta.get('date','')} {meta.get('time','')} {meta.get('tz','')}"
+        head = f"<h1>{meta.get('title','Auditoria')}</h1><p><b>ID:</b> {eid}{extra}</p>"
+    else:
+        head = f"<h1>Auditoria</h1><p><b>ID:</b> {eid}</p>"
+    if not p.exists():
+        return Response(head + "<pre>(Sem auditoria para esta votação.)</pre>", mimetype="text/html")
+    with open(p, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    return Response(head + "<pre>" + "".join(lines) + "</pre>", mimetype="text/html")
 
 
 # ===================== Relatórios CSV =====================
@@ -762,6 +742,7 @@ def public_pairwise_csv(eid):
     resp = Response(out.getvalue(), mimetype="text/csv")
     resp.headers["Content-Disposition"] = f'attachment; filename="pairwise_{eid}.csv"'
     return resp
+
 
 # ===================== /public/elections (JSON & CSV) =====================
 @app.route("/public/elections")
@@ -815,7 +796,6 @@ def public_elections():
     return Response(json.dumps({"elections": enriched}, ensure_ascii=False, indent=2),
                     mimetype="application/json")
 
-
 @app.route("/public/elections.csv")
 def public_elections_csv():
     # Reusa a lógica JSON para manter consistência de filtros
@@ -844,6 +824,37 @@ def public_elections_csv():
     resp.headers["Content-Disposition"] = 'attachment; filename="elections.csv"'
     return resp
 
+# ===================== Utilitário: prazo -> UTC =====================
+def _compose_utc_from_local(date_s: str, time_s: str, tz_s: str):
+    """
+    Converte (YYYY-MM-DD, HH:MM, TZ) em datetime UTC.
+    Se 'zoneinfo' não estiver disponível, assume que a data/hora já está em UTC.
+    """
+    date_s = (date_s or "").strip()
+    time_s = (time_s or "00:00").strip()
+    tz_s   = (tz_s   or "UTC").strip()
+    if not date_s:
+        raise ValueError("Data ausente")
+
+    # Monta datetime "local"
+    try:
+        y, m, d = [int(x) for x in date_s.split("-")]
+        hh, mm = [int(x) for x in time_s.split(":")]
+    except Exception:
+        raise ValueError("Data/Hora inválidas")
+
+    local_naive = datetime(y, m, d, hh, mm)
+
+    # Tenta usar zoneinfo
+    try:
+        from zoneinfo import ZoneInfo  # import local para não quebrar ambientes antigos
+        local_dt = local_naive.replace(tzinfo=ZoneInfo(tz_s))
+        utc_dt = local_dt.astimezone(timezone.utc)
+        return utc_dt
+    except Exception:
+        # Fallback: trata como UTC já
+        return local_naive.replace(tzinfo=timezone.utc)
+
 
 # ===================== Admin (UI) =====================
 @app.route("/admin")
@@ -858,9 +869,11 @@ def admin_root():
 def admin_home():
     if not require_admin(request):
         return redirect(url_for("admin_login"))
-    return render_template("admin_home.html",
-                           secret=request.args.get("secret", ""),
-                           current_eid=get_current_election_id())
+    return render_template(
+        "admin_home.html",
+        secret=request.args.get("secret", ""),
+        current_eid=get_current_election_id()
+    )
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
@@ -884,13 +897,14 @@ def admin_logout():
 @app.route("/admin/candidates")
 def admin_candidates():
     if not require_admin(request): abort(403)
-    full = load_candidates()
-    core = [c for c in full if c not in (RESERVED_BLANK, RESERVED_NULL)]
+    # Lista "core" (sem os especiais adicionados automaticamente)
+    cand_all = load_candidates()
+    candidates_core = [c for c in cand_all if c not in (RESERVED_BLANK, RESERVED_NULL)]
     return render_template(
         "admin_candidates.html",
         secret=request.args.get("secret", ""),
         current_eid=get_current_election_id(),
-        candidates_core=core,
+        candidates_core=candidates_core,
         deadline=load_deadline()
     )
 
@@ -922,125 +936,98 @@ def admin_audit_preview():
         current_eid=get_current_election_id()
     )
 
-# ===================== Admin: Metadados (editar) =====================
-@app.route("/admin/election_meta_update", methods=["POST"])
-def admin_election_meta_update():
-    if not require_admin(request): abort(403)
 
-    # alvo do update: EID vindo do form ou o atual
-    eid = (request.form.get("eid") or get_current_election_id()).strip()
-    mode = (request.form.get("mode") or "save").strip()
-
-    if mode == "clear":
-        d = load_election_doc()
-        if eid in d.get("meta", {}):
-            d["meta"].pop(eid, None)
-            save_election_doc(d)
-        audit_admin(eid, "UPDATE_META", "cleared", request.remote_addr or "-")
-        flash("Metadados removidos para este EID.", "success")
-        return redirect(url_for("admin_election_meta", secret=request.args.get("secret", "")))
-
-    title = (request.form.get("title") or "").strip()
-    date_s = (request.form.get("date") or "").strip()
-    time_s = (request.form.get("time") or "").strip()
-    tz_s   = (request.form.get("tz") or "America/Sao_Paulo").strip()
-    cat    = (request.form.get("category") or "").strip()
-
-    set_election_meta(eid, title, date_s, time_s, tz_s, cat)
-    audit_admin(eid, "UPDATE_META",
-                f"title={title!r} date={date_s!r} time={time_s!r} tz={tz_s!r} category={cat!r}",
-                request.remote_addr or "-")
-    flash("Metadados atualizados.", "success")
-    return redirect(url_for("admin_election_meta", secret=request.args.get("secret", "")))
-
-
-@app.route("/admin/election_set_eid", methods=["POST"])
-def admin_election_set_eid():
-    if not require_admin(request): abort(403)
-    new_eid = (request.form.get("new_eid") or "").strip()
-    if not new_eid:
-        flash("Informe um EID válido.", "error")
-        return redirect(url_for("admin_election_meta", secret=request.args.get("secret", "")))
-
-    set_current_election_id(new_eid)
-    # Garante estrutura meta (opcional)
-    d = load_election_doc()
-    d.setdefault("meta", {}).setdefault(new_eid, d.get("meta", {}).get(new_eid, {}))
-    save_election_doc(d)
-
-    audit_admin(new_eid, "SET_CURRENT_EID", "ok", request.remote_addr or "-")
-    flash(f"EID atual alterado para: {new_eid}", "success")
-    return redirect(url_for("admin_election_meta", secret=request.args.get("secret", "")))
-
-# ===================== Admin: Atualização de Candidatos & Prazo =====================
-@app.route("/admin/candidates_update", methods=["POST"])
-def admin_candidates_update():
+# ===================== Admin: Atualizações (POST) =====================
+@app.post("/admin/candidates_update")
+def admin_candidates_update_post():
+    """
+    Atualiza a lista de candidatos (um por linha). Os especiais
+    'Voto em Branco' e 'Voto Nulo' são adicionados automaticamente ao fim.
+    """
     if not require_admin(request): abort(403)
     raw = request.form.get("candidates", "")
-    lines = [ln.strip() for ln in raw.splitlines()]
+    # quebra por linhas, remove vazios, normaliza espaços
+    lines = []
+    for ln in raw.splitlines():
+        v = _squash_spaces(ln)
+        if v:
+            lines.append(v)
+
     save_candidates(lines)
+
     eid = get_current_election_id()
-    audit_admin(eid, "UPDATE_CANDIDATES", f"count={len(lines)}", request.remote_addr or "-")
+    audit_admin(eid, "CANDIDATES_UPDATE", f"count={len(lines)}", request.remote_addr or "-")
     flash("Candidatos atualizados.", "success")
     return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
 
-@app.route("/admin/deadline_update", methods=["POST"])
-def admin_deadline_update():
+@app.post("/admin/deadline_update")
+def admin_deadline_update_post():
+    """
+    Define ou remove o prazo de votação.
+    Campos:
+      - mode = 'save' | 'clear'
+      - date = 'YYYY-MM-DD'
+      - time = 'HH:MM'
+      - tz   = 'America/Sao_Paulo' (IANA)
+    """
     if not require_admin(request): abort(403)
-    mode = (request.form.get("mode") or "save").strip()
+    mode = (request.form.get("mode") or "").strip().lower()
     if mode == "clear":
         save_deadline(None)
         eid = get_current_election_id()
-        audit_admin(eid, "UPDATE_DEADLINE", "cleared", request.remote_addr or "-")
+        audit_admin(eid, "DEADLINE_CLEAR", "ok", request.remote_addr or "-")
         flash("Prazo removido.", "success")
         return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
 
-    date_local = request.form.get("date_local", "")
-    time_local = request.form.get("time_local", "")
-    tz_off     = request.form.get("tz_offset", "+00:00")
-    iso_utc = _to_utc_iso_from_local(date_local, time_local, tz_off)
-    if not iso_utc:
-        flash("Data/hora inválidas.", "error")
-        return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
-    # persiste
+    # Salvar
+    date_s = request.form.get("date", "")
+    time_s = request.form.get("time", "")
+    tz_s   = request.form.get("tz", "UTC")
     try:
-        dt_utc = datetime.fromisoformat(iso_utc.replace("Z", "+00:00"))
+        dt_utc = _compose_utc_from_local(date_s, time_s, tz_s)
         save_deadline(dt_utc)
         eid = get_current_election_id()
-        audit_admin(eid, "UPDATE_DEADLINE", f"utc={iso_utc}", request.remote_addr or "-")
-        flash("Prazo atualizado.", "success")
+        audit_admin(
+            eid,
+            "DEADLINE_SET",
+            f"local={date_s}T{time_s} {tz_s} utc={dt_utc.isoformat()}",
+            request.remote_addr or "-"
+        )
+        flash(f"Prazo definido (UTC): {dt_utc.isoformat()}", "success")
     except Exception as e:
-        flash(f"Falha ao salvar prazo: {e}", "error")
+        flash(f"Erro ao definir prazo: {e}", "error")
+
     return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
 
 # ===================== Admin: JSON dumps =====================
-@app.route("/admin/keys_list")
-def admin_keys_list():
+@app.get("/admin/keys_list")
+def admin_keys_list_json():
     if not require_admin(request): abort(403)
     doc = load_keys()
     return Response(json.dumps({"keys": doc.get("keys", {})}, ensure_ascii=False, indent=2),
                     mimetype="application/json")
 
-@app.route("/admin/pool_list")
-def admin_pool_list():
+@app.get("/admin/pool_list")
+def admin_pool_list_json():
     if not require_admin(request): abort(403)
     doc = load_keys()
     return Response(json.dumps({"pool": doc.get("pool", [])}, ensure_ascii=False, indent=2),
                     mimetype="application/json")
 
-@app.route("/admin/users_list")
-def admin_users_list():
+@app.get("/admin/users_list")
+def admin_users_list_json():
     if not require_admin(request): abort(403)
     reg = load_registry()
     return Response(json.dumps({"users": reg.get("users", {})}, ensure_ascii=False, indent=2),
                     mimetype="application/json")
 
-@app.route("/admin/trash_list")
-def admin_trash_list():
+@app.get("/admin/trash_list")
+def admin_trash_list_json():
     if not require_admin(request): abort(403)
     t = load_trash()
     return Response(json.dumps({"users": t.get("users", {})}, ensure_ascii=False, indent=2),
                     mimetype="application/json")
+
 
 # ===================== Admin: Atribuições / Pesos / Exclusões =====================
 def _assign_key_to_user(reg, keys_doc, user, key, peso=None):
@@ -1060,8 +1047,8 @@ def _assign_key_to_user(reg, keys_doc, user, key, peso=None):
         kinfo["peso"] = int(peso)
     keys_doc["keys"][key] = kinfo
 
-@app.route("/admin/assign_batch_generate")
-def admin_assign_batch_generate():
+@app.get("/admin/assign_batch_generate")
+def admin_assign_batch_generate_get():
     if not require_admin(request): abort(403)
     ras  = (request.args.get("ras") or "").strip()
     peso = int(request.args.get("peso") or "1")
@@ -1102,8 +1089,8 @@ def admin_assign_batch_generate():
     return Response("\n".join(lines) if lines else "(nada a atribuir)",
                     mimetype="text/plain; charset=utf-8")
 
-@app.route("/admin/assign_batch_use_pool")
-def admin_assign_batch_use_pool():
+@app.get("/admin/assign_batch_use_pool")
+def admin_assign_batch_use_pool_get():
     if not require_admin(request): abort(403)
     ras = (request.args.get("ras") or "").strip()
     if not ras:
@@ -1133,8 +1120,8 @@ def admin_assign_batch_use_pool():
     return Response("\n".join(lines) if lines else "(pool esgotado ou nada a atribuir)",
                     mimetype="text/plain; charset=utf-8")
 
-@app.route("/admin/set_user_weight")
-def admin_set_user_weight():
+@app.get("/admin/set_user_weight")
+def admin_set_user_weight_get():
     if not require_admin(request): abort(403)
     user = (request.args.get("user") or "").strip()
     peso = int(request.args.get("peso") or "1")
@@ -1151,8 +1138,8 @@ def admin_set_user_weight():
     audit_admin(eid, "SET_USER_WEIGHT", f"user={user} peso={u['peso']}", request.remote_addr or "-")
     return Response('{"ok":true}', mimetype="application/json")
 
-@app.route("/admin/delete_user")
-def admin_delete_user():
+@app.get("/admin/delete_user")
+def admin_delete_user_get():
     if not require_admin(request): abort(403)
     user = (request.args.get("user") or "").strip()
     if not user:
@@ -1170,8 +1157,8 @@ def admin_delete_user():
     audit_admin(eid, "DELETE_USER", f"user={user}", request.remote_addr or "-")
     return Response('{"ok":true}', mimetype="application/json")
 
-@app.route("/admin/delete_users_batch")
-def admin_delete_users_batch():
+@app.get("/admin/delete_users_batch")
+def admin_delete_users_batch_get():
     if not require_admin(request): abort(403)
     users_q = (request.args.get("users") or "").strip()
     if not users_q:
@@ -1193,8 +1180,8 @@ def admin_delete_users_batch():
     return Response(json.dumps({"ok": True, "moved": moved}, ensure_ascii=False),
                     mimetype="application/json")
 
-@app.route("/admin/restore_user")
-def admin_restore_user():
+@app.get("/admin/restore_user")
+def admin_restore_user_get():
     if not require_admin(request): abort(403)
     user = (request.args.get("user") or "").strip()
     if not user:
@@ -1212,8 +1199,8 @@ def admin_restore_user():
     audit_admin(eid, "RESTORE_USER", f"user={user}", request.remote_addr or "-")
     return Response('{"ok":true}', mimetype="application/json")
 
-@app.route("/admin/empty_trash", methods=["POST"])
-def admin_empty_trash():
+@app.post("/admin/empty_trash")
+def admin_empty_trash_post():
     if not require_admin(request): abort(403)
     save_trash({"users": {}})
     eid = get_current_election_id()
@@ -1229,8 +1216,8 @@ def _sha256_file(path: Path):
             h.update(chunk)
     return h.hexdigest()
 
-@app.route("/admin/export_audit_bundle")
-def admin_export_audit_bundle():
+@app.get("/admin/export_audit_bundle")
+def admin_export_audit_bundle_get():
     if not require_admin(request): abort(403)
     eid = (request.args.get("eid") or get_current_election_id()).strip()
 
@@ -1281,8 +1268,8 @@ def admin_export_audit_bundle():
     resp.headers["Content-Disposition"] = f'attachment; filename="audit_bundle_{eid}.zip"'
     return resp
 
-@app.route("/admin/backup_zip")
-def admin_backup_zip():
+@app.get("/admin/backup_zip")
+def admin_backup_zip_get():
     if not require_admin(request): abort(403)
     ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     buf = io.BytesIO()
@@ -1304,8 +1291,8 @@ def admin_backup_zip():
     resp.headers["Content-Disposition"] = f'attachment; filename="schulzevote_backup_{ts}.zip"'
     return resp
 
-@app.route("/admin/backup_zip_eid")
-def admin_backup_zip_eid():
+@app.get("/admin/backup_zip_eid")
+def admin_backup_zip_eid_get():
     if not require_admin(request): abort(403)
     eid = (request.args.get("eid") or "").strip()
     if not eid:
@@ -1341,8 +1328,8 @@ def admin_backup_zip_eid():
 
 
 # ===================== Admin: Dados crus =====================
-@app.route("/admin/audit_raw")
-def admin_audit_raw():
+@app.get("/admin/audit_raw")
+def admin_audit_raw_get():
     if not require_admin(request): abort(403)
     eid = (request.args.get("eid") or get_current_election_id()).strip()
     p = audit_path(eid)
@@ -1355,120 +1342,27 @@ def admin_audit_raw():
     return Response(json.dumps({"eid": eid, "meta": meta, "lines": lines}, ensure_ascii=False, indent=2),
                     mimetype="application/json")
 
-@app.route("/admin/ballots_raw")
-def admin_ballots_raw():
+@app.get("/admin/ballots_raw")
+def admin_ballots_raw_get():
     if not require_admin(request): abort(403)
     eid = (request.args.get("eid") or get_current_election_id()).strip()
     ballots = load_ballots(eid)
     return Response(json.dumps({"eid": eid, "ballots": ballots}, ensure_ascii=False, indent=2),
                     mimetype="application/json")
 
-@app.route("/admin/ping")
-def admin_ping():
+@app.get("/admin/ping")
+def admin_ping_get():
     ok = require_admin(request)
     return Response(json.dumps({"ok": ok}, ensure_ascii=False),
                     status=200 if ok else 403, mimetype="application/json")
 
 
 # ===================== Health / Diagnostics =====================
-@app.route("/healthz")
-@app.route("/ping")
+@app.get("/healthz")
+@app.get("/ping")
 def healthz():
     return Response('{"ok":true}', mimetype="application/json")
 
-# ===================== PWA Manifests =====================
-@app.route("/manifest.json")
-def manifest_public():
-    data = {
-        "name": "SchulzeVote",
-        "short_name": "SchulzeVote",
-        "start_url": "/",
-        "display": "standalone",
-        "background_color": "#000000",
-        "theme_color": "#000000",
-        "icons": [
-            {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
-            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
-            {"src": "/static/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
-        ]
-    }
-    return Response(json.dumps(data, ensure_ascii=False), mimetype="application/manifest+json")
-
-@app.route("/manifest_admin.json")
-def manifest_admin():
-    data = {
-        "name": "SchulzeVote Admin",
-        "short_name": "SV Admin",
-        "start_url": "/admin/home",
-        "scope": "/admin/",
-        "display": "standalone",
-        "background_color": "#000000",
-        "theme_color": "#000000",
-        "icons": [
-            {"src": "/static/admin_icon_192.png", "sizes": "192x192", "type": "image/png"},
-            {"src": "/static/admin_icon_512.png", "sizes": "512x512", "type": "image/png"},
-            {"src": "/static/admin_icon_maskable_512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
-        ]
-    }
-    return Response(json.dumps(data, ensure_ascii=False), mimetype="application/manifest+json")
-
-# ===================== Admin: Editar Candidatos & Prazo =====================
-@app.route("/admin/candidates_update", methods=["POST"])
-def admin_candidates_update():
-    if not require_admin(request): abort(403)
-
-    raw = request.form.get("candidates", "")
-    # Uma por linha; remove vazios e espaços extras
-    lines = [x.strip() for x in raw.splitlines()]
-    # O save_candidates grava somente o "core"; Branco/Nulo são reanexados em load_candidates()
-    save_candidates(lines)
-
-    eid = get_current_election_id()
-    audit_admin(eid, "UPDATE_CANDIDATES", f"count={len([x for x in lines if x])}", request.remote_addr or "-")
-    flash("Candidatos atualizados.", "success")
-    return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
-
-
-@app.route("/admin/deadline_update", methods=["POST"])
-def admin_deadline_update():
-    if not require_admin(request): abort(403)
-
-    mode = (request.form.get("mode") or "save").strip()
-    if mode == "clear":
-        save_deadline(None)
-        eid = get_current_election_id()
-        audit_admin(eid, "UPDATE_DEADLINE", "cleared", request.remote_addr or "-")
-        flash("Prazo removido (sem limite).", "success")
-        return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
-
-    date_s = (request.form.get("date") or "").strip()   # YYYY-MM-DD
-    time_s = (request.form.get("time") or "").strip()   # HH:MM
-    tz_s   = (request.form.get("tz")   or "America/Sao_Paulo").strip()
-
-    if not date_s or not time_s:
-        flash("Informe data e hora.", "error")
-        return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
-
-    # Monta datetime local => converte para UTC e salva em ISO
-    try:
-        base = datetime.fromisoformat(f"{date_s}T{time_s}:00")
-        if ZoneInfo:
-            local_dt = base.replace(tzinfo=ZoneInfo(tz_s))
-            dt_utc = local_dt.astimezone(timezone.utc)
-        else:
-            # Fallback: assume já em UTC caso ZoneInfo indisponível
-            dt_utc = base.replace(tzinfo=timezone.utc)
-        save_deadline(dt_utc)
-    except Exception as e:
-        flash(f"Não foi possível interpretar o prazo: {e}", "error")
-        return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
-
-    eid = get_current_election_id()
-    audit_admin(eid, "UPDATE_DEADLINE",
-                f"date={date_s} time={time_s} tz={tz_s} => utc={dt_utc.isoformat()}",
-                request.remote_addr or "-")
-    flash("Prazo atualizado.", "success")
-    return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
 
 # ===================== Main (debug local) =====================
 if __name__ == "__main__":
