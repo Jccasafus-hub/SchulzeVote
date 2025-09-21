@@ -1,11 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Cadastro</h1>
-<form method="POST">
-  <p><label>Usuário: <input name="user_id" required></label></p>
-  <p><label>Senha: <input type="password" name="password" required></label></p>
-  <p><label>Repita a senha: <input type="password" name="password2" required></label></p>
-  <button>Cadastrar</button>
-</form>
-<p><a href="/">Início</a></p>
+  <h1>Cadastro</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="card">
+        <ul style="margin:0 0 0 18px">
+          {% for cat,msg in messages %}
+            <li><b>{{ cat }}</b>: {{ msg }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  {% endwith %}
+  <div class="card">
+    <form method="POST">
+      <p><label>Usuário: <input name="user_id" required></label></p>
+      <p><label>Senha: <input type="password" name="password" required></label></p>
+      <p><label>Repita a senha: <input type="password" name="password2" required></label></p>
+      <div class="actions">
+        <button>Cadastrar</button>
+        <a class="muted" href="/">Início</a>
+      </div>
+    </form>
+  </div>
 {% endblock %}
