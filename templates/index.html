@@ -1,14 +1,23 @@
-<head>
-  <meta charset="utf-8">
-  <title>SchulzeVote · Início</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+{% extends "base.html" %}
+{% block title %}Início · SchulzeVote{% endblock %}
+{% block content %}
+  <h1>SchulzeVote</h1>
+  <p class="muted">EID atual: <b>{{ get_current_election_id() }}</b></p>
 
-  <link rel="manifest" href="/static/manifest.webmanifest?v={{ APP_VERSION }}">
-  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
-  <meta name="theme-color" content="#0d0f12">
-  <meta name="color-scheme" content="dark light">
+  <div class="grid autofit-240" style="margin-top:12px">
+    <a class="card" href="/vote">Votar</a>
+    <a class="card" href="/results">Resultados públicos</a>
+    <a class="card" href="/schulze_guide">Guia do método de Schulze</a>
+  </div>
 
-  <link rel="icon" href="/static/icons/app-192.png" sizes="192x192">
-  <link rel="apple-touch-icon" href="/static/icons/app-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-</head>
+  <h3 style="margin-top:20px">Admin</h3>
+  <div class="card" data-install-host>
+    <p>Acesso ao painel do administrador.</p>
+    <p class="small muted">Dica: você pode instalar a versão PWA do Admin; ela usará o ícone laranja “SV ADMIN”.</p>
+    <p>
+      <a class="tag" href="/admin/login">/admin/login</a>
+      <span class="small">ou</span>
+      <code class="tag">/admin/home?secret=&lt;ADMIN_SECRET&gt;</code>
+    </p>
+  </div>
+{% endblock %}
