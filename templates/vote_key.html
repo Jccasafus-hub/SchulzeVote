@@ -1,27 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Votar · Chave{% endblock %}
 {% block content %}
-  <h1>Votar</h1>
+<h1>Votar</h1>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <ul class="msg">
-      {% for cat,msg in messages %}
-        <li><b>{{ cat }}</b>: {{ msg }}</li>
-      {% endfor %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div style="background:#151517;border:1px solid #2a2a2e;border-radius:12px;padding:12px;margin:12px 0">
+      <ul style="margin:0 0 0 18px">
+        {% for cat,msg in messages %}
+          <li><b>{{ cat }}</b>: {{ msg }}</li>
+        {% endfor %}
       </ul>
-    {% endif %}
-  {% endwith %}
+    </div>
+  {% endif %}
+{% endwith %}
 
-  <div class="card">
-    <form method="POST" action="/vote">
-      <p><label>Chave de votação<br>
+<div style="background:#151517;border:1px solid #2a2a2e;border-radius:12px;padding:16px">
+  <form method="POST" action="/vote">
+    <p>
+      <label>Chave de votação:<br>
         <input name="voter_id" placeholder="ABCD-EFGH-IJKL" required autocomplete="one-time-code" style="width:100%">
-      </label></p>
-      <button type="submit">Validar chave</button>
-      <p class="small muted" style="margin-top:8px">Após validar a chave, você será direcionado ao painel de preferências.</p>
-    </form>
-  </div>
+      </label><br>
+      <small style="color:#a0a0a6">Após validar a chave, você será direcionado ao painel para informar as preferências.</small>
+    </p>
+    <p><button type="submit">Validar chave</button></p>
+  </form>
+</div>
 
-  <p class="small" style="margin-top:12px"><a href="/">Início</a></p>
+<p style="margin-top:14px"><a href="/">Início</a></p>
 {% endblock %}
