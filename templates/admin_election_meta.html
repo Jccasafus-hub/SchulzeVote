@@ -1,13 +1,13 @@
-<!doctype html>
-<html lang="pt-BR">
-<head><meta charset="utf-8"><title>Admin · Metadados</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:system-ui,Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 16px">
-  <h1>Metadados da votação (somente leitura neste mínimo)</h1>
-  {% if meta %}
-    <pre>{{ meta|tojson(indent=2) }}</pre>
-  {% else %}
-    <p><i>Sem metadados para o EID atual.</i></p>
-  {% endif %}
-  <p><a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
-</body>
-</html>
+{% extends "base_admin.html" %}
+{% block title %}Admin · Metadados{% endblock %}
+{% block content %}
+  <h1>Metadados da votação</h1>
+  <div class="card">
+    {% if meta %}
+      <pre>{{ meta|tojson(indent=2) }}</pre>
+    {% else %}
+      <p class="muted"><i>Sem metadados para o EID atual.</i></p>
+    {% endif %}
+  </div>
+  <p class="small" style="margin-top:12px"><a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
+{% endblock %}
