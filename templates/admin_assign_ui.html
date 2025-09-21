@@ -1,14 +1,11 @@
 {% extends "base_admin.html" %}
-{% block title %}Admin · Atribuição de chaves{% endblock %}
 {% block content %}
-  <h1>Atribuição de chaves (endpoints)</h1>
-  <div class="card">
-    <p>Use via URL:</p>
-    <ul>
-      <li><code>/admin/assign_batch_generate?ras=user1,user2&amp;peso=1&amp;secret={{ request.args.get('secret','')|urlencode }}</code></li>
-      <li><code>/admin/assign_batch_use_pool?ras=user1,user2&amp;secret={{ request.args.get('secret','')|urlencode }}</code></li>
-      <li><code>/admin/set_user_weight?user=user1&amp;peso=2&amp;secret={{ request.args.get('secret','')|urlencode }}</code></li>
-    </ul>
-  </div>
-  <p class="small" style="margin-top:12px"><a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
+<h1>Atribuição de chaves (endpoints)</h1>
+<p>Use via URL:</p>
+<ul>
+  <li><code>/admin/assign_batch_generate?ras=user1,user2&amp;peso=1&amp;secret={{ request.args.get('secret','')|urlencode }}</code></li>
+  <li><code>/admin/assign_batch_use_pool?ras=user1,user2&amp;secret={{ request.args.get('secret','')|urlencode }}</code></li>
+  <li><code>/admin/set_user_weight?user=user1&amp;peso=2&amp;secret={{ request.args.get('secret','')|urlencode }}</code></li>
+</ul>
+<p><a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
 {% endblock %}
