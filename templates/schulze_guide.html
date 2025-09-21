@@ -1,9 +1,238 @@
 {% extends "base.html" %}
 {% block content %}
-  <h1>Método de Schulze</h1>
+  <h1>Método de Schulze — Guia Completo</h1>
+
   <div class="card">
-    <p>O método de Schulze calcula caminhos de maior força entre preferências pareadas para definir o ranking final.</p>
-    <p>Esta é a versão resumida. Para depuração, use “Resultados” com <code>?debug=1</code> para ver matrizes.</p>
+    <p>
+      O método de Schulze é um algoritmo de votação por preferências que escolhe um
+      <b>vencedor de Condorcet</b> quando ele existe — isto é, um candidato que venceria um
+      confronto direto contra todos os demais. Quando não existe um vencedor de Condorcet,
+      o método usa a noção de <b>caminhos mais fortes</b> entre candidatos para decidir a ordem
+      final (ranking).
+    </p>
+    <p class="muted">Este guia descreve como interpretamos sua cédula, como montamos as
+      matrizes de comparação e como computamos os caminhos e o ranking final.</p>
   </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Visão geral (passo a passo)</h2>
+    <ol>
+      <li><b>Entrada:</b> cada cédula informa uma ordem de preferência (1 = mais preferido). Votos podem ser ponderados (peso &ge; 1).</li>
+      <li><b>Comparações par-a-par:</b> para cada par distinto (A,B), somamos o peso das cédulas que preferem A &gt; B — isso forma a matriz <code>P[A][B]</code>.</li>
+      <li><b>Caminhos mais fortes:</b> a força de um caminho A &rarr; ... &rarr; B é o mínimo entre as arestas do caminho. A força mais forte entre A e B (tomando todos os caminhos) é <code>S[A][B]</code>.</li>
+      <li><b>Decisão:</b> dizemos que A "vence" B se <code>S[A][B] &gt; S[B][A]</code>. O ranking é obtido ordenando candidatos por essas vitórias.</li>
+      <li><b>Empates:</b> se <code>S[A][B] == S[B][A]</code>, aplicamos um critério estável (ex.: ordem lexicográfica) apenas como <i>desempate técnico</i>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Formato da cédula</h2>
+    <ul>
+      <li>Você pode ranquear quantos candidatos quiser; campos em branco significam “sem preferência informada”.</li>
+      <li>Opcionalmente, a cédula pode ser marcada como <b>Voto em Branco</b> ou <b>Voto Nulo</b> (tratados como candidatos especiais). Eles aparecem ao final da lista de candidatos e não influenciam comparações entre os candidatos “core”.</li>
+      <li>Se houver pesos diferentes por eleitor (conforme configuração administrativa), o peso multiplica a contribuição da cédula nas comparações.</li>
+    </ul>
+    <p class="muted"><b>Importante:</b> na apuração, as comparações par-a-par e os caminhos consideram
+      apenas os candidatos “core” (excluem Branco/Nulo), mas Branco/Nulo podem aparecer no ranking
+      final caso o administrador assim deseje (ex.: exportações/relatórios específicos).</p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Matriz de preferências par-a-par (P)</h2>
+    <p>
+      Construímos uma matriz <code>P</code> onde <code>P[A][B]</code> é o <b>peso total</b> de cédulas que preferem
+      o candidato A ao candidato B.
+    </p>
+    <p><b>Como computamos:</b></p>
+    <ul>
+      <li>Para cada cédula, e para cada par <code>(A,B)</code> de candidatos distintos:
+        <ul>
+          <li>Se a cédula tem <code>rank(A) = a</code> e <code>rank(B) = b</code> com <code>a &lt; b</code>, então somamos o <code>peso</code> da cédula em <code>P[A][B]</code>.</li>
+          <li>Se faltar rank para A ou B, a cédula não contribui para esse par.</li>
+        </ul>
+      </li>
+      <li>Ao final, <code>P[A][B]</code> e <code>P[B][A]</code> mostram a “força” do confronto direto ponderado.</li>
+    </ul>
+    <details>
+      <summary>Diagrama (ilustrativo)</summary>
+      <pre>
+Candidatos: A, B, C
+
+P[A][B] = votos (peso) preferindo A &gt; B
+P[B][A] = votos (peso) preferindo B &gt; A
+P[A][C] = ...
+P[C][A] = ...
+P[B][C] = ...
+P[C][B] = ...
+      </pre>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Caminhos mais fortes (S)</h2>
+    <p>
+      Definimos uma matriz <code>S</code> (strongest paths). Intuitivamente, <code>S[A][B]</code> mede a melhor
+      “trilha de vitórias” que leva de A até B através de comparações indiretas.
+    </p>
+    <p><b>Inicialização:</b> Para cada par A ≠ B:
+      <br>
+      <code>S[A][B] = P[A][B]</code> se <code>P[A][B] &gt; P[B][A]</code>, caso contrário <code>0</code>.
+    </p>
+    <p><b>Propagação (estilo Floyd–Warshall):</b> para todos <code>i, j, k</code> distintos:
+      <br>
+      <code>S[j][k] = max( S[j][k], min( S[j][i], S[i][k] ) )</code>
+      <br>
+      Isso “reforça” caminhos se houver uma rota j→i→k em que o gargalo (mínimo) seja maior que o atual.
+    </p>
+    <details>
+      <summary>Exemplo gráfico</summary>
+      <pre>
+A --(P[A][B])--&gt; B --(P[B][C])--&gt; C
+
+Força do caminho A→C via B:
+min( S[A][B], S[B][C] )   (após inicialização)
+Se isso superar S[A][C] atual, atualizamos S[A][C].
+      </pre>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Critério de vitória e ranking</h2>
+    <ul>
+      <li>Dizemos que <b>A vence B</b> se <code>S[A][B] &gt; S[B][A]</code>.</li>
+      <li>Ordenamos todos os candidatos usando a relação acima: quem “vence mais forte” fica acima.</li>
+      <li>Se houver <b>empate</b> (<code>S[A][B] == S[B][A]</code>), usamos um <i>desempate técnico estável</i>
+          (nesta implementação, ordem lexicográfica) para garantir reprodutibilidade — isso
+          <u>não altera</u> as forças, apenas quebra empates estritos.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Exemplo prático (3 candidatos)</h2>
+    <p><b>Candidatos:</b> A, B, C</p>
+    <p><b>Cédulas (todas com peso = 1):</b></p>
+    <table>
+      <tr><th>#</th><th>Preferências (1 &gt; 2 &gt; 3)</th></tr>
+      <tr><td>1</td><td>A &gt; B &gt; C</td></tr>
+      <tr><td>2</td><td>A &gt; C &gt; B</td></tr>
+      <tr><td>3</td><td>B &gt; C &gt; A</td></tr>
+      <tr><td>4</td><td>C &gt; B &gt; A</td></tr>
+      <tr><td>5</td><td>C &gt; A &gt; B</td></tr>
+    </table>
+
+    <h3>1) Matriz P (par-a-par)</h3>
+    <table>
+      <tr><th></th><th>A</th><th>B</th><th>C</th></tr>
+      <tr><th>A</th><td>—</td><td>P[A][B] = 3</td><td>P[A][C] = 2</td></tr>
+      <tr><th>B</th><td>P[B][A] = 2</td><td>—</td><td>P[B][C] = 2</td></tr>
+      <tr><th>C</th><td>P[C][A] = 3</td><td>P[C][B] = 3</td><td>—</td></tr>
+    </table>
+    <p class="muted">
+      Como chegamos lá? Ex.: <code>P[A][B] = 3</code> porque as cédulas #1, #2 e #5 preferem A a B.
+      Já <code>P[B][A] = 2</code> (cédulas #3 e #4).
+    </p>
+
+    <h3>2) Inicialização de S</h3>
+    <table>
+      <tr><th></th><th>A</th><th>B</th><th>C</th></tr>
+      <tr><th>A</th><td>—</td><td>S[A][B]=3 (pois 3 &gt; 2)</td><td>S[A][C]=0 (pois 2 ≤ 3)</td></tr>
+      <tr><th>B</th><td>S[B][A]=0 (2 ≤ 3)</td><td>—</td><td>S[B][C]=0 (2 ≤ 3)</td></tr>
+      <tr><th>C</th><td>S[C][A]=3 (3 &gt; 2)</td><td>S[C][B]=3 (3 &gt; 2)</td><td>—</td></tr>
+    </table>
+
+    <h3>3) Propagação (caminhos via intermediários)</h3>
+    <p>Verificamos, por exemplo, se há um caminho A→B→C melhorando A→C:</p>
+    <pre>
+S[A][C] = max( S[A][C], min( S[A][B], S[B][C] ) )
+        = max( 0,       min( 3,        0 ) ) = 0
+    </pre>
+    <p>Agora, C→A→B pode reforçar C→B?</p>
+    <pre>
+S[C][B] = max( S[C][B], min( S[C][A], S[A][B] ) )
+        = max( 3,       min( 3,        3 ) ) = 3  (permanece 3)
+    </pre>
+    <p>Após checar todas as combinações, obtemos a matriz final S (neste exemplo, fica igual
+       à inicial porque nenhum caminho indireto melhora as forças diretas):</p>
+
+    <table>
+      <tr><th></th><th>A</th><th>B</th><th>C</th></tr>
+      <tr><th>A</th><td>—</td><td>3</td><td>0</td></tr>
+      <tr><th>B</th><td>0</td><td>—</td><td>0</td></tr>
+      <tr><th>C</th><td>3</td><td>3</td><td>—</td></tr>
+    </table>
+
+    <h3>4) Ranking</h3>
+    <ul>
+      <li>A vs B: S[A][B]=3 &gt; S[B][A]=0 → A “vence” B.</li>
+      <li>A vs C: S[A][C]=0 &lt; S[C][A]=3 → C “vence” A.</li>
+      <li>B vs C: S[B][C]=0 &lt; S[C][B]=3 → C “vence” B.</li>
+    </ul>
+    <p><b>Ordem final:</b> C &gt; A &gt; B.</p>
+    <p class="muted">Se dois candidatos ficassem empatados em todas as comparações de S,
+       o desempate lexicográfico decidiria a posição (apenas para ordenar, sem alterar valores).</p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Exemplo com pesos</h2>
+    <p>Suponha 3 cédulas e pesos: w<sub>1</sub>=3, w<sub>2</sub>=1, w<sub>3</sub>=2.</p>
+    <table>
+      <tr><th>Cédula</th><th>Peso</th><th>Preferências</th></tr>
+      <tr><td>#1</td><td>3</td><td>A &gt; B &gt; C</td></tr>
+      <tr><td>#2</td><td>1</td><td>B &gt; C &gt; A</td></tr>
+      <tr><td>#3</td><td>2</td><td>A &gt; C &gt; B</td></tr>
+    </table>
+    <p>Então, por exemplo:
+      <code>P[A][B] = 3 (da #1) + 2 (da #3) = 5</code>, e
+      <code>P[B][A] = 1 (da #2)</code>.
+      Os demais pares são computados do mesmo modo. Depois, seguimos com S e o ranking.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Tratamento de Branco/Nulo</h2>
+    <ul>
+      <li>“Voto em Branco” e “Voto Nulo” são candidatos especiais adicionados ao fim da lista.</li>
+      <li>Para a apuração Schulze (comparações e caminhos), usamos <b>apenas</b> o conjunto “core”
+          (excluímos Branco/Nulo da matriz). Isso evita distorções e mantém a análise focada entre
+          os nomes efetivos.</li>
+      <li>Relatórios públicos podem opcionalmente exibir Branco/Nulo como rótulos no ranking
+          (ex.: para fins de transparência), sem interferir nos cálculos entre candidatos core.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Complexidade & propriedades</h2>
+    <ul>
+      <li><b>Complexidade:</b> a fase de caminhos usa um algoritmo tipo Floyd–Warshall:
+        O(n³) em número de candidatos (n). Com dezenas de candidatos, é instantâneo.
+      </li>
+      <li><b>Resiliência:</b> método Condorcet consistente; se surgir um vencedor de Condorcet, ele
+        aparece no topo do ranking.
+      </li>
+      <li><b>Auditabilidade:</b> nossa instância expõe <i>ballots</i> agregadas e logs via
+        endpoints públicos/admin, permitindo conferência independente.
+      </li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">FAQ</h2>
+    <details>
+      <summary>O que acontece se eu ranquear candidatos com números repetidos?</summary>
+      <p>O formulário espera números naturais sem repetição. Se houver algo inválido (texto, zeros, repetição),
+         a entrada é ignorada para aquele candidato. Você pode também optar por deixar campos em branco.</p>
+    </details>
+    <details>
+      <summary>Preciso ranquear todos os candidatos?</summary>
+      <p>Não. Você pode ranquear apenas alguns. Comparações só contam quando A e B têm ranks válidos
+         (números inteiros &ge; 1) naquela cédula.</p>
+    </details>
+    <details>
+      <summary>Como vejo as matrizes usadas no meu EID?</summary>
+      <p>Vá em <i>Resultados</i> e acrescente <code>?debug=1</code> à URL para ver <code>P</code> e <code>S</code>.
+         Isso permite auditar o cálculo.</p>
+    </details>
+  </div>
+
   <p><a class="muted" href="/">Início</a></p>
 {% endblock %}
