@@ -1,14 +1,42 @@
-<head>
-  <meta charset="utf-8">
-  <title>Resultados</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+{% extends "base.html" %}
+{% block title %}Resultados{% endblock %}
+{% block content %}
+  <h1>Resultados</h1>
 
-  <link rel="manifest" href="/static/manifest.webmanifest?v={{ APP_VERSION }}">
-  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
-  <meta name="theme-color" content="#0d0f12">
-  <meta name="color-scheme" content="dark light">
+  {% if empty %}
+    <p class="muted"><i>Nenhuma cédula para esta votação.</i></p>
+  {% else %}
+    <p>Total de votos (peso): <b>{{ total_votos }}</b></p>
 
-  <link rel="icon" href="/static/icons/app-192.png" sizes="192x192">
-  <link rel="apple-touch-icon" href="/static/icons/app-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-</head>
+    <div class="card" style="margin-top:10px">
+      <h3 style="margin:0 0 8px">Ranking</h3>
+      <ol>
+        {% for c in ranking %}
+          <li>{{ c }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    {% if candidates %}
+      <details style="margin-top:12px">
+        <summary>Debug: Candidatos, Pairwise e Strength</summary>
+        <pre>{{ candidates|tojson(indent=2) }}</pre>
+        <pre>{{ pairwise|tojson(indent=2) }}</pre>
+        <pre>{{ strength|tojson(indent=2) }}</pre>
+      </details>
+    {% endif %}
+
+    <p style="margin-top:12px">
+      <a class="tag" href="/public/{{ election_id }}/results.csv">Baixar CSV (ranking)</a>
+      <a class="tag" href="/public/{{ election_id }}/pairwise.csv">Baixar CSV (pairwise)</a>
+    </p>
+  {% endif %}
+
+  {% if election_meta %}
+    <p class="small muted" style="margin-top:10px">
+      <b>{{ election_meta.title }}</b> — {{ election_meta.date }} {{ election_meta.time }} {{ election_meta.tz }}
+    </p>
+  {% endif %}
+
+  <p class="small"><a href="/">Início</a></p>
+{% endblock %}
