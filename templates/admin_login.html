@@ -1,29 +1,15 @@
-<!doctype html>
-<html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <title>Login do Administrador</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    body{font-family:system-ui,Arial,sans-serif;max-width:720px;margin:40px auto;padding:0 16px}
-    form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    input,button{padding:10px;border:1px solid #ddd;border-radius:8px}
-    button{background:#111;color:#fff;cursor:pointer}
-    .tip{color:#555;margin-top:12px}
-    a.btn{display:inline-block;margin-top:16px;padding:10px 12px;border:1px solid #ddd;border-radius:8px;text-decoration:none;color:#111}
-  </style>
+
+  <link rel="manifest" href="/static/manifest.webmanifest?v={{ APP_VERSION }}">
+  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
+  <meta name="theme-color" content="#0d0f12">
+  <meta name="color-scheme" content="dark light">
+
+  <!-- Ícones específicos do Admin -->
+  <link rel="icon" href="/static/icons/admin-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/static/icons/admin-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
-<body>
-  <h1>Login · Admin</h1>
-  <form method="POST" action="/admin/login">
-    <label>Chave de administrador:
-      <input type="password" name="secret" placeholder="ADMIN_SECRET" required>
-    </label>
-    <button type="submit">Entrar</button>
-  </form>
-  <p class="tip">Dica: você também pode acessar diretamente:
-    <code>/admin/home?secret=&lt;ADMIN_SECRET&gt;</code>
-  </p>
-  <a class="btn" href="/">Voltar ao início</a>
-</body>
-</html>
