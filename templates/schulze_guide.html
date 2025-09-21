@@ -1,10 +1,10 @@
-<!doctype html>
-<html lang="pt-BR">
-<head><meta charset="utf-8"><title>Guia · Método de Schulze</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:system-ui,Arial,sans-serif;max-width:760px;margin:40px auto;padding:0 16px">
+{% extends "base.html" %}
+{% block title %}Guia · Método de Schulze{% endblock %}
+{% block content %}
   <h1>Método de Schulze (resumo)</h1>
-  <p>O método de Schulze calcula caminhos de maior força entre preferências pareadas para definir o ranking final.</p>
-  <p>Para detalhes completos, consulte a documentação oficial.</p>
-  <p><a href="/">Início</a></p>
-</body>
-</html>
+  <div class="card">
+    <p>O método de Schulze calcula caminhos de maior força entre preferências pareadas para definir o ranking final.</p>
+    <p>Para detalhes completos, consulte a documentação oficial.</p>
+  </div>
+  <p class="small" style="margin-top:12px"><a href="/">Início</a></p>
+{% endblock %}
