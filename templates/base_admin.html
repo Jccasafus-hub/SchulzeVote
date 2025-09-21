@@ -2,74 +2,62 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>{% block title %}SchulzeVote Admin{% endblock %}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- PWA -->
-  <link rel="manifest" href="{{ url_for('static', filename='manifest_admin.json') }}?v={{ APP_VERSION }}">
+  <title>{% block title %}Admin · SchulzeVote{% endblock %}</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#000000">
+  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
 
-  <!-- Ícones -->
-  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='admin_icon_192.png') }}?v={{ APP_VERSION }}">
-  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='admin_icon_180.png') }}?v={{ APP_VERSION }}">
+  <!-- Manifest e ícones (APP Admin) — garante o ícone correto na instalação -->
+  <link rel="manifest" href="/manifest_admin.json?v={{ APP_VERSION }}">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/admin_icon_192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/static/admin_icon_512.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/admin_icon_180.png">
+  <link rel="apple-touch-icon" href="/static/admin_icon_180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
 
-  <!-- Social preview -->
-  <meta property="og:title" content="SchulzeVote Admin">
-  <meta property="og:description" content="Painel administrativo do SchulzeVote.">
-  <meta property="og:image" content="{{ url_for('static', filename='admin_icon_512.png') }}?v={{ APP_VERSION }}">
-  <meta property="og:type" content="website">
-
-  <style>
-    :root{ --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb; --accent:#f97316; --accent-2:#f59e0b; --border:#1f242c; --input:#0f1216; --ok:#10b981; --warn:#eab308; --err:#ef4444;}
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    .wrap{max-width:920px;margin:0 auto;padding:28px}
-    h1{margin:0 0 12px}
-    p.muted{color:var(--muted)}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin:14px 0}
-    .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-    .btn{padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#1b1f27;color:var(--text);text-decoration:none;cursor:pointer}
-    .btn:hover{filter:brightness(1.06)}
-    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#111}
-    .btn.ghost{background:transparent; border:1px dashed #2a323d; color:var(--text)}
-    input[type=text], input[type=password], input[type=number]{background:var(--input); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:10px; outline:none}
-    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
-    .alert{border-radius:12px;padding:10px 12px;margin:10px 0;border:1px solid var(--border)}
-    .alert.ok{background:#0f1f17;border-color:#164e3a;color:#d1fae5}
-    .alert.warn{background:#1f1a0a;border-color:#4d3b05;color:#fde68a}
-    .alert.err{background:#2a0e0e;border-color:#5c1b1b;color:#fecaca}
-  </style>
-  {% block head %}{% endblock %}
+  {% block head_extra %}{% endblock %}
 </head>
 <body>
-  <div class="wrap">
-
-    <!-- EXIBIÇÃO DE FLASHES -->
-    {% with msgs = get_flashed_messages(with_categories=true) %}
-      {% if msgs %}
-        <div aria-live="polite" aria-atomic="true">
-          {% for cat, msg in msgs %}
-            {% set cls = 'ok' if cat in ['success','ok','info'] else ('warn' if cat in ['warning','warn'] else 'err') %}
-            <div class="alert {{ cls }}">{{ msg|safe }}</div>
-          {% endfor %}
-        </div>
-      {% endif %}
-    {% endwith %}
-
+  <div class="container">
     {% block content %}{% endblock %}
   </div>
 
-  <!-- Service Worker dedicado ao admin -->
+  <!-- Botão e script para instalar o PWA Admin usando o manifest acima -->
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('{{ url_for("static", filename="sw_admin.js") }}?v={{ APP_VERSION }}', { scope: '/admin/' })
-          .then(() => console.log('SW(admin) registrado'))
-          .catch(console.error);
-      });
-    }
-  </script>
+    (function(){
+      let deferredPrompt = null;
+      const id = 'install-admin-btn';
+      function ensureBtn(){
+        let b = document.getElementById(id);
+        if(!b){
+          b = document.createElement('button');
+          b.id = id;
+          b.textContent = 'Instalar Admin (PWA)';
+          b.className = 'tag'; // estilinho discreto
+          b.style.marginTop = '12px';
+          const host = document.querySelector('[data-install-host]') || document.body;
+          host.appendChild(b);
+        }
+        return b;
+      }
 
+      window.addEventListener('beforeinstallprompt', (e) => {
+        // Usa o manifest_admin.json desta página (por causa do <link rel="manifest"> no <head>)
+        e.preventDefault();
+        deferredPrompt = e;
+        const btn = ensureBtn();
+        btn.className = 'tag'; // fica visível
+        btn.onclick = async () => {
+          if(!deferredPrompt) return;
+          deferredPrompt.prompt();
+          try{ await deferredPrompt.userChoice; }catch(_){}
+          deferredPrompt = null;
+          btn.remove();
+        };
+      });
+    })();
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
