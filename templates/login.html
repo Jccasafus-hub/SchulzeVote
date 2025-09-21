@@ -1,14 +1,13 @@
-<head>
-  <meta charset="utf-8">
-  <title>Login</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-
-  <link rel="manifest" href="/static/manifest.webmanifest?v={{ APP_VERSION }}">
-  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
-  <meta name="theme-color" content="#0d0f12">
-  <meta name="color-scheme" content="dark light">
-
-  <link rel="icon" href="/static/icons/app-192.png" sizes="192x192">
-  <link rel="apple-touch-icon" href="/static/icons/app-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-</head>
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+  <h1>Login</h1>
+  <div class="card">
+    <form method="POST">
+      <p><label>Usuário<br><input name="user_id" required></label></p>
+      <p><label>Senha<br><input type="password" name="password" required></label></p>
+      <button type="submit">Entrar</button>
+    </form>
+  </div>
+  <p class="small" style="margin-top:12px"><a href="/">Início</a></p>
+{% endblock %}
