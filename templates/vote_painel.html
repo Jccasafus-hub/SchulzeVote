@@ -1,54 +1,57 @@
 {% extends "base.html" %}
-{% block title %}Votar · Preferências{% endblock %}
 {% block content %}
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-    <h1 style="margin:0">Votar</h1>
-    <span class="tag">EID: <b>{{ eid }}</b></span>
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+  <h1 style="margin:0">Votar</h1>
+  <div style="background:#0f0f10;border:1px solid #2a2a2e;border-radius:20px;padding:6px 10px;font-size:12px">
+    EID: <b>{{ eid }}</b>
   </div>
+</div>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <ul class="msg">
-      {% for cat,msg in messages %}
-        <li><b>{{ cat }}</b>: {{ msg }}</li>
-      {% endfor %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div style="background:#151517;border:1px solid #2a2a2e;border-radius:12px;padding:12px;margin:12px 0">
+      <ul style="margin:0 0 0 18px">
+        {% for cat,msg in messages %}
+          <li><b>{{ cat }}</b>: {{ msg }}</li>
+        {% endfor %}
       </ul>
-    {% endif %}
-  {% endwith %}
-
-  {% if not session_vkey %}
-    <div class="alert warn">
-      <b>Chave não validada.</b> Volte para a etapa anterior: <a href="/vote">inserir chave</a>.
     </div>
   {% endif %}
+{% endwith %}
 
-  <form method="POST" action="/vote/panel">
-    <p class="muted">Defina a ordem de preferência (1 = mais preferido). Deixe em branco para não ranquear.</p>
-    <table>
-      <tr><th>Candidato</th><th>Rank</th></tr>
-      {% for c in candidates %}
-        <tr>
-          <td>{{ c }}</td>
-          <td>
-            {% if "Branco" in c or "Nulo" in c %}
-              <small class="muted">Use “Voto em Branco/Nulo” abaixo</small>
-            {% else %}
-              <input name="rank_{{ loop.index0 }}" style="width:80px" pattern="\d*">
-              <input type="hidden" name="cand_{{ loop.index0 }}" value="{{ c }}">
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-    </table>
+{% if not session_vkey %}
+  <div style="background:#fff8e6;color:#222;border:1px solid #ffd28a;border-radius:8px;padding:10px;margin-bottom:12px">
+    <b>Chave não validada.</b> Volte para a etapa anterior: <a href="/vote">inserir chave</a>.
+  </div>
+{% endif %}
 
-    <p>Ou escolha voto especial:
-      <label class="tag"><input type="radio" name="special_vote" value=""> (nenhum)</label>
-      <label class="tag"><input type="radio" name="special_vote" value="BLANK"> Branco</label>
-      <label class="tag"><input type="radio" name="special_vote" value="NULL"> Nulo</label>
-    </p>
+<form method="POST" action="/vote/panel">
+  <p style="color:#a0a0a6">Defina a ordem de preferência (1 = mais preferido). Deixe em branco para não ranquear.</p>
+  <table style="border-collapse:collapse">
+    <tr><th style="border:1px solid #2a2a2e;padding:6px 8px">Candidato</th><th style="border:1px solid #2a2a2e;padding:6px 8px">Rank</th></tr>
+    {% for c in candidates %}
+      <tr>
+        <td style="border:1px solid #2a2a2e;padding:6px 8px">{{ c }}</td>
+        <td style="border:1px solid #2a2a2e;padding:6px 8px">
+          {% if "Branco" in c or "Nulo" in c %}
+            <small>Use “Voto em Branco/Nulo” abaixo</small>
+          {% else %}
+            <input name="rank_{{ loop.index0 }}" style="width:80px" pattern="\d*">
+            <input type="hidden" name="cand_{{ loop.index0 }}" value="{{ c }}">
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
 
-    <button type="submit">Enviar voto</button>
-  </form>
+  <p>Ou escolha voto especial:
+    <label><input type="radio" name="special_vote" value=""> (nenhum)</label>
+    <label><input type="radio" name="special_vote" value="BLANK"> Branco</label>
+    <label><input type="radio" name="special_vote" value="NULL"> Nulo</label>
+  </p>
 
-  <p class="small" style="margin-top:12px"><a href="/">Início</a></p>
+  <button type="submit">Enviar voto</button>
+</form>
+
+<p style="margin-top:14px"><a href="/">Início</a></p>
 {% endblock %}
