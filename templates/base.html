@@ -2,26 +2,19 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>{% block title %}SchulzeVote{% endblock %}</title>
+  <title>SchulzeVote</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#000000">
-  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
-
-  <!-- Manifest e ícones (APP público) -->
-  <link rel="manifest" href="/manifest.json?v={{ APP_VERSION }}">
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/static/icon-512.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/icon-180.png">
   <link rel="apple-touch-icon" href="/static/icon-180.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-
-  {% block head_extra %}{% endblock %}
+  <style>
+    :root { color-scheme: dark light }
+    html, body { background: #0b0b0c; color: #e6e6e6 }
+    body { font-family: system-ui, Arial, sans-serif; max-width: 960px; margin: 40px auto; padding: 0 16px }
+    a { color: #7cc7ff }
+  </style>
 </head>
 <body>
-  <div class="container">
-    {% block content %}{% endblock %}
-  </div>
-  {% block scripts %}{% endblock %}
+  {% block content %}{% endblock %}
 </body>
 </html>
