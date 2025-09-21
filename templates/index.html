@@ -1,15 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>SchulzeVote</h1>
-<p>EID atual: <b>{{ get_current_election_id() }}</b></p>
-<ul>
-  <li><a href="/vote">Votar</a></li>
-  <li><a href="/results">Resultados públicos</a></li>
-  <li><a href="/schulze_guide">Guia do método de Schulze</a></li>
-</ul>
+  <div class="top">
+    <h1 style="margin:0">SchulzeVote</h1>
+    <span class="chip">EID: <b>{{ get_current_election_id() }}</b></span>
+  </div>
 
-<h3>Admin</h3>
-<p>Entre por <a href="/admin/login">/admin/login</a> ou diretamente
-  <code>/admin/home?secret=&lt;ADMIN_SECRET&gt;</code>.
-</p>
+  <div class="card">
+    <ul style="margin:0 0 0 18px; padding:0">
+      <li><a href="/vote">Votar</a></li>
+      <li><a href="/results">Resultados públicos</a></li>
+      <li><a href="/schulze_guide">Guia do método de Schulze</a></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Admin</h3>
+    <p class="muted">Acesse com a chave de administrador.</p>
+    <p><a href="/admin/login">/admin/login</a> ou diretamente <code>/admin/home?secret=&lt;ADMIN_SECRET&gt;</code>.</p>
+  </div>
 {% endblock %}
