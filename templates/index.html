@@ -1,20 +1,14 @@
-<!doctype html>
-<html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <title>SchulzeVote · Início</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>body{font-family:system-ui,Arial,sans-serif;max-width:760px;margin:40px auto;padding:0 16px}</style>
+
+  <link rel="manifest" href="/static/manifest.webmanifest?v={{ APP_VERSION }}">
+  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
+  <meta name="theme-color" content="#0d0f12">
+  <meta name="color-scheme" content="dark light">
+
+  <link rel="icon" href="/static/icons/app-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/static/icons/app-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
-<body>
-  <h1>SchulzeVote</h1>
-  <p>EID atual: <b>{{ get_current_election_id() }}</b></p>
-  <ul>
-    <li><a href="/vote">Votar</a></li>
-    <li><a href="/results">Resultados públicos</a></li>
-    <li><a href="/schulze_guide">Guia do método de Schulze</a></li>
-  </ul>
-  <h3>Admin</h3>
-  <p>Entre por <a href="/admin/login">/admin/login</a> ou diretamente <code>/admin/home?secret=&lt;ADMIN_SECRET&gt;</code>.</p>
-</body>
-</html>
