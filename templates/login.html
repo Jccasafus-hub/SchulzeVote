@@ -1,13 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Login{% endblock %}
 {% block content %}
-  <h1>Login</h1>
-  <div class="card">
-    <form method="POST">
-      <p><label>Usuário<br><input name="user_id" required></label></p>
-      <p><label>Senha<br><input type="password" name="password" required></label></p>
-      <button type="submit">Entrar</button>
-    </form>
-  </div>
-  <p class="small" style="margin-top:12px"><a href="/">Início</a></p>
+<h1>Login</h1>
+<form method="POST">
+  <p><label>Usuário: <input name="user_id" required></label></p>
+  <p><label>Senha: <input type="password" name="password" required></label></p>
+  <button>Entrar</button>
+</form>
+<p><a href="/">Início</a></p>
 {% endblock %}
