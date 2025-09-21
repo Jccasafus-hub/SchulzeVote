@@ -1,10 +1,14 @@
 {% extends "base_admin.html" %}
 {% block content %}
-<h1>Prévia de auditoria</h1>
-<p>Dados crus:</p>
-<ul>
-  <li><a href="/admin/audit_raw?secret={{ request.args.get('secret','')|urlencode }}" target="_blank">/admin/audit_raw</a></li>
-  <li><a href="/admin/ballots_raw?secret={{ request.args.get('secret','')|urlencode }}" target="_blank">/admin/ballots_raw</a></li>
-</ul>
-<p><a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
+  <h1>Prévia de auditoria</h1>
+  <div class="card">
+    <p>Dados crus:</p>
+    <ul style="margin:0 0 0 18px">
+      <li><a href="/admin/audit_raw?secret={{ request.args.get('secret','')|urlencode }}" target="_blank">/admin/audit_raw</a></li>
+      <li><a href="/admin/ballots_raw?secret={{ request.args.get('secret','')|urlencode }}" target="_blank">/admin/ballots_raw</a></li>
+    </ul>
+    <div class="actions">
+      <a class="muted" href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a>
+    </div>
+  </div>
 {% endblock %}
