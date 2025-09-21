@@ -1,31 +1,36 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Resultados</h1>
-{% if empty %}
-  <p><i>Nenhuma cédula para esta votação.</i></p>
-{% else %}
-  <p>Total de votos (peso): <b>{{ total_votos }}</b></p>
-  <h3>Ranking</h3>
-  <ol>
-    {% for c in ranking %}
-      <li>{{ c }}</li>
-    {% endfor %}
-  </ol>
-  {% if candidates %}
-    <details>
-      <summary>Debug: Candidatos, Pairwise e Strength</summary>
-      <pre>{{ candidates|tojson(indent=2) }}</pre>
-      <pre>{{ pairwise|tojson(indent=2) }}</pre>
-      <pre>{{ strength|tojson(indent=2) }}</pre>
-    </details>
+  <h1>Resultados</h1>
+
+  {% if empty %}
+    <div class="card"><i>Nenhuma cédula para esta votação.</i></div>
+  {% else %}
+    <div class="card">
+      <p>Total de votos (peso): <b>{{ total_votos }}</b></p>
+      <h3>Ranking</h3>
+      <ol>
+        {% for c in ranking %}
+          <li>{{ c }}</li>
+        {% endfor %}
+      </ol>
+      {% if candidates %}
+        <details>
+          <summary>Debug: Candidatos, Pairwise e Strength</summary>
+          <pre>{{ candidates|tojson(indent=2) }}</pre>
+          <pre>{{ pairwise|tojson(indent=2) }}</pre>
+          <pre>{{ strength|tojson(indent=2) }}</pre>
+        </details>
+      {% endif %}
+      <p>
+        <a href="/public/{{ election_id }}/results.csv">Baixar CSV (ranking)</a> •
+        <a href="/public/{{ election_id }}/pairwise.csv">Baixar CSV (pairwise)</a>
+      </p>
+    </div>
   {% endif %}
-  <p>
-    <a href="/public/{{ election_id }}/results.csv">Baixar CSV (ranking)</a> •
-    <a href="/public/{{ election_id }}/pairwise.csv">Baixar CSV (pairwise)</a>
-  </p>
-{% endif %}
-{% if election_meta %}
-  <p><small><b>{{ election_meta.title }}</b> — {{ election_meta.date }} {{ election_meta.time }} {{ election_meta.tz }}</small></p>
-{% endif %}
-<p><a href="/">Início</a></p>
+
+  {% if election_meta %}
+    <p class="muted"><b>{{ election_meta.title }}</b> — {{ election_meta.date }} {{ election_meta.time }} {{ election_meta.tz }}</p>
+  {% endif %}
+
+  <p><a class="muted" href="/">Início</a></p>
 {% endblock %}
