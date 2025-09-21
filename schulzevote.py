@@ -915,6 +915,56 @@ def admin_audit_preview():
         current_eid=get_current_election_id()
     )
 
+# ===================== Admin: Metadados (editar) =====================
+@app.route("/admin/election_meta_update", methods=["POST"])
+def admin_election_meta_update():
+    if not require_admin(request): abort(403)
+
+    # alvo do update: EID vindo do form ou o atual
+    eid = (request.form.get("eid") or get_current_election_id()).strip()
+    mode = (request.form.get("mode") or "save").strip()
+
+    if mode == "clear":
+        d = load_election_doc()
+        if eid in d.get("meta", {}):
+            d["meta"].pop(eid, None)
+            save_election_doc(d)
+        audit_admin(eid, "UPDATE_META", "cleared", request.remote_addr or "-")
+        flash("Metadados removidos para este EID.", "success")
+        return redirect(url_for("admin_election_meta", secret=request.args.get("secret", "")))
+
+    title = (request.form.get("title") or "").strip()
+    date_s = (request.form.get("date") or "").strip()
+    time_s = (request.form.get("time") or "").strip()
+    tz_s   = (request.form.get("tz") or "America/Sao_Paulo").strip()
+    cat    = (request.form.get("category") or "").strip()
+
+    set_election_meta(eid, title, date_s, time_s, tz_s, cat)
+    audit_admin(eid, "UPDATE_META",
+                f"title={title!r} date={date_s!r} time={time_s!r} tz={tz_s!r} category={cat!r}",
+                request.remote_addr or "-")
+    flash("Metadados atualizados.", "success")
+    return redirect(url_for("admin_election_meta", secret=request.args.get("secret", "")))
+
+
+@app.route("/admin/election_set_eid", methods=["POST"])
+def admin_election_set_eid():
+    if not require_admin(request): abort(403)
+    new_eid = (request.form.get("new_eid") or "").strip()
+    if not new_eid:
+        flash("Informe um EID válido.", "error")
+        return redirect(url_for("admin_election_meta", secret=request.args.get("secret", "")))
+
+    set_current_election_id(new_eid)
+    # Garante estrutura meta (opcional)
+    d = load_election_doc()
+    d.setdefault("meta", {}).setdefault(new_eid, d.get("meta", {}).get(new_eid, {}))
+    save_election_doc(d)
+
+    audit_admin(new_eid, "SET_CURRENT_EID", "ok", request.remote_addr or "-")
+    flash(f"EID atual alterado para: {new_eid}", "success")
+    return redirect(url_for("admin_election_meta", secret=request.args.get("secret", "")))
+
 # ===================== Admin: Atualização de Candidatos & Prazo =====================
 @app.route("/admin/candidates_update", methods=["POST"])
 def admin_candidates_update():
