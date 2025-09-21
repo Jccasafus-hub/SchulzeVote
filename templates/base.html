@@ -3,86 +3,25 @@
 <head>
   <meta charset="utf-8">
   <title>{% block title %}SchulzeVote{% endblock %}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- PWA -->
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}?v={{ APP_VERSION }}">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#000000">
+  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
 
-  <!-- iOS PWA essentials -->
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-180.png') }}?v={{ APP_VERSION }}">
+  <!-- Manifest e ícones (APP público) -->
+  <link rel="manifest" href="/manifest.json?v={{ APP_VERSION }}">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/static/icon-512.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/icon-180.png">
+  <link rel="apple-touch-icon" href="/static/icon-180.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="SchulzeVote">
-
-  <!-- Social preview -->
-  <meta property="og:title" content="SchulzeVote">
-  <meta property="og:description" content="Sistema de votação com método de Schulze, auditoria pública e anonimato de cédulas.">
-  <meta property="og:image" content="{{ url_for('static', filename='icon-512.png') }}?v={{ APP_VERSION }}">
-  <meta property="og:type" content="website">
-
-  <!-- Estilos base -->
-  <style>
-    :root{
-      --bg:#0b0d10; --card:#111317; --muted:#98a2b3; --text:#e5e7eb;
-      --accent:#f97316; --accent-2:#f59e0b; --ok:#10b981; --danger:#ef4444;
-      --border:#1f242c; --input:#0f1216;
-    }
-    *{box-sizing:border-box}
-    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text)}
-    a{color:inherit}
-    .wrap{max-width:900px;margin:0 auto;padding:28px}
-    .topbar{display:flex;justify-content:space-between;align-items:center;background:#0f1216;border-bottom:1px solid var(--border);padding:12px 18px}
-    .brand{font-weight:700;letter-spacing:.2px}
-    .nav a{display:inline-block;margin-left:10px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:#1b1f27;text-decoration:none}
-    .nav a:hover{filter:brightness(1.08)}
-    .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px; margin:14px 0}
-    .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
-    .btn{display:inline-block; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#1b1f27; color:var(--text); text-decoration:none; cursor:pointer}
-    .btn:hover{filter:brightness(1.08)}
-    .btn.accent{background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#111}
-    .btn.ghost{background:transparent; border:1px dashed #2a323d; color:var(--text)}
-    .btn.ok{background:#113226; border-color:#164e3a}
-    .muted{color:var(--muted)}
-    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0f1319;border:1px solid var(--border);color:var(--muted);font-size:.85rem}
-    .sep{height:1px;background:var(--border);margin:16px 0}
-    input[type=text], input[type=password], input[type=number]{
-      background:var(--input); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:10px; outline:none
-    }
-    .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
-    @media (max-width: 860px){ .grid{grid-template-columns:1fr} .nav{display:none} }
-  </style>
 
   {% block head_extra %}{% endblock %}
 </head>
 <body>
-
-  <!-- Topbar comum -->
-  <div class="topbar">
-    <div class="brand"><a href="/" style="text-decoration:none">SchulzeVote</a></div>
-    <div class="nav">
-      <a href="{{ url_for('schulze_guide') }}">Guia do Método</a>
-      <a href="/public/elections" target="_blank" rel="noopener">Votações (JSON)</a>
-      <a href="/login">Entrar</a>
-      <a href="/register">Cadastro</a>
-    </div>
+  <div class="container">
+    {% block content %}{% endblock %}
   </div>
-
-  {% block content %}{% endblock %}
-
-  <!-- Service Worker -->
-  <script>
-    (function(){
-      if (!('serviceWorker' in navigator)) return;
-      const v = "{{ APP_VERSION }}";
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('{{ url_for("static", filename="sw.js") }}?v='+encodeURIComponent(v), { scope: '/' })
-          .then(() => console.log('[SW] registrado v'+v))
-          .catch(console.error);
-      });
-    })();
-  </script>
-
-  {% block scripts_extra %}{% endblock %}
+  {% block scripts %}{% endblock %}
 </body>
 </html>
