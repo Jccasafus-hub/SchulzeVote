@@ -1,70 +1,66 @@
 {% extends "base_admin.html" %}
 {% block content %}
-<div class="top" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-  <h1 style="margin:0">Candidatos &amp; Prazo</h1>
-  <div style="background:#0f0f10;border:1px solid #2a2a2e;border-radius:20px;padding:6px 10px;font-size:12px">
-    EID atual: <b>{{ current_eid }}</b>
+  <div class="top">
+    <h1 style="margin:0">Candidatos &amp; Prazo</h1>
+    <div class="chip">EID atual: <b>{{ current_eid }}</b></div>
   </div>
-</div>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div style="background:#151517;border:1px solid #2a2a2e;border-radius:12px;padding:12px;margin:12px 0">
-      <ul style="margin:0 0 0 18px">
-        {% for cat,msg in messages %}
-          <li><b>{{ cat }}</b>: {{ msg }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-  {% endif %}
-{% endwith %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="card">
+        <ul style="margin:0 0 0 18px">
+          {% for cat,msg in messages %}
+            <li><b>{{ cat }}</b>: {{ msg }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  {% endwith %}
 
-<div class="card" style="background:#151517;border:1px solid #2a2a2e;border-radius:12px;padding:16px;margin:14px 0">
-  <h3 style="margin-top:0">Editar candidatos</h3>
-  <p style="color:#a0a0a6;margin-top:-6px">Informe <b>um por linha</b>. “Voto em Branco” e “Voto Nulo” são adicionados automaticamente ao final.</p>
-  <form method="POST" action="/admin/candidates_update?secret={{ request.args.get('secret','')|urlencode }}">
-    <label>Lista de candidatos
-      <textarea name="candidates" placeholder="Nome 1&#10;Nome 2&#10;Nome 3" style="width:100%;min-height:200px;resize:vertical">{{ candidates_core | join('\n') }}</textarea>
-    </label>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      <button type="submit">Salvar candidatos</button>
-      <a style="text-decoration:none;padding:10px 12px;border:1px solid #2a2a2e;border-radius:10px" href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a>
-    </div>
-  </form>
-</div>
+  <div class="card">
+    <h3 style="margin-top:0">Editar candidatos</h3>
+    <p class="muted" style="margin-top:-6px">
+      Informe <b>um por linha</b>. “Voto em Branco” e “Voto Nulo” são adicionados automaticamente ao final.
+    </p>
+    <form method="POST" action="/admin/candidates/update?secret={{ request.args.get('secret','')|urlencode }}">
+      <label>Lista de candidatos</label>
+      <textarea name="candidates" placeholder="Nome 1&#10;Nome 2&#10;Nome 3">{% for c in candidates_core %}{{ c }}{% if not loop.last %}&#10;{% endif %}{% endfor %}</textarea>
+      <div class="actions">
+        <button type="submit">Salvar candidatos</button>
+        <a class="muted" href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a>
+      </div>
+    </form>
+  </div>
 
-<div class="card" style="background:#151517;border:1px solid #2a2a2e;border-radius:12px;padding:16px;margin:14px 0">
-  <h3 style="margin-top:0">Definir prazo de votação</h3>
-  {% if deadline %}
-    <p style="color:#a0a0a6">Prazo atual (UTC): <code>{{ deadline.isoformat() }}</code></p>
-  {% else %}
-    <p style="color:#a0a0a6">Sem prazo definido (votação aberta até definir).</p>
-  {% endif %}
-  <form method="POST" action="/admin/deadline_update?secret={{ request.args.get('secret','')|urlencode }}">
-    <div style="display:flex;gap:14px;flex-wrap:wrap">
-      <label style="flex:1 1 180px">
-        Data (YYYY-MM-DD)
-        <input name="date" placeholder="YYYY-MM-DD">
-      </label>
-      <label style="flex:1 1 140px">
-        Hora (HH:MM)
-        <input name="time" placeholder="HH:MM">
-      </label>
-      <label style="flex:1 1 240px">
-        Fuso horário (IANA)
-        <input name="tz" value="America/Sao_Paulo" placeholder="America/Sao_Paulo">
-      </label>
-    </div>
-    <p style="color:#a0a0a6;margin:6px 0 0">A data/hora será convertida do fuso informado para UTC e salva como ISO 8601.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      <button type="submit" name="mode" value="save">Salvar prazo</button>
-      <button type="submit" name="mode" value="clear">Remover prazo</button>
-    </div>
-  </form>
-</div>
+  <div class="card">
+    <h3 style="margin-top:0">Definir prazo de votação</h3>
+    {% if deadline %}
+      <p class="muted">Prazo atual (UTC): <code>{{ deadline.isoformat() }}</code></p>
+    {% else %}
+      <p class="muted">Sem prazo definido (votação aberta até definir).</p>
+    {% endif %}
+    <form method="POST" action="/admin/deadline/update?secret={{ request.args.get('secret','')|urlencode }}">
+      <div style="display:flex;gap:14px;flex-wrap:wrap">
+        <label style="flex:1 1 180px">Data (YYYY-MM-DD)
+          <input name="date" placeholder="YYYY-MM-DD">
+        </label>
+        <label style="flex:1 1 140px">Hora (HH:MM)
+          <input name="time" placeholder="HH:MM">
+        </label>
+        <label style="flex:1 1 240px">Fuso horário (IANA)
+          <input name="tz" value="America/Sao_Paulo" placeholder="America/Sao_Paulo">
+        </label>
+      </div>
+      <p class="muted" style="margin:6px 0 0">A data/hora será convertida do fuso informado para UTC e salva como ISO 8601.</p>
+      <div class="actions">
+        <button type="submit" name="mode" value="save">Salvar prazo</button>
+        <button type="submit" name="mode" value="clear">Remover prazo</button>
+      </div>
+    </form>
+  </div>
 
-<p style="margin-top:16px">
-  <a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Painel</a> •
-  <a href="/">Início</a>
-</p>
+  <p style="margin-top:16px">
+    <a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Painel</a> •
+    <a href="/">Início</a>
+  </p>
 {% endblock %}
