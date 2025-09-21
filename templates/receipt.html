@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Voto registrado</h1>
-<p>Recibo: <code>{{ receipt }}</code></p>
-<p>EID: <b>{{ eid }}</b></p>
-<p><a href="/">Início</a></p>
+  <div class="card">
+    <h1 style="margin-top:0">Voto registrado</h1>
+    <p>Recibo: <code>{{ receipt }}</code></p>
+    <p>EID: <b>{{ eid }}</b></p>
+    <div class="actions">
+      <a class="muted" href="/">Início</a>
+    </div>
+  </div>
 {% endblock %}
