@@ -75,9 +75,18 @@ def _write_json(path, data):
 
 # ===================== Persistência de Domínio =====================
 def _ensure_keys_doc():
+    """
+    Estrutura:
+    {
+      "keys": {
+        "ABCD-EFGH-IJKL": {"used": false, "used_at": "ISO?", "peso": 1}
+      },
+      "pool": ["....", "...."]  # chaves livres não atribuídas
+    }
+    """
     doc = _read_json(VOTER_KEYS_FILE, {})
-    doc.setdefault("keys", {})   # "KEY": {"used": false, "used_at": iso?, "peso": int}
-    doc.setdefault("pool", [])   # lista de chaves livres
+    doc.setdefault("keys", {})
+    doc.setdefault("pool", [])
     return doc
 
 def load_keys():
@@ -87,8 +96,22 @@ def save_keys(doc):
     _write_json(VOTER_KEYS_FILE, doc)
 
 def _ensure_registry():
+    """
+    Estrutura:
+    {
+      "users": {
+        "usuario1": {
+          "pwd_hash": "...",
+          "key": "ABCD-EFGH-IJKL",
+          "used": false,
+          "peso": 1,
+          "attempts": {"<eid>": 0}
+        }
+      }
+    }
+    """
     reg = _read_json(REGISTRY_FILE, {})
-    reg.setdefault("users", {})  # "user": {"pwd_hash":..., "key": "...", "used": false, "peso": 1, "attempts": {eid:n}}
+    reg.setdefault("users", {})
     return reg
 
 def load_registry():
@@ -127,10 +150,27 @@ def save_candidates(lines: List[str]):
 
 # ===================== Eleição (ID atual, prazo, metadados) =====================
 def load_election_doc():
+    """
+    Estrutura:
+    {
+      "election_id": "default",
+      "deadline_utc": "2025-01-31T23:59:59+00:00" | null,
+      "meta": {
+        "<eid>": {
+          "title": "...",
+          "date": "YYYY-MM-DD",
+          "time": "HH:MM",
+          "tz": "America/Sao_Paulo",
+          "category": "string",
+          "updated_at": "ISO"
+        }
+      }
+    }
+    """
     d = _read_json(ELECTION_FILE, {})
     d.setdefault("election_id", "default")
     d.setdefault("deadline_utc", None)
-    d.setdefault("meta", {})  # meta[eid] = {title, date, time, tz, category, updated_at}
+    d.setdefault("meta", {})
     return d
 
 def save_election_doc(d):
@@ -179,123 +219,41 @@ def is_voting_open() -> bool:
         return True
     return datetime.now(timezone.utc) < dl
 
-# ===================== Auditoria & Cédulas =====================
-def ballots_path(eid: str) -> Path:
-    return BAL_DIR / f"{eid}.json"
-
+# ===================== Auditoria / Logs =====================
 def audit_path(eid: str) -> Path:
     return AUDIT_DIR / f"{eid}.log"
 
-def load_ballots(eid: str):
-    return _read_json(str(ballots_path(eid)), [])
+def ballots_path(eid: str) -> Path:
+    return BAL_DIR / f"{eid}.json"
 
-def save_ballots(eid: str, items):
-    _write_json(str(ballots_path(eid)), items)
-
-def append_ballot(eid: str, ballot_obj: dict):
-    items = load_ballots(eid)
-    items.append(ballot_obj)
-    save_ballots(eid, items)
-
-def audit_line(eid: str, text: str):
+def audit_line(eid: str, line: str):
     p = audit_path(eid)
     with open(p, "a", encoding="utf-8") as f:
-        f.write(text.rstrip() + "\n")
+        f.write(line.rstrip() + "\n")
 
-def audit_admin(eid: str, action: str, detail: str, ip: str = "-"):
-    ts = datetime.utcnow().isoformat() + "Z"
-    audit_line(eid, f"ADMIN {action} {ts} {detail} by_ip={ip}")
+def audit_admin(eid: str, action: str, details: str, ip: str):
+    line = f"ADMIN {datetime.utcnow().isoformat()}Z action={action} details={details} ip={ip}"
+    audit_line(eid, line)
 
-# ===================== Método de Schulze =====================
-def _pairwise_from_ballots(ballots: List[dict], candidates: List[str]) -> Dict[str, Dict[str, int]]:
-    """
-    P[a][b] = total de pesos de votos que preferem a sobre b.
-    Considera apenas candidatos "core" (sem Branco/Nulo).
-    """
-    P = {a: {b: 0 for b in candidates if b != a} for a in candidates}
-    for b in ballots:
-        peso = int(b.get("peso", 1))
-        ranks = b.get("ranks", {})
-        for a in candidates:
-            for c in candidates:
-                if a == c:
-                    continue
-                ra = ranks.get(a, None)
-                rc = ranks.get(c, None)
-                if isinstance(ra, int) and isinstance(rc, int):
-                    if ra < rc:
-                        P[a][c] += peso
-    return P
+def load_ballots(eid: str):
+    p = ballots_path(eid)
+    if not p.exists():
+        return []
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
 
-def schulze_ranking_from_ballots(
-    ballots: List[dict],
-    candidates: List[str]
-) -> Tuple[List[str], Dict[str, Dict[str, int]], Dict[str, Dict[str, int]]]:
-    """
-    Retorna:
-      ranking (lista do melhor ao pior),
-      pairwise P[a][b],
-      strongest_path S[a][b] (Schulze).
-    """
-    core = [c for c in candidates if c not in (RESERVED_BLANK, RESERVED_NULL)]
-    if not core:
-        return [], {}, {}
-    P = _pairwise_from_ballots(ballots, core)
+def save_ballots(eid: str, ballots: List[Dict]):
+    p = ballots_path(eid)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(ballots, f, ensure_ascii=False, indent=2)
 
-    # Matriz de forças S
-    S = {a: {b: 0 for b in core} for a in core}
-    for a in core:
-        for b in core:
-            if a == b:
-                continue
-            if P[a][b] > P[b][a]:
-                S[a][b] = P[a][b]
-            else:
-                S[a][b] = 0
-
-    # Atualização tipo Floyd–Warshall
-    for i in core:
-        for j in core:
-            if i == j:
-                continue
-            for k in core:
-                if i == k or j == k:
-                    continue
-                S[j][k] = max(S[j][k], min(S[j][i], S[i][k]))
-
-    # Ordenação: a precede b se S[a][b] > S[b][a]
-    from functools import cmp_to_key
-
-    def _cmp(a, b):
-        if a == b:
-            return 0
-        if S[a][b] > S[b][a]:
-            return -1
-        if S[a][b] < S[b][a]:
-            return 1
-        # Empate: fallback lexicográfico estável
-        al, bl = a.lower(), b.lower()
-        if al < bl:
-            return -1
-        if al > bl:
-            return 1
-        return 0
-
-    ranked = sorted(core, key=cmp_to_key(_cmp))
-    return ranked, P, S
-
-# ===================== Rotas utilitárias/diagnóstico =====================
-@app.route("/__health")
-def __health():
-    return Response('{"ok": true}', mimetype="application/json")
-
-@app.route("/__routes")
-def __routes():
-    lines = []
-    for rule in sorted(app.url_map.iter_rules(), key=lambda r: r.rule):
-        methods = ",".join(sorted(m for m in rule.methods if m in ("GET", "POST", "PUT", "DELETE", "PATCH")))
-        lines.append(f"{methods or 'GET'}  {rule.rule}  -> {rule.endpoint}")
-    return Response("<pre>" + "\n".join(lines) + "</pre>", mimetype="text/html")
+def append_ballot(eid: str, ballot: Dict):
+    ballots = load_ballots(eid)
+    ballots.append(ballot)
+    save_ballots(eid, ballots)
 
 # ===================== Handlers de erro com logging =====================
 import logging
@@ -307,7 +265,9 @@ if not app.logger.handlers:
 
 @app.errorhandler(404)
 def handle_404(e):
-    app.logger.warning("404 on %s?%s", request.path, request.query_string.decode("utf-8", errors="ignore"))
+    app.logger.warning("404 on %s?%s",
+                       request.path,
+                       request.query_string.decode("utf-8", errors="ignore"))
     return Response(
         "<h3>404 • Página não encontrada</h3>"
         "<p>Para o painel admin, use <code>/admin/home?secret=SEU_ADMIN_SECRET</code>.</p>",
@@ -321,6 +281,20 @@ def handle_500(e):
         "<h3>Erro interno (500)</h3><p>Verifique os logs do servidor para detalhes.</p>",
         status=500, mimetype="text/html"
     )
+
+# ===================== Rotas utilitárias/diagnóstico =====================
+@app.route("/__health")
+def __health():
+    return Response('{"ok": true}', mimetype="application/json")
+
+@app.route("/__routes")
+def __routes():
+    lines = []
+    for rule in sorted(app.url_map.iter_rules(), key=lambda r: r.rule):
+        methods = ",".join(sorted(m for m in rule.methods
+                                  if m in ("GET", "POST", "PUT", "DELETE", "PATCH")))
+        lines.append(f"{methods or 'GET'}  {rule.rule}  -> {rule.endpoint}")
+    return Response("<pre>" + "\n".join(lines) + "</pre>", mimetype="text/html")
 
 # ===================== Rotas públicas principais =====================
 @app.route("/")
@@ -378,42 +352,15 @@ def login():
 @app.route("/logout")
 def logout():
     session.pop("user_id", None)
+    # também limpamos qualquer estado de votação pendente
+    session.pop("pending_voter_key", None)
+    session.pop("voter_key_ok_eid", None)
     flash("Você saiu.", "info")
     return redirect(url_for("index"))
 
-# ===================== Votação =====================
-def parse_numeric_form_to_ranks(form, candidates):
-    special = (form.get("special_vote") or "").strip().upper()
-    if special in ("BLANK", "NULL"):
-        pick = RESERVED_BLANK if special == "BLANK" else RESERVED_NULL
-        ranks = {c: None for c in candidates}
-        if pick in candidates:
-            ranks[pick] = 1
-        return ranks
-    ranks = {c: None for c in candidates}
-    idx = 0
-    while True:
-        c = form.get(f"cand_{idx}")
-        r = form.get(f"rank_{idx}")
-        if c is None and r is None:
-            break
-        idx += 1
-        if c is None:
-            continue
-        c = _squash_spaces(c)
-        if c not in candidates:
-            continue
-        if not r or str(r).strip() == "":
-            ranks[c] = None
-        else:
-            try:
-                n = int(str(r).strip())
-                ranks[c] = n if n >= 1 else None
-            except Exception:
-                ranks[c] = None
-    return ranks
-
+# ===================== Votação: helpers =====================
 def _inc_attempt(user_id, eid):
+    """Incrementa contador de tentativas de chave para um usuário/eid e retorna o total."""
     reg = load_registry()
     entry = reg.get("users", {}).get(user_id, {"attempts": {}})
     attempts = entry.get("attempts", {})
@@ -423,8 +370,10 @@ def _inc_attempt(user_id, eid):
     save_registry(reg)
     return attempts[eid]
 
+# ===================== Votação: ETAPA 1 (validar chave) =====================
 @app.route("/vote", methods=["GET", "POST"])
 def vote():
+    """Etapa 1: usuário informa e valida a chave; se ok, segue para /vote/panel."""
     if not is_voting_open():
         return Response(
             "<h2>Votação encerrada</h2><p>O prazo expirou.</p><p><a href='/'>Início</a></p>",
@@ -432,13 +381,13 @@ def vote():
             status=403,
         )
 
-    candidates = load_candidates()
+    # exige login para informar a chave
+    if not session.get("user_id"):
+        flash("Faça login para votar.", "error")
+        return redirect(url_for("login"))
+
     if request.method == "POST":
         user_id = session.get("user_id")
-        if not user_id:
-            flash("Faça login para votar.", "error")
-            return redirect(url_for("login"))
-
         voter_key = norm(request.form.get("voter_id", ""))
         if not voter_key:
             flash("Informe sua CHAVE de votação.", "error")
@@ -471,7 +420,7 @@ def vote():
             )
             return redirect(url_for("vote"))
 
-        # verifica chave no pool
+        # verifica chave no pool (sem marcar usada ainda)
         keys_doc = load_keys()
         kinfo = keys_doc["keys"].get(voter_key)
         if not kinfo:
@@ -481,8 +430,92 @@ def vote():
             flash("Esta chave já foi usada.", "error")
             return redirect(url_for("index"))
 
-        # monta ranks
-        posted_ranking = request.form.getlist("ranking")
+        # OK: guarda na sessão e segue para o painel (etapa 2)
+        session["pending_voter_key"] = voter_key
+        session["voter_key_ok_eid"] = eid
+        flash("Chave validada. Prossiga com seu voto.", "success")
+        return redirect(url_for("vote_panel"))
+
+    # GET: tela somente de chave
+    return render_template("vote_key.html")
+
+# ===================== Votação: helpers =====================
+def parse_numeric_form_to_ranks(form, candidates):
+    """Lê campos cand_{i} e rank_{i} OU special_vote (BLANK/NULL) e devolve dict {cand: rank|None}."""
+    special = (form.get("special_vote") or "").strip().upper()
+    if special in ("BLANK", "NULL"):
+        pick = RESERVED_BLANK if special == "BLANK" else RESERVED_NULL
+        ranks = {c: None for c in candidates}
+        if pick in candidates:
+            ranks[pick] = 1
+        return ranks
+
+    ranks = {c: None for c in candidates}
+    idx = 0
+    while True:
+        c = form.get(f"cand_{idx}")
+        r = form.get(f"rank_{idx}")
+        if c is None and r is None:
+            break
+        idx += 1
+        if c is None:
+            continue
+        c = _squash_spaces(c)
+        if c not in candidates:
+            continue
+        if not r or str(r).strip() == "":
+            ranks[c] = None
+        else:
+            try:
+                n = int(str(r).strip())
+                ranks[c] = n if n >= 1 else None
+            except Exception:
+                ranks[c] = None
+    return ranks
+
+
+# ===================== Votação: ETAPA 2 (painel e registro) =====================
+@app.route("/vote/panel", methods=["GET", "POST"])
+def vote_panel():
+    """Etapa 2: painel de preferências; confirma e grava a cédula."""
+    if not is_voting_open():
+        return Response(
+            "<h2>Votação encerrada</h2><p>O prazo expirou.</p><p><a href='/'>Início</a></p>",
+            mimetype="text/html",
+            status=403,
+        )
+
+    user_id = session.get("user_id")
+    if not user_id:
+        flash("Faça login para votar.", "error")
+        return redirect(url_for("login"))
+
+    voter_key = session.get("pending_voter_key")
+    eid = session.get("voter_key_ok_eid")
+    if not voter_key or not eid or eid != get_current_election_id():
+        flash("Valide sua chave antes de votar.", "error")
+        return redirect(url_for("vote"))
+
+    candidates = load_candidates()
+
+    if request.method == "POST":
+        # Revalida chave no envio (não pode ter sido usada por concorrência)
+        keys_doc = load_keys()
+        kinfo = keys_doc["keys"].get(voter_key)
+        if not kinfo or kinfo.get("used"):
+            flash("Chave inválida ou já utilizada.", "error")
+            session.pop("pending_voter_key", None)
+            session.pop("voter_key_ok_eid", None)
+            return redirect(url_for("vote"))
+
+        # Confere usuário e monta ranks
+        reg = load_registry()
+        entry = reg.get("users", {}).get(user_id)
+        if not entry:
+            flash("Usuário não habilitado.", "error")
+            return redirect(url_for("login"))
+
+        posted_ranking = request.form.getlist("ranking")  # opcional (drag&drop)
         if posted_ranking:
             ranks = {c: None for c in candidates}
             r = 1
@@ -495,18 +528,18 @@ def vote():
 
         if not any((isinstance(v, int) and v >= 1) for v in ranks.values()):
             flash("Nenhuma preferência informada.", "error")
-            return redirect(url_for("vote"))
+            return redirect(url_for("vote_panel"))
 
-        # peso final: peso do usuário > peso da chave > 1
+        # Peso final: peso do usuário > peso da chave > 1
         peso = int(entry.get("peso", kinfo.get("peso", 1)))
 
-        # marca chave usada
+        # Marca chave usada
         kinfo["used"] = True
         kinfo["used_at"] = datetime.utcnow().isoformat() + "Z"
         keys_doc["keys"][voter_key] = kinfo
         save_keys(keys_doc)
 
-        # marca usuário usado; zera tentativas nesta eleição
+        # Marca usuário usado; zera tentativas para este EID
         entry["used"] = True
         atts = entry.get("attempts", {})
         atts[eid] = 0
@@ -514,21 +547,107 @@ def vote():
         reg["users"][user_id] = entry
         save_registry(reg)
 
-        # salva cédula
+        # Salva cédula (hash do voter_key para anonimizar)
         voter_key_h = key_hash(voter_key)
         append_ballot(eid, {"ranks": ranks, "peso": peso, "voter": voter_key_h})
 
-        # recibo
+        # Recibo e auditoria
         receipt = str(uuid.uuid4())
         audit_line(
             eid,
             f"VOTE {datetime.utcnow().isoformat()}Z voter={voter_key_h} receipt={receipt} ip={request.remote_addr or '-'}",
         )
 
+        # Limpa estado de chave na sessão
+        session.pop("pending_voter_key", None)
+        session.pop("voter_key_ok_eid", None)
+
         return render_template("receipt.html", receipt=receipt, eid=eid)
 
-    # GET
-    return render_template("vote.html", candidates=candidates)
+    # GET: mostra painel
+    return render_template(
+        "vote_panel.html",
+        candidates=candidates,
+        eid=eid,
+        session_vkey=bool(voter_key),
+    )
+
+
+# ===================== Método de Schulze =====================
+def _pairwise_from_ballots(ballots: List[dict], candidates: List[str]) -> Dict[str, Dict[str, int]]:
+    """
+    P[a][b] = total de pesos de votos que preferem a sobre b.
+    Considera apenas candidatos "core" (sem Branco/Nulo).
+    """
+    core = [c for c in candidates if c not in (RESERVED_BLANK, RESERVED_NULL)]
+    P = {a: {b: 0 for b in core if b != a} for a in core}
+    for b in ballots:
+        peso = int(b.get("peso", 1))
+        ranks = b.get("ranks", {})
+        for a in core:
+            for c in core:
+                if a == c:
+                    continue
+                ra = ranks.get(a, None)
+                rc = ranks.get(c, None)
+                if isinstance(ra, int) and isinstance(rc, int) and ra < rc:
+                    P[a][c] += peso
+    return P
+
+def schulze_ranking_from_ballots(
+    ballots: List[dict],
+    candidates: List[str]
+) -> Tuple[List[str], Dict[str, Dict[str, int]], Dict[str, Dict[str, int]]]:
+    """
+    Retorna:
+      ranking (lista do melhor ao pior),
+      pairwise P[a][b],
+      strongest_path S[a][b] (Schulze).
+    """
+    core = [c for c in candidates if c not in (RESERVED_BLANK, RESERVED_NULL)]
+    if not core:
+        return [], {}, {}
+    P = _pairwise_from_ballots(ballots, candidates)
+
+    # Matriz de forças S
+    S = {a: {b: 0 for b in core} for a in core}
+    for a in core:
+        for b in core:
+            if a == b:
+                continue
+            S[a][b] = P[a][b] if P[a][b] > P[b][a] else 0
+
+    # Atualização tipo Floyd–Warshall
+    for i in core:
+        for j in core:
+            if i == j:
+                continue
+            for k in core:
+                if i == k or j == k:
+                    continue
+                S[j][k] = max(S[j][k], min(S[j][i], S[i][k]))
+
+    # Ordenação: a precede b se S[a][b] > S[b][a]
+    from functools import cmp_to_key
+
+    def _cmp(a, b):
+        if a == b:
+            return 0
+        if S[a][b] > S[b][a]:
+            return -1
+        if S[a][b] < S[b][a]:
+            return 1
+        # Empate: fallback lexicográfico estável
+        al, bl = a.lower(), b.lower()
+        if al < bl:
+            return -1
+        if al > bl:
+            return 1
+        return 0
+
+    ranked = sorted(core, key=cmp_to_key(_cmp))
+    return ranked, P, S
+
 
 # ===================== Resultados & Auditoria pública =====================
 @app.route("/results")
@@ -560,38 +679,70 @@ def public_results(eid):
     except Exception as e:
         return Response(f"Erro ao calcular resultados: {e}", status=500)
 
-@app.route("/public/<eid>/audit")
-def public_audit(eid):
-    p = audit_path(eid)
-    meta = get_election_meta(eid)
-    if meta:
-        extra = ""
-        if meta.get("date") and meta.get("time"):
-            extra = f" • <b>Data/Hora:</b> {meta.get('date','')} {meta.get('time','')} {meta.get('tz','')}"
-        head = f"<h1>{meta.get('title','Auditoria')}</h1><p><b>ID:</b> {eid}{extra}</p>"
-    else:
-        head = f"<h1>Auditoria</h1><p><b>ID:</b> {eid}</p>"
-    if not p.exists():
-        return Response(head + "<pre>(Sem auditoria para esta votação.)</pre>", mimetype="text/html")
-    with open(p, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-    return Response(head + "<pre>" + "".join(lines) + "</pre>", mimetype="text/html")
 
-# ===================== /public/elections + CSV =====================
+# ===================== Relatórios CSV =====================
+def _csv_ranking(ranking, total_weight):
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["posicao", "candidato"])
+    for i, c in enumerate(ranking, start=1):
+        w.writerow([i, c])
+    w.writerow([])
+    w.writerow(["total_peso", total_weight])
+    return out.getvalue()
+
+@app.route("/public/<eid>/results.csv")
+def public_results_csv(eid):
+    ballots = load_ballots(eid)
+    if not ballots:
+        return Response("posicao,candidato\n", mimetype="text/csv")
+    candidates = load_candidates()
+    ranking, pairwise, _ = schulze_ranking_from_ballots(ballots, candidates)
+    total = sum(int(b.get("peso", 1)) for b in ballots)
+    csv_text = _csv_ranking(ranking, total)
+    resp = Response(csv_text, mimetype="text/csv")
+    resp.headers["Content-Disposition"] = f'attachment; filename="results_{eid}.csv"'
+    return resp
+
+@app.route("/public/<eid>/pairwise.csv")
+def public_pairwise_csv(eid):
+    ballots = load_ballots(eid)
+    candidates = load_candidates()
+    core = [c for c in candidates if c not in (RESERVED_BLANK, RESERVED_NULL)]
+    if not ballots:
+        header = "candidate," + ",".join(core)
+        return Response(header + "\n", mimetype="text/csv")
+    _, pairwise, _ = schulze_ranking_from_ballots(ballots, candidates)
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["candidate"] + core)
+    for a in core:
+        row = [a] + [pairwise[a].get(b, 0) if a != b else "" for b in core]
+        w.writerow(row)
+    resp = Response(out.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = f'attachment; filename="pairwise_{eid}.csv"'
+    return resp
+
+# ===================== /public/elections (JSON & CSV) =====================
 @app.route("/public/elections")
 def public_elections():
+    """
+    Lista EIDs disponíveis com metadados (quando disponíveis).
+    Filtros opcionais: ?flat=1, &category=..., &start=YYYY-MM-DD, &end=YYYY-MM-DD
+    """
     q = request.args
     flat = q.get("flat") == "1"
     cat_filter = (q.get("category") or "").strip().lower()
     start = (q.get("start") or "").strip()
-    end   = (q.get("end") or "").strip()
+    end = (q.get("end") or "").strip()
 
     metas = load_election_doc().get("meta", {})
     file_eids = [p.stem for p in BAL_DIR.glob("*.json")]
     all_eids = sorted(set(list(metas.keys()) + file_eids))
 
     if flat:
-        return Response(json.dumps({"elections": all_eids}, ensure_ascii=False, indent=2), mimetype="application/json")
+        return Response(json.dumps({"elections": all_eids}, ensure_ascii=False, indent=2),
+                        mimetype="application/json")
 
     def within_date(m):
         d = (m.get("date") or "").strip()
@@ -621,61 +772,38 @@ def public_elections():
         })
 
     enriched.sort(key=lambda x: x.get("date", ""), reverse=True)
-    return Response(json.dumps({"elections": enriched}, ensure_ascii=False, indent=2), mimetype="application/json")
+    return Response(json.dumps({"elections": enriched}, ensure_ascii=False, indent=2),
+                    mimetype="application/json")
 
-# ===================== Relatórios extras CSV =====================
-def make_csv_ranking(ranking, total_weight):
+
+@app.route("/public/elections.csv")
+def public_elections_csv():
+    # Reusa a lógica JSON para manter consistência de filtros
+    r = app.test_client().get("/public/elections", query_string=request.args)
+    data = json.loads(r.get_data(as_text=True))
+    rows = data.get("elections", [])
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(["posicao", "candidato"])
-    for i, c in enumerate(ranking, start=1):
-        w.writerow([i, c])
-    w.writerow([])
-    w.writerow(["total_peso", total_weight])
-    return out.getvalue()
-
-def make_csv_pairwise(P, candidates):
-    out = io.StringIO()
-    w = csv.writer(out)
-    header = ["candidate"] + candidates
-    w.writerow(header)
-    for a in candidates:
-        row = [a] + [P[a].get(b, 0) if a != b else "" for b in candidates]
-        w.writerow(row)
-    return out.getvalue()
-
-@app.route("/public/<eid>/results.csv")
-def public_results_csv(eid):
-    ballots = load_ballots(eid)
-    if not ballots:
-        csv_text = "posicao,candidato\n"
-        return Response(csv_text, mimetype="text/csv")
-    candidates = load_candidates()
-    ranking, pairwise, _strength = schulze_ranking_from_ballots(ballots, candidates)
-    total_weight = sum(int(b.get("peso", 1)) for b in ballots)
-    csv_text = make_csv_ranking(ranking, total_weight)
-    resp = Response(csv_text, mimetype="text/csv")
-    resp.headers["Content-Disposition"] = f'attachment; filename="results_{eid}.csv"'
-    return resp
-
-@app.route("/public/<eid>/pairwise.csv")
-def public_pairwise_csv(eid):
-    ballots = load_ballots(eid)
-    candidates = load_candidates()
-    if not ballots:
-        header = "candidate," + ",".join([c for c in candidates if c not in (RESERVED_BLANK, RESERVED_NULL)])
-        return Response(header + "\n", mimetype="text/csv")
-    core = [c for c in candidates if c not in (RESERVED_BLANK, RESERVED_NULL)]
-    _, pairwise, _ = schulze_ranking_from_ballots(ballots, candidates)
-    out = io.StringIO()
-    w = csv.writer(out)
-    w.writerow(["candidate"] + core)
-    for a in core:
-        row = [a] + [pairwise[a].get(b, 0) if a != b else "" for b in core]
-        w.writerow(row)
+    if rows and isinstance(rows[0], str):
+        # modo flat
+        w.writerow(["eid"])
+        for eid in rows:
+            w.writerow([eid])
+    else:
+        w.writerow(["eid", "title", "date", "time", "tz", "category"])
+        for it in rows:
+            w.writerow([
+                it.get("eid", ""),
+                it.get("title", ""),
+                it.get("date", ""),
+                it.get("time", ""),
+                it.get("tz", ""),
+                it.get("category", "")
+            ])
     resp = Response(out.getvalue(), mimetype="text/csv")
-    resp.headers["Content-Disposition"] = f'attachment; filename="pairwise_{eid}.csv"'
+    resp.headers["Content-Disposition"] = 'attachment; filename="elections.csv"'
     return resp
+
 
 # ===================== Admin (UI) =====================
 @app.route("/admin")
@@ -690,7 +818,9 @@ def admin_root():
 def admin_home():
     if not require_admin(request):
         return redirect(url_for("admin_login"))
-    return render_template("admin_home.html", secret=request.args.get("secret", ""))
+    return render_template("admin_home.html",
+                           secret=request.args.get("secret", ""),
+                           current_eid=get_current_election_id())
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
@@ -706,6 +836,7 @@ def admin_login():
 def admin_logout():
     secret = request.args.get("secret", "")
     flash("Sessão encerrada.", "info")
+    # mantém o ?secret opcional para retorno
     if secret:
         return redirect(url_for("index") + f"?secret={secret}")
     return redirect(url_for("index"))
@@ -749,6 +880,7 @@ def admin_audit_preview():
         current_eid=get_current_election_id()
     )
 
+
 # ===================== Admin: JSON dumps =====================
 @app.route("/admin/keys_list")
 def admin_keys_list():
@@ -778,6 +910,185 @@ def admin_trash_list():
     return Response(json.dumps({"users": t.get("users", {})}, ensure_ascii=False, indent=2),
                     mimetype="application/json")
 
+# ===================== Admin: Atribuições / Pesos / Exclusões =====================
+def _assign_key_to_user(reg, keys_doc, user, key, peso=None):
+    u = reg.setdefault("users", {}).get(user, {"used": False, "peso": 1, "attempts": {}})
+    # Se o usuário ainda não existia, garante o registro mínimo
+    if "pwd_hash" not in u:
+        u.setdefault("pwd_hash", "")
+    u["key"] = key
+    if peso is not None:
+        u["peso"] = int(peso)
+    reg["users"][user] = u
+
+    # garante presença e metadados no mapa de keys
+    kinfo = keys_doc.setdefault("keys", {}).get(key, {})
+    kinfo.setdefault("used", False)
+    if peso is not None:
+        kinfo["peso"] = int(peso)
+    keys_doc["keys"][key] = kinfo
+
+@app.route("/admin/assign_batch_generate")
+def admin_assign_batch_generate():
+    if not require_admin(request): abort(403)
+    ras  = (request.args.get("ras") or "").strip()
+    peso = int(request.args.get("peso") or "1")
+    if not ras:
+        return Response("informe ?ras=user1,user2,...", status=400)
+
+    users = [u.strip() for u in ras.split(",") if u.strip()]
+    reg = load_registry()
+    keys_doc = load_keys()
+
+    def gen_key():
+        # Formato: XXXX-YYYY-ZZZZ (alfanum)
+        alphabet = string.ascii_uppercase + string.digits
+        parts = []
+        for _ in range(3):
+            parts.append("".join(secrets.choice(alphabet) for _ in range(4)))
+        return "-".join(parts)
+
+    assigned = []
+    for u in users:
+        # gera chaves até achar uma inédita
+        for _ in range(1000):
+            k = gen_key()
+            if k not in keys_doc.get("keys", {}) and k not in keys_doc.get("pool", []):
+                _assign_key_to_user(reg, keys_doc, u, k, peso=peso)
+                assigned.append((u, k))
+                break
+
+    save_registry(reg)
+    save_keys(keys_doc)
+
+    # auditoria
+    eid = get_current_election_id()
+    audit_admin(eid, "ASSIGN_GENERATE", f"count={len(assigned)}", request.remote_addr or "-")
+
+    # resposta texto simples
+    lines = [f"{u},{k}" for (u, k) in assigned]
+    return Response("\n".join(lines) if lines else "(nada a atribuir)",
+                    mimetype="text/plain; charset=utf-8")
+
+@app.route("/admin/assign_batch_use_pool")
+def admin_assign_batch_use_pool():
+    if not require_admin(request): abort(403)
+    ras = (request.args.get("ras") or "").strip()
+    if not ras:
+        return Response("informe ?ras=user1,user2,...", status=400)
+
+    users = [u.strip() for u in ras.split(",") if u.strip()]
+    reg = load_registry()
+    keys_doc = load_keys()
+    pool = list(keys_doc.get("pool", []) or [])
+
+    assigned = []
+    for u in users:
+        if not pool:
+            break
+        k = pool.pop(0)
+        _assign_key_to_user(reg, keys_doc, u, k)
+        assigned.append((u, k))
+
+    keys_doc["pool"] = pool
+    save_registry(reg)
+    save_keys(keys_doc)
+
+    eid = get_current_election_id()
+    audit_admin(eid, "ASSIGN_FROM_POOL", f"count={len(assigned)}", request.remote_addr or "-")
+
+    lines = [f"{u},{k}" for (u, k) in assigned]
+    return Response("\n".join(lines) if lines else "(pool esgotado ou nada a atribuir)",
+                    mimetype="text/plain; charset=utf-8")
+
+@app.route("/admin/set_user_weight")
+def admin_set_user_weight():
+    if not require_admin(request): abort(403)
+    user = (request.args.get("user") or "").strip()
+    peso = int(request.args.get("peso") or "1")
+    if not user:
+        return Response('{"error":"user"}', status=400, mimetype="application/json")
+    reg = load_registry()
+    u = reg.get("users", {}).get(user)
+    if not u:
+        return Response('{"error":"usuario_nao_encontrado"}', status=404, mimetype="application/json")
+    u["peso"] = max(1, int(peso))
+    reg["users"][user] = u
+    save_registry(reg)
+    eid = get_current_election_id()
+    audit_admin(eid, "SET_USER_WEIGHT", f"user={user} peso={u['peso']}", request.remote_addr or "-")
+    return Response('{"ok":true}', mimetype="application/json")
+
+@app.route("/admin/delete_user")
+def admin_delete_user():
+    if not require_admin(request): abort(403)
+    user = (request.args.get("user") or "").strip()
+    if not user:
+        return Response('{"error":"user"}', status=400, mimetype="application/json")
+    reg = load_registry()
+    u = reg.get("users", {}).pop(user, None)
+    if not u:
+        return Response('{"error":"usuario_nao_encontrado"}', status=404, mimetype="application/json")
+    save_registry(reg)
+    t = load_trash()
+    u["deleted_at"] = datetime.utcnow().isoformat() + "Z"
+    t.setdefault("users", {})[user] = u
+    save_trash(t)
+    eid = get_current_election_id()
+    audit_admin(eid, "DELETE_USER", f"user={user}", request.remote_addr or "-")
+    return Response('{"ok":true}', mimetype="application/json")
+
+@app.route("/admin/delete_users_batch")
+def admin_delete_users_batch():
+    if not require_admin(request): abort(403)
+    users_q = (request.args.get("users") or "").strip()
+    if not users_q:
+        return Response('{"error":"users"}', status=400, mimetype="application/json")
+    users = [u.strip() for u in users_q.split(",") if u.strip()]
+    reg = load_registry()
+    t = load_trash()
+    moved = 0
+    for u in users:
+        item = reg.get("users", {}).pop(u, None)
+        if item:
+            item["deleted_at"] = datetime.utcnow().isoformat() + "Z"
+            t.setdefault("users", {})[u] = item
+            moved += 1
+    save_registry(reg)
+    save_trash(t)
+    eid = get_current_election_id()
+    audit_admin(eid, "DELETE_USERS_BATCH", f"count={moved}", request.remote_addr or "-")
+    return Response(json.dumps({"ok": True, "moved": moved}, ensure_ascii=False),
+                    mimetype="application/json")
+
+@app.route("/admin/restore_user")
+def admin_restore_user():
+    if not require_admin(request): abort(403)
+    user = (request.args.get("user") or "").strip()
+    if not user:
+        return Response('{"error":"user"}', status=400, mimetype="application/json")
+    t = load_trash()
+    item = t.get("users", {}).pop(user, None)
+    if not item:
+        return Response('{"error":"nao_encontrado"}', status=404, mimetype="application/json")
+    reg = load_registry()
+    item.pop("deleted_at", None)
+    reg.setdefault("users", {})[user] = item
+    save_trash(t)
+    save_registry(reg)
+    eid = get_current_election_id()
+    audit_admin(eid, "RESTORE_USER", f"user={user}", request.remote_addr or "-")
+    return Response('{"ok":true}', mimetype="application/json")
+
+@app.route("/admin/empty_trash", methods=["POST"])
+def admin_empty_trash():
+    if not require_admin(request): abort(403)
+    save_trash({"users": {}})
+    eid = get_current_election_id()
+    audit_admin(eid, "EMPTY_TRASH", "ok", request.remote_addr or "-")
+    return Response('{"ok":true}', mimetype="application/json")
+
+
 # ===================== Admin: Bundles / Backups =====================
 def _sha256_file(path: Path):
     h = hashlib.sha256()
@@ -790,6 +1101,7 @@ def _sha256_file(path: Path):
 def admin_export_audit_bundle():
     if not require_admin(request): abort(403)
     eid = (request.args.get("eid") or get_current_election_id()).strip()
+
     paths = []
     bpath = ballots_path(eid)
     apath = audit_path(eid)
@@ -801,17 +1113,36 @@ def admin_export_audit_bundle():
         p = Path(name)
         if p.exists():
             paths.append((f"config/{p.name}", p))
-    manifest = {"eid": eid, "generated_at_utc": datetime.utcnow().isoformat() + "Z", "files": []}
+
+    manifest = {
+        "eid": eid,
+        "generated_at_utc": datetime.utcnow().isoformat() + "Z",
+        "files": []
+    }
     for arcname, p in paths:
         try:
-            manifest["files"].append({"arcname": arcname, "size": p.stat().st_size, "sha256": _sha256_file(p)})
+            manifest["files"].append({
+                "arcname": arcname,
+                "size": p.stat().st_size,
+                "sha256": _sha256_file(p)
+            })
         except Exception as e:
             manifest["files"].append({"arcname": arcname, "error": str(e)})
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for arcname, p in paths:
             z.write(p, arcname)
-        z.writestr("README.txt", "SchulzeVote - Pacote de Auditoria\n")
+        readme = (
+            "SchulzeVote - Pacote de Auditoria\n"
+            f"EID: {eid}\n"
+            "Conteúdo:\n"
+            "- ballots/<eid>.json: cédulas (anônimas)\n"
+            "- audit/<eid>.log: log textual\n"
+            "- config/*.json: configuração e registros\n"
+            "Integridade: ver MANIFEST.json (hashes SHA-256)\n"
+        )
+        z.writestr("README.txt", readme)
         z.writestr("MANIFEST.json", json.dumps(manifest, ensure_ascii=False, indent=2))
     buf.seek(0)
     resp = Response(buf.getvalue(), mimetype="application/zip")
@@ -824,9 +1155,12 @@ def admin_backup_zip():
     ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        def add_if_exists(path, arcname=None):
+            if os.path.exists(path):
+                z.write(path, arcname or path)
         for fname in [CAND_FILE, ELECTION_FILE, VOTER_KEYS_FILE, REGISTRY_FILE, TRASH_FILE]:
-            if os.path.exists(fname):
-                z.write(fname, fname)
+            add_if_exists(fname, fname)
+        # data/*
         if DATA_DIR.exists():
             for root, _, files in os.walk(DATA_DIR):
                 for f in files:
@@ -837,6 +1171,42 @@ def admin_backup_zip():
     resp = Response(buf.getvalue(), mimetype="application/zip")
     resp.headers["Content-Disposition"] = f'attachment; filename="schulzevote_backup_{ts}.zip"'
     return resp
+
+@app.route("/admin/backup_zip_eid")
+def admin_backup_zip_eid():
+    if not require_admin(request): abort(403)
+    eid = (request.args.get("eid") or "").strip()
+    if not eid:
+        return Response('{"error":"informe ?eid=..."}', status=400, mimetype="application/json")
+
+    ballots_file = ballots_path(eid)
+    audit_file   = audit_path(eid)
+    meta = get_election_meta(eid) or {}
+    context = {"eid": eid, "meta": meta, "candidates_snapshot": load_candidates()}
+
+    ballots_exists = ballots_file.exists()
+    audit_exists   = audit_file.exists()
+    if not ballots_exists and not audit_exists:
+        return Response(
+            json.dumps({"error": "nenhum arquivo encontrado para este EID"}, ensure_ascii=False),
+            status=404, mimetype="application/json"
+        )
+
+    ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        if ballots_exists:
+            z.write(str(ballots_file), f"data/ballots/{eid}.json")
+        if audit_exists:
+            z.write(str(audit_file),   f"data/audit/{eid}.log")
+        z.writestr(f"meta/election_meta_{eid}.json", json.dumps(context, ensure_ascii=False, indent=2))
+        if os.path.exists(ELECTION_FILE):
+            z.write(ELECTION_FILE, "election.json")
+    buf.seek(0)
+    resp = Response(buf.getvalue(), mimetype="application/zip")
+    resp.headers["Content-Disposition"] = f'attachment; filename="schulzevote_eid_{eid}_{ts}.zip"'
+    return resp
+
 
 # ===================== Admin: Dados crus =====================
 @app.route("/admin/audit_raw")
@@ -867,12 +1237,15 @@ def admin_ping():
     return Response(json.dumps({"ok": ok}, ensure_ascii=False),
                     status=200 if ok else 403, mimetype="application/json")
 
+
 # ===================== Health / Diagnostics =====================
 @app.route("/healthz")
 @app.route("/ping")
 def healthz():
     return Response('{"ok":true}', mimetype="application/json")
 
+
 # ===================== Main (debug local) =====================
 if __name__ == "__main__":
+    # Em produção, o servidor (ex.: gunicorn) importa schulzevote:app
     app.run(host="0.0.0.0", port=5000, debug=True)
