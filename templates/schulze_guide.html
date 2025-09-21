@@ -1,10 +1,121 @@
-{% extends "base.html" %}
-{% block title %}Guia · Método de Schulze{% endblock %}
-{% block content %}
-  <h1>Método de Schulze (resumo)</h1>
-  <div class="card">
-    <p>O método de Schulze calcula caminhos de maior força entre preferências pareadas para definir o ranking final.</p>
-    <p>Para detalhes completos, consulte a documentação oficial.</p>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Guia · Método de Schulze</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#000000">
+  <link rel="manifest" href="/manifest.json">
+  <style>
+    :root{color-scheme:dark light}
+    html,body{background:#0b0b0c;color:#e6e6e6}
+    body{font-family:system-ui,Arial,sans-serif;max-width:880px;margin:40px auto;padding:0 16px;line-height:1.6}
+    a{color:#7cc7ff}
+    h1,h2,h3{color:#fff}
+    code{background:#151517;border:1px solid #2a2a2e;border-radius:6px;padding:2px 6px;font-family:monospace}
+    pre{background:#151517;border:1px solid #2a2a2e;border-radius:8px;padding:12px;overflow-x:auto}
+    .example{background:#111214;border:1px solid #2a2a2e;border-radius:8px;padding:14px;margin:20px 0}
+  </style>
+</head>
+<body>
+  <h1>Método de Schulze</h1>
+
+  <p>
+    O <b>método de Schulze</b> é um sistema de votação por comparação par-a-par (um método de
+    <i>Condorcet</i>) usado para determinar um ranking entre candidatos ou opções.
+    Ele é utilizado em diversas organizações, incluindo a <i>Debian Foundation</i>
+    e a <i>Wikimedia Foundation</i>.
+  </p>
+
+  <h2>1. Coleta das preferências</h2>
+  <p>
+    Cada eleitor fornece uma <b>ordem de preferência</b> entre os candidatos.  
+    Exemplo com quatro candidatos (<code>A, B, C, D</code>):
+  </p>
+  <pre>
+Eleitor 1: A &gt; C &gt; B &gt; D
+Eleitor 2: B &gt; A &gt; D &gt; C
+Eleitor 3: C &gt; D &gt; B &gt; A
+Eleitor 4: A &gt; B &gt; C &gt; D
+  </pre>
+
+  <h2>2. Matriz de preferências par-a-par</h2>
+  <p>
+    Para cada par (X,Y), contamos quantos eleitores preferem X sobre Y.
+    Isso gera a matriz <code>P[X][Y]</code>.
+  </p>
+  <div class="example">
+    Exemplo parcial:
+    <ul>
+      <li><code>P[A][B] = 3</code> (3 eleitores preferem A a B)</li>
+      <li><code>P[B][A] = 1</code> (1 eleitor prefere B a A)</li>
+      <li><code>P[C][D] = 2</code>, etc.</li>
+    </ul>
   </div>
-  <p class="small" style="margin-top:12px"><a href="/">Início</a></p>
-{% endblock %}
+
+  <h2>3. Cálculo dos caminhos mais fortes</h2>
+  <p>
+    Para cada par (X,Y), calculamos a <b>força do caminho mais forte</b> de X até Y,
+    onde a força de um caminho é definida como o menor valor de vitória ao longo dele.
+    Esse cálculo é feito com um algoritmo de propagação do tipo
+    <i>Floyd–Warshall</i>.
+  </p>
+
+  <h2>4. Comparação final</h2>
+  <p>
+    Dizemos que X é preferido a Y se <code>S[X][Y] &gt; S[Y][X]</code>.
+    O ranking final é construído ordenando os candidatos por essas comparações.
+  </p>
+
+  <h2>Exemplo numérico</h2>
+  <pre>
+   Matriz de vitórias (P):
+       A   B   C   D
+    A  -   3   2   4
+    B  1   -   3   2
+    C  2   1   -   3
+    D  0   2   1   -
+
+   Caminhos fortes (S):
+       A   B   C   D
+    A  -   3   2   3
+    B  1   -   2   2
+    C  2   2   -   2
+    D  1   2   1   -
+  </pre>
+  <p>
+    Comparando <code>S[X][Y]</code> com <code>S[Y][X]</code>, obtemos a ordem final:
+    <b>A &gt; B &gt; C &gt; D</b>.
+  </p>
+
+  <h2>Visualização em diagrama</h2>
+  <pre>
+       A
+      ↗ ↘
+     B   C
+      ↘ ↗
+       D
+  </pre>
+  <p>
+    As setas representam as vitórias mais fortes em cada comparação.
+  </p>
+
+  <h2>Vantagens</h2>
+  <ul>
+    <li>Identifica o <b>vencedor de Condorcet</b>, se existir.</li>
+    <li>Produz um <b>ranking completo</b>, não apenas um único vencedor.</li>
+    <li>É <b>resistente a clones</b> (candidatos semelhantes não prejudicam uns aos outros).</li>
+    <li>Já foi amplamente testado e usado em eleições reais.</li>
+  </ul>
+
+  <h2>Limitações</h2>
+  <ul>
+    <li>Pode ser mais difícil de explicar ao público em geral.</li>
+    <li>Exige cálculos matriciais, não sendo prático para apurações manuais.</li>
+  </ul>
+
+  <p style="margin-top:20px">
+    <a href="/">Início</a>
+  </p>
+</body>
+</html>
