@@ -1,14 +1,21 @@
 {% extends "base_admin.html" %}
 {% block content %}
-<h1>Login · Admin</h1>
-<form method="POST" action="/admin/login" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-  <label>Chave de administrador:
-    <input type="password" name="secret" placeholder="ADMIN_SECRET" required>
-  </label>
-  <button type="submit">Entrar</button>
-</form>
-<p style="color:#a0a0a6;margin-top:12px">Dica: você também pode acessar diretamente:
-  <code>/admin/home?secret=&lt;ADMIN_SECRET&gt;</code>
-</p>
-<a href="/">Voltar ao início</a>
+  <div class="top">
+    <h1 style="margin:0">Login · Admin</h1>
+  </div>
+
+  <div class="card">
+    <form method="POST" action="/admin/login">
+      <label>Chave de administrador:
+        <input type="password" name="secret" placeholder="ADMIN_SECRET" required>
+      </label>
+      <div class="actions">
+        <button type="submit">Entrar</button>
+        <a class="muted" href="/">Voltar ao início</a>
+      </div>
+    </form>
+    <p class="muted" style="margin-top:12px">Dica: você também pode acessar diretamente:
+      <code>/admin/home?secret=&lt;ADMIN_SECRET&gt;</code>
+    </p>
+  </div>
 {% endblock %}
