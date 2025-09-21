@@ -1,14 +1,54 @@
-<head>
-  <meta charset="utf-8">
-  <title>Votar · Preferências</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+{% extends "base.html" %}
+{% block title %}Votar · Preferências{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <h1 style="margin:0">Votar</h1>
+    <span class="tag">EID: <b>{{ eid }}</b></span>
+  </div>
 
-  <link rel="manifest" href="/static/manifest.webmanifest?v={{ APP_VERSION }}">
-  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
-  <meta name="theme-color" content="#0d0f12">
-  <meta name="color-scheme" content="dark light">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="msg">
+      {% for cat,msg in messages %}
+        <li><b>{{ cat }}</b>: {{ msg }}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
 
-  <link rel="icon" href="/static/icons/app-192.png" sizes="192x192">
-  <link rel="apple-touch-icon" href="/static/icons/app-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-</head>
+  {% if not session_vkey %}
+    <div class="alert warn">
+      <b>Chave não validada.</b> Volte para a etapa anterior: <a href="/vote">inserir chave</a>.
+    </div>
+  {% endif %}
+
+  <form method="POST" action="/vote/panel">
+    <p class="muted">Defina a ordem de preferência (1 = mais preferido). Deixe em branco para não ranquear.</p>
+    <table>
+      <tr><th>Candidato</th><th>Rank</th></tr>
+      {% for c in candidates %}
+        <tr>
+          <td>{{ c }}</td>
+          <td>
+            {% if "Branco" in c or "Nulo" in c %}
+              <small class="muted">Use “Voto em Branco/Nulo” abaixo</small>
+            {% else %}
+              <input name="rank_{{ loop.index0 }}" style="width:80px" pattern="\d*">
+              <input type="hidden" name="cand_{{ loop.index0 }}" value="{{ c }}">
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+
+    <p>Ou escolha voto especial:
+      <label class="tag"><input type="radio" name="special_vote" value=""> (nenhum)</label>
+      <label class="tag"><input type="radio" name="special_vote" value="BLANK"> Branco</label>
+      <label class="tag"><input type="radio" name="special_vote" value="NULL"> Nulo</label>
+    </p>
+
+    <button type="submit">Enviar voto</button>
+  </form>
+
+  <p class="small" style="margin-top:12px"><a href="/">Início</a></p>
+{% endblock %}
