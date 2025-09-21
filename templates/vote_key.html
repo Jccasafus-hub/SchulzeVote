@@ -1,14 +1,27 @@
-<head>
-  <meta charset="utf-8">
-  <title>Votar · Chave de Votação</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+{% extends "base.html" %}
+{% block title %}Votar · Chave{% endblock %}
+{% block content %}
+  <h1>Votar</h1>
 
-  <link rel="manifest" href="/static/manifest.webmanifest?v={{ APP_VERSION }}">
-  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
-  <meta name="theme-color" content="#0d0f12">
-  <meta name="color-scheme" content="dark light">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="msg">
+      {% for cat,msg in messages %}
+        <li><b>{{ cat }}</b>: {{ msg }}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
 
-  <link rel="icon" href="/static/icons/app-192.png" sizes="192x192">
-  <link rel="apple-touch-icon" href="/static/icons/app-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-</head>
+  <div class="card">
+    <form method="POST" action="/vote">
+      <p><label>Chave de votação<br>
+        <input name="voter_id" placeholder="ABCD-EFGH-IJKL" required autocomplete="one-time-code" style="width:100%">
+      </label></p>
+      <button type="submit">Validar chave</button>
+      <p class="small muted" style="margin-top:8px">Após validar a chave, você será direcionado ao painel de preferências.</p>
+    </form>
+  </div>
+
+  <p class="small" style="margin-top:12px"><a href="/">Início</a></p>
+{% endblock %}
