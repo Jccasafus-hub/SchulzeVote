@@ -1,243 +1,209 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <title>Guia · Método de Schulze</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#000000">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/static/icon-180.png">
-  <style>
-    :root{color-scheme:dark light}
-    html,body{background:#0b0b0c;color:#e6e6e6}
-    body{font-family:system-ui,Arial,sans-serif;max-width:980px;margin:40px auto;padding:0 16px;line-height:1.55}
-    a{color:#7cc7ff}
-    h1,h2,h3{line-height:1.2}
-    h1{margin:0 0 12px}
-    .muted{color:#a0a0a6}
-    .card{background:#151517;border:1px solid #2a2a2e;border-radius:12px;padding:16px;margin:14px 0}
-    code,kbd{background:#0f0f10;border:1px solid #2a2a2e;border-radius:6px;padding:2px 6px}
-    pre{background:#0f0f10;border:1px solid #2a2a2e;border-radius:10px;padding:12px;overflow:auto}
-    table{border-collapse:collapse;width:100%;margin:8px 0}
-    th,td{border:1px solid #2a2a2e;padding:8px;text-align:left}
-    .tag{display:inline-block;border:1px solid #2a2a2e;background:#0f0f10;border-radius:999px;padding:4px 10px;font-size:12px}
-    .callout{background:#0f0f10;border-left:4px solid #ff6a00;padding:12px;border-radius:8px}
-    .ok{color:#67f18d}
-    .warn{color:#ffd28a}
-    .center{text-align:center}
-    .two{display:grid;grid-template-columns:1fr;gap:12px}
-    @media (min-width:900px){.two{grid-template-columns:1fr 1fr}}
-    .svgwrap{background:#0f0f10;border:1px solid #2a2a2e;border-radius:10px;padding:8px}
-  </style>
-</head>
-<body>
-  <header class="card">
-    <h1>Método de Schulze — Guia Completo</h1>
-    <p class="muted">Como o método funciona no nosso sistema: preferências ranqueadas (com possibilidade de empates), candidatos omitidos, diferença entre “Voto em Branco” e “Voto Nulo”, e como registrar rejeição a um candidato específico.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-      <span class="tag">Preferências ranqueadas</span>
-      <span class="tag">Empates permitidos</span>
-      <span class="tag">Candidatos opcionais</span>
-      <span class="tag">Caminhos mais fortes</span>
-      <span class="tag">Auditoria aberta</span>
-    </div>
-  </header>
+{% extends "base.html" %}
+{% block title %}Guia · Método de Schulze{% endblock %}
 
-  <section class="card">
-    <h2>1) O que é o método de Schulze?</h2>
-    <p>É um método de <b>votação por preferências</b> (ranked-choice). Em vez de escolher apenas um nome, você informa uma <b>ordem de preferência</b>: 1º, 2º, 3º… O método compara os candidatos <em>par a par</em> (A vs. B, A vs. C, B vs. C, etc.), soma quantos eleitores preferem A a B, e assim por diante. A seguir, calcula os <b>caminhos mais fortes</b> num grafo direcionado e usa isso para produzir o ranking final.</p>
-    <div class="two">
-      <div>
-        <h3 style="margin-top:4px">Diagrama (conceito)</h3>
-        <div class="svgwrap">
-          <!-- Grafo pairwise simplificado -->
-          <svg viewBox="0 0 380 180" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Grafo pairwise simplificado">
-            <defs>
-              <marker id="arrow" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto">
-                <polygon points="0 0, 10 4, 0 8" fill="#e6e6e6"/>
-              </marker>
-            </defs>
-            <circle cx="70" cy="90" r="24" fill="#0b0b0c" stroke="#2a2a2e" stroke-width="2"/>
-            <text x="70" y="95" text-anchor="middle" fill="#e6e6e6" font-size="14">A</text>
-            <circle cx="190" cy="35" r="24" fill="#0b0b0c" stroke="#2a2a2e" stroke-width="2"/>
-            <text x="190" y="40" text-anchor="middle" fill="#e6e6e6" font-size="14">B</text>
-            <circle cx="310" cy="90" r="24" fill="#0b0b0c" stroke="#2a2a2e" stroke-width="2"/>
-            <text x="310" y="95" text-anchor="middle" fill="#e6e6e6" font-size="14">C</text>
-
-            <!-- A -> B -->
-            <line x1="92" y1="80" x2="166" y2="45" stroke="#e6e6e6" stroke-width="2" marker-end="url(#arrow)"/>
-            <text x="130" y="58" fill="#a0a0a6" font-size="12">A &gt; B</text>
-            <!-- B -> C -->
-            <line x1="214" y1="45" x2="286" y2="80" stroke="#e6e6e6" stroke-width="2" marker-end="url(#arrow)"/>
-            <text x="250" y="63" fill="#a0a0a6" font-size="12">B &gt; C</text>
-            <!-- A -> C (via caminho) -->
-            <path d="M90,110 C160,160 220,160 290,110" fill="none" stroke="#7cc7ff" stroke-width="2" marker-end="url(#arrow)"/>
-            <text x="190" y="145" fill="#7cc7ff" font-size="12">caminho A→B→C</text>
-          </svg>
-        </div>
-      </div>
-      <div>
-        <h3 style="margin-top:4px">Resumo do algoritmo</h3>
-        <ol>
-          <li><b>Pairwise</b>: para cada par (X, Y), contamos quantos preferem X&gt;Y.</li>
-          <li><b>Força de caminhos</b> <code>S[X][Y]</code>: força máxima de um caminho de X até Y, calculada como <i>maximizar o mínimo</i> nas arestas do caminho.</li>
-          <li><b>Ranking</b>: X precede Y se <code>S[X][Y] &gt; S[Y][X]</code>. Empates são desempates estáveis (ex.: ordem lexicográfica) apenas se necessário.</li>
-        </ol>
-      </div>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>2) Como preencher a sua cédula</h2>
-    <ul>
-      <li>Informe <b>1</b> para o mais preferido, <b>2</b> para o segundo, e assim por diante.</li>
-      <li>Você pode <b>deixar candidatos fora da lista</b> (sem atribuir número). Isso significa “<b>sem preferência explícita</b>” em comparações que envolvam esse nome.</li>
-      <li>Você pode <b>colocar candidatos na mesma posição</b> (empate). Ex.: dar <code>2</code> para dois nomes. Nesse caso, <u>não</u> é gerada preferência entre eles, mas ambos ficam acima de quem recebeu <code>3</code> e abaixo de quem recebeu <code>1</code>.</li>
-      <li>Há ainda as opções especiais: <b>Voto em Branco</b> e <b>Voto Nulo</b> (detalhes adiante).</li>
-    </ul>
-    <div class="callout">
-      <b class="ok">Relembrando:</b> se você <b>rejeita um candidato específico</b>, <u>coloque-o no fim</u> da sua lista (com o <b>maior número</b>). <b>Deixar o nome de fora não o prejudica</b> em relação aos que você ranqueou — vira “sem comparação”.
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>3) Candidatos fora da lista e empates — como o sistema interpreta</h2>
-    <div class="two">
-      <div>
-        <h3 style="margin-top:4px">Candidatos fora da lista</h3>
-        <p>Se você não ranqueia um candidato X, o sistema não cria preferências X↔Y a partir do seu voto quando X estiver no par. Em termos pairwise, seus votos só contam quando <b>ambos</b> do par foram ranqueados.</p>
-        <pre>Ex.: Você ranqueou A(1), B(2) e deixou C sem número.
-Comparações do seu voto:
-- A vs B: conta A&gt;B
-- A vs C: não conta (C sem rank → sem comparação)
-- B vs C: não conta</pre>
-      </div>
-      <div>
-        <h3 style="margin-top:4px">Empates (mesmo rank)</h3>
-        <p>Se você dá a mesma posição a dois candidatos (ex.: A(2), B(2)), o sistema entende que <b>não há preferência</b> entre eles. Mas ambos são preferidos a quem recebeu 3, e menos preferidos que quem recebeu 1.</p>
-        <pre>Ex.: A(1), B(2), C(2), D(3)
-Comparações do seu voto:
-- B vs C: não conta (empate)
-- A vs B e A vs C: contam A&gt;B, A&gt;C
-- B vs D e C vs D: contam B&gt;D, C&gt;D</pre>
-      </div>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>4) “Voto em Branco” × “Voto Nulo”</h2>
-    <ul>
-      <li><b>Voto em Branco</b> — <b>Abstenção consciente</b>: “não quero opinar entre os candidatos”. Não cria preferências pairwise e não afeta diretamente o ranking entre os nomes “core”.</li>
-      <li><b>Voto Nulo</b> — <b>Rejeição ao pleito</b>: protesto contra o conjunto da eleição. Também não cria comparações pairwise, mas tem significado político distinto.</li>
-    </ul>
-    <div class="callout">
-      <b class="warn">Resumo técnico:</b> Branco e Nulo são “candidatos especiais” que <u>não participam</u> das comparações entre os candidatos principais. A diferença é de <b>sentido</b> (abstenção vs. rejeição), não de efeito matemático direto no algoritmo.
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>5) Como rejeitar um candidato específico</h2>
-    <ul>
-      <li>Para rejeitar <b>um candidato específico</b>, <b>ranqueie-o por último</b> (maior número entre os que você usou).</li>
-      <li>Se você apenas deixá-lo de fora, seu voto não contará contra ele nas comparações pairwise.</li>
-      <li>Se você deseja rejeitar o <b>pleito inteiro</b>, use o <b>Voto Nulo</b>.</li>
-    </ul>
-    <div class="svgwrap">
-      <!-- Pequeno fluxograma SVG: decidir entre rejeição de candidato vs rejeição do pleito -->
-      <svg viewBox="0 0 640 170" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fluxograma: rejeição de candidato vs rejeição do pleito">
-        <rect x="10" y="10" width="190" height="60" rx="10" ry="10" fill="#0b0b0c" stroke="#2a2a2e"/>
-        <text x="105" y="40" text-anchor="middle" fill="#e6e6e6" font-size="13">Você quer rejeitar</text>
-        <text x="105" y="58" text-anchor="middle" fill="#e6e6e6" font-size="13">um nome ou o pleito?</text>
-
-        <line x1="200" y1="40" x2="270" y2="40" stroke="#e6e6e6"/>
-        <polygon points="270,40 262,36 262,44" fill="#e6e6e6"/>
-
-        <rect x="270" y="10" width="160" height="60" rx="10" ry="10" fill="#0b0b0c" stroke="#2a2a2e"/>
-        <text x="350" y="36" text-anchor="middle" fill="#e6e6e6" font-size="13">Candidato específico</text>
-        <text x="350" y="56" text-anchor="middle" fill="#7cc7ff" font-size="12">→ ranqueie por último</text>
-
-        <line x1="430" y1="40" x2="500" y2="40" stroke="#e6e6e6"/>
-        <polygon points="500,40 492,36 492,44" fill="#e6e6e6"/>
-
-        <rect x="500" y="10" width="130" height="60" rx="10" ry="10" fill="#0b0b0c" stroke="#2a2a2e"/>
-        <text x="565" y="36" text-anchor="middle" fill="#e6e6e6" font-size="13">Pleito/Conjunto</text>
-        <text x="565" y="56" text-anchor="middle" fill="#7cc7ff" font-size="12">→ Voto Nulo</text>
-
-        <text x="320" y="110" text-anchor="middle" fill="#a0a0a6" font-size="12">Lembrando: deixar um nome fora</text>
-        <text x="320" y="126" text-anchor="middle" fill="#a0a0a6" font-size="12">não o prejudica nas comparações.</text>
-      </svg>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>6) Mini-simulação (com omissão e empates)</h2>
-    <p>Três candidatos: A, B, C. Pesos unitários.</p>
-    <table>
-      <thead><tr><th>Eleitor</th><th>Preferências</th><th>Notas</th></tr></thead>
-      <tbody>
-        <tr><td>E1</td><td>A(1) &gt; B(2) &gt; C(3)</td><td>Lista completa, sem empates</td></tr>
-        <tr><td>E2</td><td>B(1) &gt; C(2)</td><td>Deixou A fora (sem rank)</td></tr>
-        <tr><td>E3</td><td>B(1) &gt; A(2)=C(2)</td><td>Empate A=C</td></tr>
-      </tbody>
-    </table>
-
-    <h3>6.1) Comparações pairwise resultantes</h3>
-    <pre>
-A vs B:
-- E1: A&gt;B
-- E2: A sem rank → não conta
-- E3: B(1) sobre A(2) → conta B&gt;A
-Totais: A&gt;B = 1, B&gt;A = 1
-
-A vs C:
-- E1: A&gt;C
-- E2: A sem rank → não conta
-- E3: A=C (empate) → não conta
-Totais: A&gt;C = 1, C&gt;A = 0
-
-B vs C:
-- E1: B&gt;C
-- E2: B&gt;C
-- E3: B(1) sobre C(2) → B&gt;C
-Totais: B&gt;C = 3, C&gt;B = 0
-    </pre>
-
-    <h3>6.2) Força de caminhos (ideia)</h3>
-    <pre>
-- B domina C (3 a 0).
-- A vence C (1 a 0).
-- A e B empatam diretamente.
-→ Caminhos fortes confirmam B no topo, A em segundo, C em terceiro.
-Ranking: <b>B &gt; A &gt; C</b>
-    </pre>
-
-    <div class="callout">
-      <b class="warn">Moral da simulação:</b> Deixar A fora (E2) não criou comparação A↔B ou A↔C; empatar A=C (E3) também não cria comparação A↔C, mas A e C continuam abaixo de B quando comparados diretamente.
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>7) Perguntas rápidas</h2>
-    <details>
-      <summary>Posso deixar alguns nomes sem número?</summary>
-      <p>Sim. Isso significa que seu voto não contará nas comparações que envolvem esses nomes (com quem você ranqueou). Útil se você não tem opinião sobre alguns candidatos.</p>
-    </details>
-    <details>
-      <summary>Posso empatar candidatos?</summary>
-      <p>Sim. Dar a mesma posição (ex.: 2) a dois nomes indica que você não prefere um ao outro. Ainda assim, ambos ficam acima de quem recebeu 3 e abaixo de quem recebeu 1.</p>
-    </details>
-    <details>
-      <summary>Como rejeitar um candidato específico?</summary>
-      <p>Coloque-o <b>no fim</b> da sua lista (maior número). Deixar o nome fora não o prejudica.</p>
-    </details>
-    <details>
-      <summary>“Voto em Branco” vs “Voto Nulo” — qual rejeita o pleito?</summary>
-      <p><b>Voto Nulo</b> expressa <b>rejeição ao pleito</b>. “Voto em Branco” é <b>abstenção</b>. Ambos não geram comparações pairwise.</p>
-    </details>
-  </section>
-
-  <p class="center" style="margin-top:18px">
-    <a href="/" class="tag">Início</a>
+{% block content %}
+<header class="card">
+  <h1 style="margin:0">Método de Schulze — Guia Completo</h1>
+  <p class="muted" style="margin:6px 0 0">
+    Este guia explica como votar e como calculamos o resultado usando caminhos de maior força (Schulze),
+    incluindo empates (mesma posição), omissão de candidatos, rejeição explícita e a diferença entre
+    <b>Voto em Branco</b> e <b>Voto Nulo</b>.
   </p>
-</body>
-</html>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+    <span class="tag">Preferências ranqueadas</span>
+    <span class="tag">Empates permitidos</span>
+    <span class="tag">Omissão permitida</span>
+    <span class="tag">Caminhos mais fortes</span>
+    <span class="tag">Auditoria aberta</span>
+  </div>
+</header>
+
+<section class="card">
+  <h2 style="margin-top:0">1) Como registrar seu voto</h2>
+  <ol>
+    <li>
+      <b>Ranqueie os candidatos</b> com números (1 = mais preferido). Você pode:
+      <ul>
+        <li><b>Empatar</b> candidatos (mesmo número = mesma preferência).</li>
+        <li><b>Omitir</b> candidatos (deixar em branco = nenhum ranque para eles).</li>
+      </ul>
+    </li>
+    <li>
+      Em vez de ranquear, você também pode escolher um voto especial:
+      <ul>
+        <li><b>Voto em Branco</b> — você participa, mas <i>não expressa preferência por ninguém</i>.</li>
+        <li><b>Voto Nulo</b> — você participa, mas <i>expressa rejeição ao pleito</i> como um todo.</li>
+      </ul>
+    </li>
+  </ol>
+
+  <details style="margin-top:8px">
+    <summary><b>Exemplos rápidos</b></summary>
+    <div class="muted" style="margin-top:8px">
+      <p><b>Ex. A (sem empates):</b> 1: Ana, 2: Bruno, 3: Carla — você prefere Ana &gt; Bruno &gt; Carla.</p>
+      <p><b>Ex. B (com empate):</b> 1: Ana, 2: Bruno &amp; Carla (empate), 3: Diego — você prefere Ana &gt; (Bruno = Carla) &gt; Diego.</p>
+      <p><b>Ex. C (omitindo):</b> 1: Carla, 2: Diego — você não se posicionou sobre Ana/Bruno; isso <i>não cria</i> uma preferência entre eles.</p>
+      <p><b>Ex. D (Voto em Branco):</b> nenhum ranque; registra “Branco”.</p>
+      <p><b>Ex. E (Voto Nulo):</b> registra rejeição ao pleito; ver seção 5.</p>
+    </div>
+  </details>
+</section>
+
+<section class="card">
+  <h2 style="margin-top:0">2) Como o método de Schulze funciona</h2>
+  <p>
+    O método de Schulze é um método de Condorcet com “<i>caminhos mais fortes</i>”.
+    A ideia central é comparar cada par de candidatos (A vs B) e somar quantos eleitores preferem A a B
+    considerando o <b>peso</b> do voto. Em seguida, encontramos a força dos melhores caminhos indiretos
+    (A &rarr; … &rarr; B) e decidimos o ranking final comparando essas forças.
+  </p>
+
+  <details>
+    <summary><b>Passo a passo (resumo técnico)</b></summary>
+    <ol>
+      <li><b>Preferências pareadas (P):</b> para cada par (A,B), calcule <code>P[A][B]</code> = peso total que prefere A &gt; B.</li>
+      <li><b>Caminhos mais fortes (S):</b> inicialize <code>S[A][B] = P[A][B]</code> se <code>P[A][B] &gt; P[B][A]</code>, senão 0.
+        Depois, para todos i,j,k, atualize <code>S[j][k] = max(S[j][k], min(S[j][i], S[i][k]))</code>.</li>
+      <li><b>Ordem final:</b> A precede B se <code>S[A][B] &gt; S[B][A]</code>. Empates permanecem.</li>
+    </ol>
+  </details>
+
+  <div style="margin-top:10px">
+    <b>Diagrama (conceito de caminho mais forte):</b>
+    <pre style="white-space:pre-wrap;margin:8px 0 0">
+A —40→ B —30→ C
+│        ↑
+└—35→ D —20┘
+
+Força(A→C) por A→B→C = min(40,30) = 30
+Força(A→C) por A→D→C = min(35,20) = 20
+Caminho mais forte A→C = 30
+    </pre>
+  </div>
+</section>
+
+<section class="card">
+  <h2 style="margin-top:0">3) Empates e omissões: como entram no cálculo</h2>
+  <ul>
+    <li>
+      <b>Empates:</b> se você dá a mesma posição para X e Y, <i>você não expressa preferência</i> entre eles.
+      Logo, seu voto <i>não</i> contribui para <code>P[X][Y]</code> nem para <code>P[Y][X]</code>.
+    </li>
+    <li>
+      <b>Omissões:</b> candidatos sem número <i>não</i> são comparados pelo seu voto.
+      Isso significa “sem informação” (nem X&gt;Y, nem Y&gt;X) a partir do seu voto.
+    </li>
+  </ul>
+
+  <details>
+    <summary><b>Mini-simulação textual</b></summary>
+    <pre style="white-space:pre-wrap;margin:8px 0 0">
+Candidatos: [Ana, Bruno, Carla]
+
+Eleitor 1: 1 Ana, 2 Bruno, 3 Carla
+Eleitor 2: 1 Bruno, 1 Carla (empate), (Ana omitida)
+Eleitor 3: 1 Carla, 2 Ana, (Bruno omitido)
+
+Comparações que contam:
+- E1 contribui: Ana>Bruno, Ana>Carla, Bruno>Carla
+- E2 contribui: Bruno>—?—Ana (omitida), Carla>—?—Ana (omitida), Bruno=Carla (sem preferência)
+- E3 contribui: Carla>—?—Bruno (omitido), Carla>Ana, Ana>—?—Bruno (omitido)
+
+Resultado: apenas os pares explicitamente preferidos entram nos totais P[a][b].
+    </pre>
+  </details>
+</section>
+
+<section class="card">
+  <h2 style="margin-top:0">4) Como rejeitar <i>um</i> candidato específico</h2>
+  <p>
+    Se você rejeita alguém, coloque-o deliberadamente em uma posição <b>pior</b> que todos os que você tolera.
+    Por exemplo, se você tolera Ana e Bruno, mas rejeita Carla, você pode:
+  </p>
+  <pre style="white-space:pre-wrap;margin:8px 0 0">
+1 Ana, 2 Bruno, 3 Carla   ← Carla atrás de todos que você considera aceitáveis.
+  </pre>
+  <p class="muted">
+    Isso garante que seu voto conte como <code>Ana &gt; Carla</code> e <code>Bruno &gt; Carla</code>.
+    Se você omitir Carla <i>e</i> omitir todos os demais, você não cria comparações — nesse caso,
+    a rejeição não é “explícita” na contagem par-a-par. Para rejeição ao pleito como um todo, use Nulo (ver seção 5).
+  </p>
+</section>
+
+<section class="card">
+  <h2 style="margin-top:0">5) Branco vs Nulo no nosso sistema</h2>
+  <ul>
+    <li>
+      <b>Voto em Branco</b> — você participa, mas <i>não expressa nenhuma preferência</i>.
+      Na contagem, o “Branco” é tratado como uma opção especial que não cria vantagens contra candidatos reais.
+      É um registro de <i>neutralidade</i>.
+    </li>
+    <li>
+      <b>Voto Nulo</b> — você participa e <b>expressa rejeição ao pleito</b>.
+      É o instrumento correto quando você quer sinalizar que discorda do processo/consulta em si,
+      não apenas que está indiferente entre os candidatos.
+    </li>
+  </ul>
+
+  <details>
+    <summary><b>Fluxo de decisão (didático)</b></summary>
+    <pre style="white-space:pre-wrap;margin:8px 0 0">
+Tem algum(s) candidato(s) aceitável(eis)?
+ ├─ Sim → Ranqueie-os à frente. Rejeitados vão abaixo (ou omita se não quiser compará-los).
+ └─ Não
+     ├─ Indiferença entre todos → Branco
+     └─ Rejeição ao pleito (processo) → Nulo  ← (expressa rejeição ao pleito)
+    </pre>
+  </details>
+</section>
+
+<section class="card">
+  <h2 style="margin-top:0">6) Transparência e auditoria</h2>
+  <p>
+    Após o encerramento, publicamos:
+  </p>
+  <ul>
+    <li><b>Ranking final</b> (ordem de candidatos pelo método de Schulze);</li>
+    <li><b>Matriz par-a-par</b> (totais <code>P[a][b]</code>);</li>
+    <li><b>Pacote de auditoria</b> anônimo, com logs e cédulas sem identificação pessoal.</li>
+  </ul>
+  <p class="muted">
+    As chaves de votação são <i>hash</i>eadas nos registros de voto; não guardamos o texto da sua chave no voto.
+  </p>
+</section>
+
+<section class="card">
+  <h2 style="margin-top:0">7) Perguntas frequentes</h2>
+  <details>
+    <summary><b>Posso deixar candidatos de fora e ainda assim meu voto contar?</b></summary>
+    <p class="muted" style="margin-top:8px">
+      Sim. Candidatos omitidos só significam “sem preferência informada” por você. Seus ranques ainda
+      contam para os pares que você comparou (por exemplo, 1 Ana &gt; 2 Bruno).
+    </p>
+  </details>
+  <details>
+    <summary><b>Empatar candidatos não enfraquece meu voto?</b></summary>
+    <p class="muted" style="margin-top:8px">
+      Empatar significa declarar indiferença entre eles. Seu voto continua
+      forte <i>entre os pares que você diferenciou</i>. Onde você empatou, você não cria vantagem de um sobre o outro.
+    </p>
+  </details>
+  <details>
+    <summary><b>Quero rejeitar um candidato específico; omitir funciona?</b></summary>
+    <p class="muted" style="margin-top:8px">
+      Omitir não cria preferência contra ele. Para rejeitá-lo, posicione-o <b>abaixo</b> de todos que você tolera,
+      para que seu voto contribua em todos os pares onde ele perde para os demais.
+    </p>
+  </details>
+  <details>
+    <summary><b>Qual voto expressa rejeição ao pleito?</b></summary>
+    <p class="muted" style="margin-top:8px">
+      <b>Voto Nulo</b>. O Branco sinaliza neutralidade; o Nulo sinaliza rejeição ao pleito.
+    </p>
+  </details>
+</section>
+
+<p class="center" style="margin-top:18px">
+  <a href="/" class="tag">Início</a>
+</p>
+{% endblock %}
