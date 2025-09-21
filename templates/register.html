@@ -1,14 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Cadastro{% endblock %}
 {% block content %}
-  <h1>Cadastro</h1>
-  <div class="card">
-    <form method="POST">
-      <p><label>Usuário<br><input name="user_id" required></label></p>
-      <p><label>Senha<br><input type="password" name="password" required></label></p>
-      <p><label>Repita a senha<br><input type="password" name="password2" required></label></p>
-      <button type="submit">Cadastrar</button>
-    </form>
-  </div>
-  <p class="small" style="margin-top:12px"><a href="/">Início</a></p>
+<h1>Cadastro</h1>
+<form method="POST">
+  <p><label>Usuário: <input name="user_id" required></label></p>
+  <p><label>Senha: <input type="password" name="password" required></label></p>
+  <p><label>Repita a senha: <input type="password" name="password2" required></label></p>
+  <button>Cadastrar</button>
+</form>
+<p><a href="/">Início</a></p>
 {% endblock %}
