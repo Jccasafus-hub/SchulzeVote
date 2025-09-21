@@ -1,0 +1,113 @@
+/* Tema escuro global — SchulzeVote */
+:root {
+  color-scheme: dark light;
+  --bg: #0d0f12;
+  --surface: #12151b;
+  --text: #eaecef;
+  --muted: #a7b0be;
+  --border: #2a2f3a;
+  --primary: #7aa2ff;
+  --primary-contrast: #0b0d12;
+  --focus: #9db6ff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --surface: #fafafa;
+    --text: #111418;
+    --muted: #4a5568;
+    --border: #e5e7eb;
+    --primary: #1d4ed8;
+    --primary-contrast: #ffffff;
+    --focus: #93c5fd;
+  }
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+a { color: var(--primary); }
+a:hover { text-decoration: underline; }
+
+code, pre {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px 6px;
+}
+
+input, button, select, textarea {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+button {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  cursor: pointer;
+  border: 0;
+}
+button:focus, input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+table { border-collapse: collapse; width: 100%; }
+td, th { border: 1px solid var(--border); padding: 8px; }
+
+.box {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.warn {
+  background: #1f1a12;
+  border: 1px solid #8a6d3b;
+  color: #f7e2b5;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.muted { color: var(--muted); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(240px,1fr));
+  gap: 12px;
+}
+
+a.card {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface);
+}
+a.card:hover { filter: brightness(1.08); }
