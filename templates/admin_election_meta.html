@@ -1,10 +1,12 @@
 {% extends "base_admin.html" %}
 {% block content %}
-<h1>Metadados da votação</h1>
-{% if meta %}
-  <pre>{{ meta|tojson(indent=2) }}</pre>
-{% else %}
-  <p><i>Sem metadados para o EID atual.</i></p>
-{% endif %}
-<p><a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
+  <h1>Metadados da votação</h1>
+  <div class="card">
+    {% if meta %}
+      <pre style="white-space:pre-wrap">{{ meta|tojson(indent=2) }}</pre>
+    {% else %}
+      <p class="muted"><i>Sem metadados para o EID atual.</i></p>
+    {% endif %}
+  </div>
+  <p><a class="muted" href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
 {% endblock %}
