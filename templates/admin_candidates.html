@@ -1,17 +1,19 @@
-<!doctype html>
-<html lang="pt-BR">
-<head><meta charset="utf-8"><title>Admin · Candidatos & Prazos</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:system-ui,Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 16px">
-  <h1>Candidatos &amp; Prazos (somente leitura neste mínimo)</h1>
-  <p><b>EID atual:</b> {{ current_eid }}</p>
-  <h3>Candidatos</h3>
-  <ul>{% for c in candidates %}<li>{{ c }}</li>{% endfor %}</ul>
-  <h3>Prazo</h3>
-  {% if deadline %}
-    <p>UTC: {{ deadline.isoformat() }}</p>
-  {% else %}
-    <p><i>Nenhum prazo definido.</i></p>
-  {% endif %}
-  <p><a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
-</body>
-</html>
+{% extends "base_admin.html" %}
+{% block title %}Admin · Candidatos & Prazos{% endblock %}
+{% block content %}
+  <h1>Candidatos &amp; Prazos</h1>
+  <div class="card">
+    <p><b>EID atual:</b> {{ current_eid }}</p>
+    <h3 style="margin:10px 0 6px">Candidatos</h3>
+    <ul>
+      {% for c in candidates %}<li>{{ c }}</li>{% endfor %}
+    </ul>
+    <h3 style="margin:10px 0 6px">Prazo</h3>
+    {% if deadline %}
+      <p>UTC: {{ deadline.isoformat() }}</p>
+    {% else %}
+      <p class="muted"><i>Nenhum prazo definido.</i></p>
+    {% endif %}
+  </div>
+  <p class="small" style="margin-top:12px"><a href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a></p>
+{% endblock %}
