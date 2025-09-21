@@ -1,42 +1,31 @@
 {% extends "base.html" %}
-{% block title %}Resultados{% endblock %}
 {% block content %}
-  <h1>Resultados</h1>
-
-  {% if empty %}
-    <p class="muted"><i>Nenhuma cédula para esta votação.</i></p>
-  {% else %}
-    <p>Total de votos (peso): <b>{{ total_votos }}</b></p>
-
-    <div class="card" style="margin-top:10px">
-      <h3 style="margin:0 0 8px">Ranking</h3>
-      <ol>
-        {% for c in ranking %}
-          <li>{{ c }}</li>
-        {% endfor %}
-      </ol>
-    </div>
-
-    {% if candidates %}
-      <details style="margin-top:12px">
-        <summary>Debug: Candidatos, Pairwise e Strength</summary>
-        <pre>{{ candidates|tojson(indent=2) }}</pre>
-        <pre>{{ pairwise|tojson(indent=2) }}</pre>
-        <pre>{{ strength|tojson(indent=2) }}</pre>
-      </details>
-    {% endif %}
-
-    <p style="margin-top:12px">
-      <a class="tag" href="/public/{{ election_id }}/results.csv">Baixar CSV (ranking)</a>
-      <a class="tag" href="/public/{{ election_id }}/pairwise.csv">Baixar CSV (pairwise)</a>
-    </p>
+<h1>Resultados</h1>
+{% if empty %}
+  <p><i>Nenhuma cédula para esta votação.</i></p>
+{% else %}
+  <p>Total de votos (peso): <b>{{ total_votos }}</b></p>
+  <h3>Ranking</h3>
+  <ol>
+    {% for c in ranking %}
+      <li>{{ c }}</li>
+    {% endfor %}
+  </ol>
+  {% if candidates %}
+    <details>
+      <summary>Debug: Candidatos, Pairwise e Strength</summary>
+      <pre>{{ candidates|tojson(indent=2) }}</pre>
+      <pre>{{ pairwise|tojson(indent=2) }}</pre>
+      <pre>{{ strength|tojson(indent=2) }}</pre>
+    </details>
   {% endif %}
-
-  {% if election_meta %}
-    <p class="small muted" style="margin-top:10px">
-      <b>{{ election_meta.title }}</b> — {{ election_meta.date }} {{ election_meta.time }} {{ election_meta.tz }}
-    </p>
-  {% endif %}
-
-  <p class="small"><a href="/">Início</a></p>
+  <p>
+    <a href="/public/{{ election_id }}/results.csv">Baixar CSV (ranking)</a> •
+    <a href="/public/{{ election_id }}/pairwise.csv">Baixar CSV (pairwise)</a>
+  </p>
+{% endif %}
+{% if election_meta %}
+  <p><small><b>{{ election_meta.title }}</b> — {{ election_meta.date }} {{ election_meta.time }} {{ election_meta.tz }}</small></p>
+{% endif %}
+<p><a href="/">Início</a></p>
 {% endblock %}
