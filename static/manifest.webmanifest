@@ -1,0 +1,39 @@
+{
+  "name": "SchulzeVote",
+  "short_name": "SchulzeVote",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d0f12",
+  "theme_color": "#0d0f12",
+  "icons": [
+    { "src": "/static/icons/app-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },
+    { "src": "/static/icons/app-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Painel Admin",
+      "short_name": "Admin",
+      "url": "/admin/home",
+      "icons": [
+        { "src": "/static/icons/admin-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" }
+      ]
+    },
+    {
+      "name": "Votar",
+      "short_name": "Votar",
+      "url": "/vote",
+      "icons": [
+        { "src": "/static/icons/vote-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" }
+      ]
+    },
+    {
+      "name": "Resultados",
+      "short_name": "Resultados",
+      "url": "/results",
+      "icons": [
+        { "src": "/static/icons/results-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" }
+      ]
+    }
+  ]
+}
