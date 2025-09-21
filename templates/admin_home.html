@@ -1,38 +1,38 @@
 {% extends "base_admin.html" %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-  <h1 style="margin:0">Admin · SchulzeVote</h1>
-  <div>
-    {% if secret %}
-      <small>secret passado ✔</small>
-    {% else %}
-      <small style="color:#ffb0b0">sem secret na URL</small>
-    {% endif %}
+  <div class="top">
+    <h1 style="margin:0">Admin · SchulzeVote</h1>
+    <div>
+      {% if secret %}
+        <small class="chip">secret passado ✔</small>
+      {% else %}
+        <small class="chip">sem secret na URL</small>
+      {% endif %}
+    </div>
   </div>
-</div>
 
-<p>Você está no painel. Se algum link pedir acesso, o <code>?secret=...</code> já está incluído.</p>
+  <p class="muted">Você está no painel. Se algum link pedir acesso, o <code>?secret=...</code> já está incluído.</p>
 
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/candidates?secret={{ secret|urlencode }}">Candidatos &amp; Prazos</a>
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/election_meta?secret={{ secret|urlencode }}">Metadados da votação</a>
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/assign_ui?secret={{ secret|urlencode }}">Atribuir chaves</a>
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/audit_preview?secret={{ secret|urlencode }}">Prévia de auditoria</a>
+  <div class="grid">
+    <a class="card-link" href="/admin/candidates?secret={{ secret|urlencode }}">Candidatos &amp; Prazos</a>
+    <a class="card-link" href="/admin/election_meta?secret={{ secret|urlencode }}">Metadados da votação</a>
+    <a class="card-link" href="/admin/assign_ui?secret={{ secret|urlencode }}">Atribuir chaves</a>
+    <a class="card-link" href="/admin/audit_preview?secret={{ secret|urlencode }}">Prévia de auditoria</a>
 
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/keys_list?secret={{ secret|urlencode }}">Exportar keys (JSON)</a>
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/pool_list?secret={{ secret|urlencode }}">Pool de chaves (JSON)</a>
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/users_list?secret={{ secret|urlencode }}">Usuários (JSON)</a>
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/trash_list?secret={{ secret|urlencode }}">Lixeira (JSON)</a>
+    <a class="card-link" href="/admin/keys_list?secret={{ secret|urlencode }}">Exportar keys (JSON)</a>
+    <a class="card-link" href="/admin/pool_list?secret={{ secret|urlencode }}">Pool de chaves (JSON)</a>
+    <a class="card-link" href="/admin/users_list?secret={{ secret|urlencode }}">Usuários (JSON)</a>
+    <a class="card-link" href="/admin/trash_list?secret={{ secret|urlencode }}">Lixeira (JSON)</a>
 
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/export_audit_bundle?secret={{ secret|urlencode }}">Baixar Pacote de Auditoria (ZIP)</a>
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/backup_zip?secret={{ secret|urlencode }}">Backup Completo (ZIP)</a>
-  <a style="display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517" href="/admin/backup_zip_eid?eid={{ current_eid }}&secret={{ secret|urlencode }}">Backup por EID (ZIP)</a>
-</div>
+    <a class="card-link" href="/admin/export_audit_bundle?secret={{ secret|urlencode }}">Baixar Pacote de Auditoria (ZIP)</a>
+    <a class="card-link" href="/admin/backup_zip?secret={{ secret|urlencode }}">Backup Completo (ZIP)</a>
+    <a class="card-link" href="/admin/backup_zip_eid?eid={{ current_eid }}&secret={{ secret|urlencode }}">Backup por EID (ZIP)</a>
+  </div>
 
-<p style="margin-top:16px">
-  <a href="/admin/logout?secret={{ secret|urlencode }}">Sair</a> •
-  <a href="/">Início</a> •
-  <a href="/__routes">Rotas</a> •
-  <a href="/__health">Health</a>
-</p>
+  <p style="margin-top:16px">
+    <a href="/admin/logout?secret={{ secret|urlencode }}">Sair</a> •
+    <a href="/">Início</a> •
+    <a href="/__routes">Rotas</a> •
+    <a href="/__health">Health</a>
+  </p>
 {% endblock %}
