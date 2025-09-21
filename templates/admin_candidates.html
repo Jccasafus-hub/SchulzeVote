@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Admin · Candidatos & Prazos</title>
+  <title>Admin · Candidatos & Prazo</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="manifest" href="/manifest_admin.json">
   <meta name="theme-color" content="#000000">
@@ -18,13 +18,12 @@
       background:#0f0f10;color:#e6e6e6;border:1px solid #2a2a2e;border-radius:10px;
       padding:10px 12px;box-shadow:inset 0 0 0 9999px rgba(255,255,255,0.02)
     }
-    textarea{width:100%;min-height:180px}
-    .muted{color:#a0a0a6}
-    .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+    textarea{width:100%;min-height:200px;resize:vertical}
     .btn{cursor:pointer}
     .btn.primary{background:#ff6a00;border-color:#ff6a00;color:#000;font-weight:600}
     .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
     .chip{background:#0f0f10;border:1px solid #2a2a2e;border-radius:20px;padding:6px 10px;font-size:12px}
+    .muted{color:#a0a0a6}
     code{background:#0f0f10;border:1px solid #2a2a2e;border-radius:8px;padding:2px 6px}
     .actions{display:flex;gap:8px;flex-wrap:wrap}
   </style>
@@ -33,7 +32,7 @@
 <body>
   <div class="top">
     <h1 style="margin:0">Candidatos &amp; Prazo</h1>
-    <div class="chip">EID: <b>{{ current_eid }}</b></div>
+    <div class="chip">EID atual: <b>{{ current_eid }}</b></div>
   </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -49,47 +48,49 @@
   {% endwith %}
 
   <div class="card">
-    <h3 style="margin-top:0">Candidatos</h3>
-    <p class="muted">Um por linha. Os itens “Voto em Branco” e “Voto Nulo” são adicionados automaticamente ao final.</p>
+    <h3 style="margin-top:0">Editar candidatos</h3>
+    <p class="muted" style="margin-top:-6px">Informe <b>um por linha</b>. “Voto em Branco” e “Voto Nulo” são adicionados automaticamente ao final.</p>
     <form method="POST" action="/admin/candidates_update?secret={{ request.args.get('secret','')|urlencode }}">
-      <label for="cands">Lista:</label>
-      <textarea id="cands" name="candidates" spellcheck="false">{% for c in candidates %}{% if "Branco" not in c and "Nulo" not in c %}{{ c }}{% if not loop.last %}\n{% endif %}{% endif %}{% endfor %}</textarea>
+      <label>Lista de candidatos
+        <textarea name="candidates" placeholder="Nome 1&#10;Nome 2&#10;Nome 3">{% for c in candidates_core %}{{ c }}{% if not loop.last %}&#10;{% endif %}{% endfor %}</textarea>
+      </label>
       <div class="actions" style="margin-top:10px">
         <button class="btn primary" type="submit">Salvar candidatos</button>
-        <a class="btn" href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}" style="text-decoration:none;padding:10px 12px;border:1px solid #2a2a2e;border-radius:10px">Voltar</a>
+        <a class="btn" style="text-decoration:none;padding:10px 12px;border:1px solid #2a2a2e;border-radius:10px" href="/admin/home?secret={{ request.args.get('secret','')|urlencode }}">Voltar</a>
       </div>
     </form>
   </div>
 
   <div class="card">
-    <h3 style="margin-top:0">Prazo de votação</h3>
+    <h3 style="margin-top:0">Definir prazo de votação</h3>
     {% if deadline %}
-      <p>UTC atual: <code>{{ deadline.isoformat() }}</code></p>
+      <p class="muted">Prazo atual (UTC): <code>{{ deadline.isoformat() }}</code></p>
     {% else %}
       <p class="muted">Sem prazo definido (votação aberta até definir).</p>
     {% endif %}
-
     <form method="POST" action="/admin/deadline_update?secret={{ request.args.get('secret','')|urlencode }}">
-      <div class="grid-2">
-        <div>
-          <label for="date_local">Data (local)</label>
-          <input id="date_local" name="date_local" type="date" required>
-        </div>
-        <div>
-          <label for="time_local">Hora (local)</label>
-          <input id="time_local" name="time_local" type="time" required>
-        </div>
-        <div>
-          <label for="tz_offset">Fuso local (ex: -03:00, +00:00)</label>
-          <input id="tz_offset" name="tz_offset" placeholder="+00:00" value="+00:00">
-        </div>
+      <div class="row">
+        <label style="flex:1 1 180px">
+          Data (YYYY-MM-DD)
+          <input name="date" placeholder="YYYY-MM-DD">
+        </label>
+        <label style="flex:1 1 140px">
+          Hora (HH:MM)
+          <input name="time" placeholder="HH:MM">
+        </label>
+        <label style="flex:1 1 240px">
+          Fuso horário (IANA)
+          <input name="tz" value="America/Sao_Paulo" placeholder="America/Sao_Paulo">
+        </label>
       </div>
+      <p class="muted" style="margin:6px 0 0">
+        A data/hora será convertida do fuso informado para UTC e salva como ISO 8601.
+      </p>
       <div class="actions" style="margin-top:10px">
         <button class="btn primary" type="submit" name="mode" value="save">Salvar prazo</button>
         <button class="btn" type="submit" name="mode" value="clear">Remover prazo</button>
       </div>
     </form>
-    <p class="muted" style="margin-top:10px">O prazo é salvo em UTC. Se não souber o fuso, use <code>+00:00</code>.</p>
   </div>
 
   <p style="margin-top:16px">
