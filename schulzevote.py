@@ -17,6 +17,11 @@ from flask import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
+try:
+    from zoneinfo import ZoneInfo  # Python 3.9+
+except Exception:  # pragma: no cover
+    ZoneInfo = None
+
 # ===================== App & Config =====================
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "mude-isto")
@@ -879,11 +884,13 @@ def admin_logout():
 @app.route("/admin/candidates")
 def admin_candidates():
     if not require_admin(request): abort(403)
+    full = load_candidates()
+    core = [c for c in full if c not in (RESERVED_BLANK, RESERVED_NULL)]
     return render_template(
         "admin_candidates.html",
         secret=request.args.get("secret", ""),
         current_eid=get_current_election_id(),
-        candidates=load_candidates(),
+        candidates_core=core,
         deadline=load_deadline()
     )
 
@@ -1404,6 +1411,64 @@ def manifest_admin():
         ]
     }
     return Response(json.dumps(data, ensure_ascii=False), mimetype="application/manifest+json")
+
+# ===================== Admin: Editar Candidatos & Prazo =====================
+@app.route("/admin/candidates_update", methods=["POST"])
+def admin_candidates_update():
+    if not require_admin(request): abort(403)
+
+    raw = request.form.get("candidates", "")
+    # Uma por linha; remove vazios e espaços extras
+    lines = [x.strip() for x in raw.splitlines()]
+    # O save_candidates grava somente o "core"; Branco/Nulo são reanexados em load_candidates()
+    save_candidates(lines)
+
+    eid = get_current_election_id()
+    audit_admin(eid, "UPDATE_CANDIDATES", f"count={len([x for x in lines if x])}", request.remote_addr or "-")
+    flash("Candidatos atualizados.", "success")
+    return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
+
+
+@app.route("/admin/deadline_update", methods=["POST"])
+def admin_deadline_update():
+    if not require_admin(request): abort(403)
+
+    mode = (request.form.get("mode") or "save").strip()
+    if mode == "clear":
+        save_deadline(None)
+        eid = get_current_election_id()
+        audit_admin(eid, "UPDATE_DEADLINE", "cleared", request.remote_addr or "-")
+        flash("Prazo removido (sem limite).", "success")
+        return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
+
+    date_s = (request.form.get("date") or "").strip()   # YYYY-MM-DD
+    time_s = (request.form.get("time") or "").strip()   # HH:MM
+    tz_s   = (request.form.get("tz")   or "America/Sao_Paulo").strip()
+
+    if not date_s or not time_s:
+        flash("Informe data e hora.", "error")
+        return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
+
+    # Monta datetime local => converte para UTC e salva em ISO
+    try:
+        base = datetime.fromisoformat(f"{date_s}T{time_s}:00")
+        if ZoneInfo:
+            local_dt = base.replace(tzinfo=ZoneInfo(tz_s))
+            dt_utc = local_dt.astimezone(timezone.utc)
+        else:
+            # Fallback: assume já em UTC caso ZoneInfo indisponível
+            dt_utc = base.replace(tzinfo=timezone.utc)
+        save_deadline(dt_utc)
+    except Exception as e:
+        flash(f"Não foi possível interpretar o prazo: {e}", "error")
+        return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
+
+    eid = get_current_election_id()
+    audit_admin(eid, "UPDATE_DEADLINE",
+                f"date={date_s} time={time_s} tz={tz_s} => utc={dt_utc.isoformat()}",
+                request.remote_addr or "-")
+    flash("Prazo atualizado.", "success")
+    return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
 
 # ===================== Main (debug local) =====================
 if __name__ == "__main__":
