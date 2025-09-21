@@ -1,15 +1,41 @@
-<head>
-  <meta charset="utf-8">
-  <title>Painel do Administrador</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+{% extends "base_admin.html" %}
+{% block title %}Admin · SchulzeVote{% endblock %}
+{% block content %}
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+    <h1 style="margin:0">Admin · SchulzeVote</h1>
+    <div class="small">
+      {% if secret %}
+        <span class="tag">secret passado ✔</span>
+      {% else %}
+        <span class="tag">sem secret na URL</span>
+      {% endif %}
+    </div>
+  </div>
 
-  <link rel="manifest" href="/static/manifest.webmanifest?v={{ APP_VERSION }}">
-  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
-  <meta name="theme-color" content="#0d0f12">
-  <meta name="color-scheme" content="dark light">
+  <p class="muted">Você está no painel. Os links já incluem <code>?secret=...</code> quando necessário.</p>
 
-  <!-- Ícones específicos do Admin -->
-  <link rel="icon" href="/static/icons/admin-192.png" sizes="192x192">
-  <link rel="apple-touch-icon" href="/static/icons/admin-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-</head>
+  <div class="grid autofit-240">
+    <a class="card" href="/admin/candidates?secret={{ secret|urlencode }}">Candidatos &amp; Prazos</a>
+    <a class="card" href="/admin/election_meta?secret={{ secret|urlencode }}">Metadados da votação</a>
+    <a class="card" href="/admin/assign_ui?secret={{ secret|urlencode }}">Atribuir chaves</a>
+    <a class="card" href="/admin/audit_preview?secret={{ secret|urlencode }}">Prévia de auditoria</a>
+
+    <a class="card" href="/admin/keys_list?secret={{ secret|urlencode }}">Exportar keys (JSON)</a>
+    <a class="card" href="/admin/pool_list?secret={{ secret|urlencode }}">Pool de chaves (JSON)</a>
+    <a class="card" href="/admin/users_list?secret={{ secret|urlencode }}">Usuários (JSON)</a>
+    <a class="card" href="/admin/trash_list?secret={{ secret|urlencode }}">Lixeira (JSON)</a>
+
+    <a class="card" href="/admin/export_audit_bundle?secret={{ secret|urlencode }}">Baixar Pacote de Auditoria (ZIP)</a>
+    <a class="card" href="/admin/backup_zip?secret={{ secret|urlencode }}">Backup Completo (ZIP)</a>
+    <a class="card" href="/admin/backup_zip_eid?eid={{ current_eid }}&secret={{ secret|urlencode }}">Backup por EID (ZIP)</a>
+  </div>
+
+  <div data-install-host style="margin-top:12px"></div>
+
+  <p class="small" style="margin-top:16px">
+    <a href="/admin/logout?secret={{ secret|urlencode }}">Sair</a> •
+    <a href="/">Início</a> •
+    <a href="/__routes">Rotas</a> •
+    <a href="/__health">Health</a>
+  </p>
+{% endblock %}
