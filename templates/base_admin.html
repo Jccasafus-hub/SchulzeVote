@@ -7,6 +7,8 @@
   <link rel="manifest" href="/manifest_admin.json">
   <meta name="theme-color" content="#000000">
   <link rel="apple-touch-icon" href="/static/admin_icon_180.png">
+  <link rel="icon" sizes="192x192" href="/static/admin_icon_192.png">
+  <link rel="icon" sizes="512x512" href="/static/admin_icon_512.png">
   <style>
     :root { color-scheme: dark light; }
     html,body { background:#0b0b0c; color:#e6e6e6; margin:0; padding:0; }
@@ -15,46 +17,22 @@
     a { color:#7cc7ff; text-decoration:none; }
     a:hover { text-decoration:underline; }
 
-    .card {
-      background:#151517;
-      border:1px solid #2a2a2e;
-      border-radius:12px;
-      padding:16px;
-      margin:14px 0;
-    }
+    .card { background:#151517; border:1px solid #2a2a2e; border-radius:12px; padding:16px; margin:14px 0; }
     .muted { color:#a0a0a6; }
-    .chip {
-      background:#0f0f10;
-      border:1px solid #2a2a2e;
-      border-radius:20px;
-      padding:6px 10px;
-      font-size:12px;
-    }
-    code {
-      background:#0f0f10;
-      border:1px solid #2a2a2e;
-      border-radius:8px;
-      padding:2px 6px;
-    }
+    .chip { background:#0f0f10; border:1px solid #2a2a2e; border-radius:20px; padding:6px 10px; font-size:12px; }
+    code { background:#0f0f10; border:1px solid #2a2a2e; border-radius:8px; padding:2px 6px; }
 
     input,textarea,button,select {
-      background:#0f0f10;
-      color:#e6e6e6;
-      border:1px solid #2a2a2e;
-      border-radius:10px;
-      padding:10px 12px;
+      background:#0f0f10; color:#e6e6e6; border:1px solid #2a2a2e; border-radius:10px; padding:10px 12px;
     }
-    button {
-      cursor:pointer;
-      background:#ff6a00;
-      border-color:#ff6a00;
-      color:#000;
-      font-weight:600;
-    }
+    button { cursor:pointer; background:#ff6a00; border-color:#ff6a00; color:#000; font-weight:600; }
 
     table { border-collapse:collapse; margin:10px 0; width:100%; }
     th,td { border:1px solid #2a2a2e; padding:6px 8px; text-align:left; }
 
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+    .card-link{display:block;border:1px solid #2a2a2e;border-radius:10px;padding:14px;text-decoration:none;color:#e6e6e6;background:#151517}
+    .card-link:hover{background:#1a1a1d}
     .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
     .top { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
   </style>
