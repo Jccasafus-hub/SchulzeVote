@@ -1,53 +1,15 @@
-<!doctype html>
-<html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <title>Painel do Administrador</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    body{font-family:system-ui,Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 16px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
-    a.card{display:block;border:1px solid #ddd;border-radius:10px;padding:14px;text-decoration:none;color:#111}
-    a.card:hover{background:#fafafa}
-    code{background:#f5f5f5;padding:2px 6px;border-radius:6px}
-    .top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-  </style>
+
+  <link rel="manifest" href="/static/manifest.webmanifest?v={{ APP_VERSION }}">
+  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
+  <meta name="theme-color" content="#0d0f12">
+  <meta name="color-scheme" content="dark light">
+
+  <!-- Ícones específicos do Admin -->
+  <link rel="icon" href="/static/icons/admin-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/static/icons/admin-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
-<body>
-  <div class="top">
-    <h1 style="margin:0">Admin · SchulzeVote</h1>
-    <div>
-      {% if secret %}
-        <small>secret passado ✔</small>
-      {% else %}
-        <small style="color:#b00">sem secret na URL</small>
-      {% endif %}
-    </div>
-  </div>
-
-  <p>Você está no painel. Se algum link pedir acesso, o <code>?secret=...</code> já está incluído.</p>
-
-  <div class="grid">
-    <a class="card" href="/admin/candidates?secret={{ secret|urlencode }}">Candidatos &amp; Prazos</a>
-    <a class="card" href="/admin/election_meta?secret={{ secret|urlencode }}">Metadados da votação</a>
-    <a class="card" href="/admin/assign_ui?secret={{ secret|urlencode }}">Atribuir chaves</a>
-    <a class="card" href="/admin/audit_preview?secret={{ secret|urlencode }}">Prévia de auditoria</a>
-
-    <a class="card" href="/admin/keys_list?secret={{ secret|urlencode }}">Exportar keys (JSON)</a>
-    <a class="card" href="/admin/pool_list?secret={{ secret|urlencode }}">Pool de chaves (JSON)</a>
-    <a class="card" href="/admin/users_list?secret={{ secret|urlencode }}">Usuários (JSON)</a>
-    <a class="card" href="/admin/trash_list?secret={{ secret|urlencode }}">Lixeira (JSON)</a>
-
-    <a class="card" href="/admin/export_audit_bundle?secret={{ secret|urlencode }}">Baixar Pacote de Auditoria (ZIP)</a>
-    <a class="card" href="/admin/backup_zip?secret={{ secret|urlencode }}">Backup Completo (ZIP)</a>
-    <a class="card" href="/admin/backup_zip_eid?eid={{ current_eid }}&secret={{ secret|urlencode }}">Backup por EID (ZIP)</a>
-  </div>
-
-  <p style="margin-top:16px">
-    <a href="/admin/logout?secret={{ secret|urlencode }}">Sair</a> •
-    <a href="/">Início</a> •
-    <a href="/__routes">Rotas</a> •
-    <a href="/__health">Health</a>
-  </p>
-</body>
-</html>
