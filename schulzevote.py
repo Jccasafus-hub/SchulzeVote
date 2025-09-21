@@ -8,7 +8,7 @@ import string
 import hashlib
 import zipfile
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Tuple
 
 from flask import (
@@ -72,6 +72,41 @@ def _read_json(path, default):
 def _write_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+def _parse_tz_offset_to_minutes(tz_str: str) -> int:
+    """
+    Converte strings como '+00:00', '-03:00', '+0000', '-0300' em minutos de offset.
+    Retorna 0 se vazio/invalid.
+    """
+    s = (tz_str or "").strip()
+    if not s:
+        return 0
+    try:
+        sign = -1 if s.startswith("-") else 1
+        s = s.replace("+", "").replace("-", "")
+        if ":" in s:
+            hh, mm = s.split(":", 1)
+        else:
+            hh, mm = s[:2], s[2:4] if len(s) >= 4 else "00"
+        return sign * (int(hh) * 60 + int(mm))
+    except Exception:
+        return 0
+
+def _to_utc_iso_from_local(date_local: str, time_local: str, tz_offset_str: str) -> str:
+    """
+    Recebe data 'YYYY-MM-DD', hora 'HH:MM' (ambas sem timezone) e offset '+HH:MM'/'-HH:MM'.
+    Retorna ISO UTC com sufixo 'Z'.
+    """
+    date_local = (date_local or "").strip()
+    time_local = (time_local or "").strip()
+    if not date_local or not time_local:
+        return None
+    # monta datetime naive
+    dt = datetime.fromisoformat(f"{date_local}T{time_local}")
+    # aplica offset (local -> UTC): UTC = local - offset
+    off_min = _parse_tz_offset_to_minutes(tz_offset_str)
+    dt_utc = dt - timedelta(minutes=off_min)
+    return dt_utc.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
 
 # ===================== Persistência de Domínio =====================
 def _ensure_keys_doc():
@@ -880,6 +915,46 @@ def admin_audit_preview():
         current_eid=get_current_election_id()
     )
 
+# ===================== Admin: Atualização de Candidatos & Prazo =====================
+@app.route("/admin/candidates_update", methods=["POST"])
+def admin_candidates_update():
+    if not require_admin(request): abort(403)
+    raw = request.form.get("candidates", "")
+    lines = [ln.strip() for ln in raw.splitlines()]
+    save_candidates(lines)
+    eid = get_current_election_id()
+    audit_admin(eid, "UPDATE_CANDIDATES", f"count={len(lines)}", request.remote_addr or "-")
+    flash("Candidatos atualizados.", "success")
+    return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
+
+@app.route("/admin/deadline_update", methods=["POST"])
+def admin_deadline_update():
+    if not require_admin(request): abort(403)
+    mode = (request.form.get("mode") or "save").strip()
+    if mode == "clear":
+        save_deadline(None)
+        eid = get_current_election_id()
+        audit_admin(eid, "UPDATE_DEADLINE", "cleared", request.remote_addr or "-")
+        flash("Prazo removido.", "success")
+        return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
+
+    date_local = request.form.get("date_local", "")
+    time_local = request.form.get("time_local", "")
+    tz_off     = request.form.get("tz_offset", "+00:00")
+    iso_utc = _to_utc_iso_from_local(date_local, time_local, tz_off)
+    if not iso_utc:
+        flash("Data/hora inválidas.", "error")
+        return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
+    # persiste
+    try:
+        dt_utc = datetime.fromisoformat(iso_utc.replace("Z", "+00:00"))
+        save_deadline(dt_utc)
+        eid = get_current_election_id()
+        audit_admin(eid, "UPDATE_DEADLINE", f"utc={iso_utc}", request.remote_addr or "-")
+        flash("Prazo atualizado.", "success")
+    except Exception as e:
+        flash(f"Falha ao salvar prazo: {e}", "error")
+    return redirect(url_for("admin_candidates", secret=request.args.get("secret", "")))
 
 # ===================== Admin: JSON dumps =====================
 @app.route("/admin/keys_list")
