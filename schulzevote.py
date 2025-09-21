@@ -1244,6 +1244,41 @@ def admin_ping():
 def healthz():
     return Response('{"ok":true}', mimetype="application/json")
 
+# ===================== PWA Manifests =====================
+@app.route("/manifest.json")
+def manifest_public():
+    data = {
+        "name": "SchulzeVote",
+        "short_name": "SchulzeVote",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#000000",
+        "theme_color": "#000000",
+        "icons": [
+            {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
+            {"src": "/static/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+        ]
+    }
+    return Response(json.dumps(data, ensure_ascii=False), mimetype="application/manifest+json")
+
+@app.route("/manifest_admin.json")
+def manifest_admin():
+    data = {
+        "name": "SchulzeVote Admin",
+        "short_name": "SV Admin",
+        "start_url": "/admin/home",
+        "scope": "/admin/",
+        "display": "standalone",
+        "background_color": "#000000",
+        "theme_color": "#000000",
+        "icons": [
+            {"src": "/static/admin_icon_192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/admin_icon_512.png", "sizes": "512x512", "type": "image/png"},
+            {"src": "/static/admin_icon_maskable_512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+        ]
+    }
+    return Response(json.dumps(data, ensure_ascii=False), mimetype="application/manifest+json")
 
 # ===================== Main (debug local) =====================
 if __name__ == "__main__":
