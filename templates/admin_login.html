@@ -1,15 +1,17 @@
-<head>
-  <meta charset="utf-8">
-  <title>Login do Administrador</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-
-  <link rel="manifest" href="/static/manifest.webmanifest?v={{ APP_VERSION }}">
-  <link rel="stylesheet" href="/static/app.css?v={{ APP_VERSION }}">
-  <meta name="theme-color" content="#0d0f12">
-  <meta name="color-scheme" content="dark light">
-
-  <!-- Ícones específicos do Admin -->
-  <link rel="icon" href="/static/icons/admin-192.png" sizes="192x192">
-  <link rel="apple-touch-icon" href="/static/icons/admin-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-</head>
+{% extends "base_admin.html" %}
+{% block title %}Login · Admin{% endblock %}
+{% block content %}
+  <h1>Login · Admin</h1>
+  <div class="card">
+    <form method="POST" action="/admin/login">
+      <p><label>Chave de administrador<br>
+        <input type="password" name="secret" placeholder="ADMIN_SECRET" required>
+      </label></p>
+      <button type="submit">Entrar</button>
+    </form>
+    <p class="small muted" style="margin-top:8px">
+      Dica: acesso direto — <code>/admin/home?secret=&lt;ADMIN_SECRET&gt;</code>
+    </p>
+  </div>
+  <p class="small" style="margin-top:12px"><a href="/">Voltar ao início</a></p>
+{% endblock %}
