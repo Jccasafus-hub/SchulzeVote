@@ -1,26 +1,66 @@
 {% extends "base.html" %}
+{% block title %}Cadastro · SchulzeVote{% endblock %}
 {% block content %}
-  <h1>Cadastro</h1>
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="card">
-        <ul style="margin:0 0 0 18px">
-          {% for cat,msg in messages %}
-            <li><b>{{ cat }}</b>: {{ msg }}</li>
-          {% endfor %}
-        </ul>
+<div class="top">
+  <h1 style="margin:0">Cadastro</h1>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="card" role="status" aria-live="polite">
+      <ul style="margin:0 0 0 18px">
+        {% for cat,msg in messages %}
+          <li><b>{{ cat }}</b>: {{ msg }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% endwith %}
+
+<div class="card">
+  <form method="POST" action="/register" autocomplete="on">
+    <label for="user_id">Usuário</label>
+    <input id="user_id" name="user_id" required autocomplete="username">
+
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:1 1 240px">
+        <label for="password">Senha</label>
+        <input id="password" type="password" name="password" required autocomplete="new-password">
       </div>
-    {% endif %}
-  {% endwith %}
-  <div class="card">
-    <form method="POST">
-      <p><label>Usuário: <input name="user_id" required></label></p>
-      <p><label>Senha: <input type="password" name="password" required></label></p>
-      <p><label>Repita a senha: <input type="password" name="password2" required></label></p>
-      <div class="actions">
-        <button>Cadastrar</button>
-        <a class="muted" href="/">Início</a>
+      <div style="flex:1 1 240px">
+        <label for="password2">Repita a senha</label>
+        <input id="password2" type="password" name="password2" required autocomplete="new-password">
       </div>
-    </form>
-  </div>
+      <div>
+        <!-- Um único botão que alterna as duas senhas, como solicitado -->
+        <button class="btn" type="button" id="togglePwBothBtn"
+                aria-controls="password password2" aria-pressed="false">👁️ ver senhas</button>
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" type="submit">Cadastrar</button>
+      <a class="btn" href="/login" style="text-decoration:none">Já tenho conta</a>
+    </div>
+  </form>
+</div>
+
+<script>
+  (function(){
+    const p1 = document.getElementById('password');
+    const p2 = document.getElementById('password2');
+    const btn = document.getElementById('togglePwBothBtn');
+    function setType(el, type){ if (el) el.type = type; }
+    if (btn && (p1 || p2)) {
+      btn.addEventListener('click', function(){
+        const anyVisible = (p1 && p1.type === 'text') || (p2 && p2.type === 'text');
+        const nextType = anyVisible ? 'password' : 'text';
+        setType(p1, nextType);
+        setType(p2, nextType);
+        btn.setAttribute('aria-pressed', String(!anyVisible));
+        btn.textContent = anyVisible ? '👁️ ver senhas' : '🙈 ocultar senhas';
+      });
+    }
+  })();
+</script>
 {% endblock %}
