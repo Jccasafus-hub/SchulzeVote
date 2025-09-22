@@ -28,7 +28,8 @@
         <input id="password" type="password" name="password" required autocomplete="current-password">
       </div>
       <div>
-        <button class="btn" type="button" id="togglePwBtn" aria-controls="password" aria-pressed="false">👁️ ver senha</button>
+        <button class="btn" type="button" id="togglePwBtn"
+                aria-controls="password" aria-pressed="false">Mostrar senha</button>
       </div>
     </div>
 
@@ -48,7 +49,7 @@
         const vis = pw.type === 'text';
         pw.type = vis ? 'password' : 'text';
         btn.setAttribute('aria-pressed', String(!vis));
-        btn.textContent = vis ? '👁️ ver senha' : '🙈 ocultar senha';
+        btn.textContent = vis ? 'Mostrar senha' : 'Ocultar senha';
       });
     }
   })();
