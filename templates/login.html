@@ -22,18 +22,13 @@
     <label for="user_id">Usuário</label>
     <input id="user_id" name="user_id" required autocomplete="username">
 
-    <div class="row" style="align-items:flex-end">
-      <div style="flex:1 1 240px">
-        <label for="password">Senha</label>
-        <input id="password" type="password" name="password" required autocomplete="current-password">
-      </div>
-      <div>
-        <button class="btn" type="button" id="togglePwBtn"
-                aria-controls="password" aria-pressed="false">Mostrar senha</button>
-      </div>
-    </div>
+    <label for="password" style="margin-top:12px">Senha</label>
+    <input id="password" type="password" name="password" required autocomplete="current-password">
+    <button class="btn" type="button" id="togglePwBtn"
+            aria-controls="password" aria-pressed="false"
+            style="margin-top:6px">Mostrar senha</button>
 
-    <div class="actions" style="margin-top:12px">
+    <div class="actions" style="margin-top:16px">
       <button class="btn primary" type="submit">Entrar</button>
       <a class="btn" href="/register" style="text-decoration:none">Criar cadastro</a>
     </div>
