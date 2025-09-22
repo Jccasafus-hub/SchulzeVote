@@ -1,6 +1,9 @@
 {% extends "base.html" %}
+{% block title %}Login · SchulzeVote{% endblock %}
+
 {% block content %}
-  <h1>Login</h1>
+  <h1 style="margin-top:0">Login</h1>
+
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       <div class="card">
@@ -12,14 +15,28 @@
       </div>
     {% endif %}
   {% endwith %}
+
   <div class="card">
-    <form method="POST">
-      <p><label>Usuário: <input name="user_id" required></label></p>
-      <p><label>Senha: <input type="password" name="password" required></label></p>
-      <div class="actions">
-        <button>Entrar</button>
-        <a class="muted" href="/">Início</a>
+    <form method="POST" action="/login">
+      <p>
+        <label>Usuário<br>
+          <input name="user_id" required autocomplete="username">
+        </label>
+      </p>
+      <p>
+        <label>Senha<br>
+          <input type="password" name="password" required autocomplete="current-password">
+        </label>
+      </p>
+
+      <div class="actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn primary" type="submit">Entrar</button>
+        <a class="btn" href="/register" style="text-decoration:none">Criar cadastro</a>
       </div>
     </form>
   </div>
+
+  <p class="muted" style="margin-top:14px">
+    Dica: depois de criar o cadastro e fazer login, você precisará inserir sua <b>chave de votação</b> em <a href="/vote">/vote</a>.
+  </p>
 {% endblock %}
