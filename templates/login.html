@@ -1,42 +1,56 @@
 {% extends "base.html" %}
 {% block title %}Login · SchulzeVote{% endblock %}
-
 {% block content %}
-  <h1 style="margin-top:0">Login</h1>
+<div class="top">
+  <h1 style="margin:0">Login</h1>
+</div>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="card">
-        <ul style="margin:0 0 0 18px">
-          {% for cat,msg in messages %}
-            <li><b>{{ cat }}</b>: {{ msg }}</li>
-          {% endfor %}
-        </ul>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="card" role="status" aria-live="polite">
+      <ul style="margin:0 0 0 18px">
+        {% for cat,msg in messages %}
+          <li><b>{{ cat }}</b>: {{ msg }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% endwith %}
+
+<div class="card">
+  <form method="POST" action="/login" autocomplete="on">
+    <label for="user_id">Usuário</label>
+    <input id="user_id" name="user_id" required autocomplete="username">
+
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:1 1 240px">
+        <label for="password">Senha</label>
+        <input id="password" type="password" name="password" required autocomplete="current-password">
       </div>
-    {% endif %}
-  {% endwith %}
-
-  <div class="card">
-    <form method="POST" action="/login">
-      <p>
-        <label>Usuário<br>
-          <input name="user_id" required autocomplete="username">
-        </label>
-      </p>
-      <p>
-        <label>Senha<br>
-          <input type="password" name="password" required autocomplete="current-password">
-        </label>
-      </p>
-
-      <div class="actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
-        <button class="btn primary" type="submit">Entrar</button>
-        <a class="btn" href="/register" style="text-decoration:none">Criar cadastro</a>
+      <div>
+        <button class="btn" type="button" id="togglePwBtn" aria-controls="password" aria-pressed="false">👁️ ver senha</button>
       </div>
-    </form>
-  </div>
+    </div>
 
-  <p class="muted" style="margin-top:14px">
-    Dica: depois de criar o cadastro e fazer login, você precisará inserir sua <b>chave de votação</b> em <a href="/vote">/vote</a>.
-  </p>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" type="submit">Entrar</button>
+      <a class="btn" href="/register" style="text-decoration:none">Criar cadastro</a>
+    </div>
+  </form>
+</div>
+
+<script>
+  (function(){
+    const pw = document.getElementById('password');
+    const btn = document.getElementById('togglePwBtn');
+    if (pw && btn) {
+      btn.addEventListener('click', function(){
+        const vis = pw.type === 'text';
+        pw.type = vis ? 'password' : 'text';
+        btn.setAttribute('aria-pressed', String(!vis));
+        btn.textContent = vis ? '👁️ ver senha' : '🙈 ocultar senha';
+      });
+    }
+  })();
+</script>
 {% endblock %}
