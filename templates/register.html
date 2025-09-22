@@ -32,9 +32,8 @@
         <input id="password2" type="password" name="password2" required autocomplete="new-password">
       </div>
       <div>
-        <!-- Um único botão que alterna as duas senhas, como solicitado -->
         <button class="btn" type="button" id="togglePwBothBtn"
-                aria-controls="password password2" aria-pressed="false">👁️ ver senhas</button>
+                aria-controls="password password2" aria-pressed="false">Mostrar senhas</button>
       </div>
     </div>
 
@@ -58,7 +57,7 @@
         setType(p1, nextType);
         setType(p2, nextType);
         btn.setAttribute('aria-pressed', String(!anyVisible));
-        btn.textContent = anyVisible ? '👁️ ver senhas' : '🙈 ocultar senhas';
+        btn.textContent = anyVisible ? 'Mostrar senhas' : 'Ocultar senhas';
       });
     }
   })();
