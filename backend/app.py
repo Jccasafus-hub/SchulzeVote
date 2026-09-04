@@ -1,12 +1,12 @@
 from flask import Flask, jsonify
-from pathlib import Path
-import json
+import os
+import psycopg
 
 app = Flask(__name__)
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-ELECTION_FILE = ROOT_DIR / "election.json"
-BALLOT_DIR = ROOT_DIR / "data" / "ballots"
+
+def get_db_connection():
+    return psycopg.connect(os.environ["DATABASE_URL"])
 
 
 @app.route("/api/status")
@@ -19,38 +19,36 @@ def status():
 
 @app.route("/api/elections")
 def elections():
-    election_ids = set()
-    metadata = {}
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    id,
+                    title,
+                    description,
+                    status,
+                    starts_at,
+                    ends_at,
+                    timezone,
+                    created_at
+                FROM elections
+                ORDER BY created_at DESC
+            """)
 
-    if ELECTION_FILE.exists():
-        try:
-            data = json.loads(ELECTION_FILE.read_text(encoding="utf-8"))
-
-            if isinstance(data, dict):
-                metadata = data
-                election_ids.update(data.keys())
-        except (json.JSONDecodeError, OSError):
-            pass
-
-    if BALLOT_DIR.exists():
-        for ballot_file in BALLOT_DIR.glob("*.json"):
-            election_ids.add(ballot_file.stem)
+            rows = cur.fetchall()
 
     result = []
 
-    for eid in sorted(election_ids):
-        info = metadata.get(eid, {})
-
-        if not isinstance(info, dict):
-            info = {}
-
+    for row in rows:
         result.append({
-            "eid": eid,
-            "title": info.get("title", eid),
-            "date": info.get("date"),
-            "time": info.get("time"),
-            "tz": info.get("tz"),
-            "category": info.get("category")
+            "id": str(row[0]),
+            "title": row[1],
+            "description": row[2],
+            "status": row[3],
+            "starts_at": row[4].isoformat() if row[4] else None,
+            "ends_at": row[5].isoformat() if row[5] else None,
+            "timezone": row[6],
+            "created_at": row[7].isoformat() if row[7] else None
         })
 
     return jsonify({
@@ -58,37 +56,40 @@ def elections():
     })
 
 
-@app.route("/api/elections/<eid>")
-def election_detail(eid):
-    if not ELECTION_FILE.exists():
+@app.route("/api/elections/<election_id>")
+def election_detail(election_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    id,
+                    title,
+                    description,
+                    status,
+                    starts_at,
+                    ends_at,
+                    timezone,
+                    created_at
+                FROM elections
+                WHERE id = %s
+            """, (election_id,))
+
+            row = cur.fetchone()
+
+    if row is None:
         return jsonify({
             "error": "Election not found"
         }), 404
-
-    try:
-        data = json.loads(ELECTION_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return jsonify({
-            "error": "Could not read election data"
-        }), 500
-
-    if not isinstance(data, dict) or eid not in data:
-        return jsonify({
-            "error": "Election not found"
-        }), 404
-
-    info = data[eid]
-
-    if not isinstance(info, dict):
-        info = {}
 
     return jsonify({
-        "eid": eid,
-        "title": info.get("title", eid),
-        "date": info.get("date"),
-        "time": info.get("time"),
-        "tz": info.get("tz"),
-        "category": info.get("category")
+        "id": str(row[0]),
+        "title": row[1],
+        "description": row[2],
+        "status": row[3],
+        "starts_at": row[4].isoformat() if row[4] else None,
+        "ends_at": row[5].isoformat() if row[5] else None,
+        "timezone": row[6],
+        "created_at": row[7].isoformat() if row[7] else None
     })
 
 
