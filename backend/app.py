@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import os
 import psycopg
 
@@ -17,43 +17,95 @@ def status():
     })
 
 
-@app.route("/api/elections")
+@app.route("/api/elections", methods=["GET", "POST"])
 def elections():
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT
-                    id,
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+
+        title = (data.get("title") or "").strip()
+        description = (data.get("description") or "").strip()
+        timezone = (data.get("timezone") or "America/Sao_Paulo").strip()
+
+        if not title:
+            return jsonify({
+                "error": "Title is required"
+            }), 400
+
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO elections (
+                        title,
+                        description,
+                        status,
+                        timezone
+                    )
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING
+                        id,
+                        title,
+                        description,
+                        status,
+                        starts_at,
+                        ends_at,
+                        timezone,
+                        created_at
+                """, (
                     title,
-                    description,
-                    status,
-                    starts_at,
-                    ends_at,
-                    timezone,
-                    created_at
-                FROM elections
-                ORDER BY created_at DESC
-            """)
+                    description or None,
+                    "draft",
+                    timezone
+                ))
 
-            rows = cur.fetchall()
+                row = cur.fetchone()
 
-    result = []
+    else:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        id,
+                        title,
+                        description,
+                        status,
+                        starts_at,
+                        ends_at,
+                        timezone,
+                        created_at
+                    FROM elections
+                    ORDER BY created_at DESC
+                """)
 
-    for row in rows:
-        result.append({
-            "id": str(row[0]),
-            "title": row[1],
-            "description": row[2],
-            "status": row[3],
-            "starts_at": row[4].isoformat() if row[4] else None,
-            "ends_at": row[5].isoformat() if row[5] else None,
-            "timezone": row[6],
-            "created_at": row[7].isoformat() if row[7] else None
+                rows = cur.fetchall()
+
+        result = []
+
+        for row in rows:
+            result.append({
+                "id": str(row[0]),
+                "title": row[1],
+                "description": row[2],
+                "status": row[3],
+                "starts_at": row[4].isoformat() if row[4] else None,
+                "ends_at": row[5].isoformat() if row[5] else None,
+                "timezone": row[6],
+                "created_at": row[7].isoformat() if row[7] else None
+            })
+
+        return jsonify({
+            "elections": result
         })
 
     return jsonify({
-        "elections": result
-    })
+        "id": str(row[0]),
+        "title": row[1],
+        "description": row[2],
+        "status": row[3],
+        "starts_at": row[4].isoformat() if row[4] else None,
+        "ends_at": row[5].isoformat() if row[5] else None,
+        "timezone": row[6],
+        "created_at": row[7].isoformat() if row[7] else None
+    }), 201
 
 
 @app.route("/api/elections/<election_id>")
