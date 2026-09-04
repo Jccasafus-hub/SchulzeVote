@@ -58,5 +58,39 @@ def elections():
     })
 
 
+@app.route("/api/elections/<eid>")
+def election_detail(eid):
+    if not ELECTION_FILE.exists():
+        return jsonify({
+            "error": "Election not found"
+        }), 404
+
+    try:
+        data = json.loads(ELECTION_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return jsonify({
+            "error": "Could not read election data"
+        }), 500
+
+    if not isinstance(data, dict) or eid not in data:
+        return jsonify({
+            "error": "Election not found"
+        }), 404
+
+    info = data[eid]
+
+    if not isinstance(info, dict):
+        info = {}
+
+    return jsonify({
+        "eid": eid,
+        "title": info.get("title", eid),
+        "date": info.get("date"),
+        "time": info.get("time"),
+        "tz": info.get("tz"),
+        "category": info.get("category")
+    })
+
+
 if __name__ == "__main__":
     app.run(debug=True)
